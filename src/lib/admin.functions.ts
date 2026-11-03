@@ -477,10 +477,11 @@ export const salvarAdmin = createServerFn({ method: "POST" })
       if (!permitido) throw new Error("Não foi possível salvar");
     }
     const historicoJson = JSON.stringify(historico);
-    const emManutencao = await sql<{ manutencao: boolean }>`
+    const emManutencao = await sql<{ manutencao: unknown }>`
       select manutencao from gestao_config where id = 'principal'
     `;
-    const lancadoNaManutencao = !existente.length && Boolean(emManutencao[0]?.manutencao);
+    const cru = emManutencao[0]?.manutencao;
+    const lancadoNaManutencao = !existente.length && (cru === true || cru === "t" || cru === "true" || cru === 1 || cru === "1");
     const salvos = existente.length
       ? await sql<{ id: string }>`
           update processos_admin set

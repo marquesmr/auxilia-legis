@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   alternarAbaGestao,
+  apagarAbaGestao,
   entrarGestao,
   moverAbaGestao,
   painelGestao,
@@ -236,6 +237,21 @@ function PainelVivo({
   const [guia, setGuia] = useState<"geral" | "usuarios" | "tipos" | "sistema">("geral");
   const [editandoAba, setEditandoAba] = useState<string | null>(null);
   const [nomeEdicao, setNomeEdicao] = useState("");
+  const [confirma, setConfirma] = useState<{ texto: string; agir: () => void } | null>(null);
+
+  function avisar(texto: string) {
+    setErro("");
+    setAviso(texto);
+  }
+
+  function falhar(texto: string) {
+    setAviso("");
+    setErro(texto);
+  }
+
+  function pedirConfirmacao(texto: string, agir: () => void) {
+    setConfirma({ texto, agir });
+  }
 
   useEffect(() => setEmail(painel.email), [painel.email]);
   useEffect(() => {
@@ -248,10 +264,10 @@ function PainelVivo({
     try {
       await salvarAbaGestao({ data: { token, area, nome: nomeAba } });
       setNomeAba("");
-      setAviso("Aba disponível no sistema.");
+      avisar("Aba disponível no sistema.");
       onMudou();
     } catch (err) {
-      setErro(err instanceof Error ? err.message : "Não foi possível criar a aba.");
+      falhar(err instanceof Error ? err.message : "Não foi possível criar a aba.");
     }
   }
 
@@ -259,7 +275,7 @@ function PainelVivo({
     evento.preventDefault();
     setErro("");
     if (senhaNova !== senhaDeNovo) {
-      setErro("A repetição da senha não confere.");
+      falhar("A repetição da senha não confere.");
       return;
     }
     try {
@@ -267,10 +283,10 @@ function PainelVivo({
       setSenhaAtual("");
       setSenhaNova("");
       setSenhaDeNovo("");
-      setAviso("Acesso atualizado. Da próxima vez, use estes dados.");
+      avisar("Acesso atualizado. Da próxima vez, use estes dados.");
       onMudou();
     } catch (err) {
-      setErro(err instanceof Error ? err.message : "Não foi possível trocar o acesso.");
+      falhar(err instanceof Error ? err.message : "Não foi possível trocar o acesso.");
     }
   }
 
@@ -304,7 +320,7 @@ function PainelVivo({
                   try {
                     await abrirSistemaGestao({ data: { token } });
                   } catch (err) {
-                    setErro(err instanceof Error ? err.message : "Não foi possível abrir o sistema.");
+                    falhar(err instanceof Error ? err.message : "Não foi possível abrir o sistema.");
                     return;
                   }
                 }
@@ -330,8 +346,47 @@ function PainelVivo({
           Este ainda é o acesso inicial. Troque o e-mail e a senha no fim da página.
         </p>
       )}
-      {aviso && <p className="mt-4 text-sm text-pine">{aviso}</p>}
-      {erro && <p className="mt-4 text-sm text-seal">{erro}</p>}
+
+      {(aviso || erro) && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 px-4" role="alertdialog">
+          <div className="w-full max-w-sm rounded-2xl border border-line bg-sheet p-5">
+            <p className={"text-sm leading-relaxed " + (erro ? "text-seal" : "text-ink")}>{erro || aviso}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setAviso("");
+                setErro("");
+              }}
+              className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet"
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
+      {confirma && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 px-4" role="alertdialog">
+          <div className="w-full max-w-sm rounded-2xl border border-line bg-sheet p-5">
+            <p className="text-sm leading-relaxed text-ink">{confirma.texto}</p>
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={() => setConfirma(null)} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const agir = confirma.agir;
+                  setConfirma(null);
+                  agir();
+                }}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-ink text-sm font-medium text-sheet"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-5 flex flex-wrap gap-2">
         {(
@@ -448,7 +503,7 @@ function PainelVivo({
       )}
 
       {guia === "usuarios" && (
-        <SecaoUsuarios token={token} painel={painel} onMudou={onMudou} onErro={setErro} onAviso={setAviso} />
+        <SecaoUsuarios token={token} painel={painel} onMudou={onMudou} onErro={falhar} onAviso={avisar} onConfirmar={pedirConfirmacao} />
       )}
 
       {guia === "tipos" && (
@@ -490,7 +545,7 @@ function PainelVivo({
                           setEditandoAba(null);
                           onMudou();
                         })
-                        .catch((err: unknown) => setErro(err instanceof Error ? err.message : "Não foi possível renomear."))
+                        .catch((err: unknown) => falhar(err instanceof Error ? err.message : "Não foi possível renomear."))
                     }
                     className="font-medium text-pine"
                   >
@@ -503,10 +558,28 @@ function PainelVivo({
                 {!aba.fixa && (
                   <button
                     type="button"
-                    onClick={() => void alternarAbaGestao({ data: { token, id: aba.id, ativa: !aba.ativa } }).then(onMudou).catch((err: unknown) => setErro(err instanceof Error ? err.message : "Não foi possível alterar a aba."))}
+                    onClick={() => void alternarAbaGestao({ data: { token, id: aba.id, ativa: !aba.ativa } }).then(onMudou).catch((err: unknown) => falhar(err instanceof Error ? err.message : "Não foi possível alterar a aba."))}
                     className="font-medium text-pine"
                   >
                     {aba.ativa ? "Arquivar" : "Reativar"}
+                  </button>
+                )}
+                {!aba.fixa && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      pedirConfirmacao(`Excluir o tipo ${aba.nome}?`, () => {
+                        void apagarAbaGestao({ data: { token, id: aba.id } })
+                          .then(() => {
+                            avisar("Tipo excluído.");
+                            onMudou();
+                          })
+                          .catch((err: unknown) => falhar(err instanceof Error ? err.message : "Não foi possível excluir o tipo."));
+                      })
+                    }
+                    className="font-medium text-seal"
+                  >
+                    Excluir
                   </button>
                 )}
               </span>
@@ -514,7 +587,7 @@ function PainelVivo({
           ))}
         </ul>
       </section>
-      <SecaoStatus token={token} status={painel.status} onMudou={onMudou} onErro={setErro} onAviso={setAviso} />
+      <SecaoStatus token={token} status={painel.status} onMudou={onMudou} onErro={falhar} onAviso={avisar} onConfirmar={pedirConfirmacao} />
         </>
       )}
 
@@ -523,8 +596,9 @@ function PainelVivo({
           token={token}
           painel={painel}
           onMudou={onMudou}
-          onErro={setErro}
-          onAviso={setAviso}
+          onErro={falhar}
+          onAviso={avisar}
+          onConfirmar={pedirConfirmacao}
           acesso={
             <section className="rounded-2xl border border-line bg-sheet p-4">
               <h2 className="text-sm font-medium text-ink">Seu acesso</h2>

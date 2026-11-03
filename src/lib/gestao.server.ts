@@ -145,7 +145,7 @@ export async function abrirGestaoPelaConta(userId: string) {
   await garantirGestao(sql);
   await garantirConfig(sql);
   const cfg = await sql<{ manutencao: boolean }>`select manutencao from gestao_config where id = 'principal'`;
-  if (!cfg[0]?.manutencao) throw new Error("Fora da manutenção, a área restrita pede a senha.");
+  if (!marcado(cfg[0]?.manutencao)) throw new Error("Fora da manutenção, a área restrita pede a senha.");
   const perfil = await sql<{ papel: string; bloqueado: boolean }>`
     select papel, bloqueado from usuario_perfil where user_id = ${userId}
   `;
@@ -162,7 +162,7 @@ export async function abrirSistemaPelaGestao(token: string) {
   if (!sessoes.length) throw new Error("Sessão encerrada.");
   await garantirConfig(sql);
   const cfg = await sql<{ manutencao: boolean }>`select manutencao from gestao_config where id = 'principal'`;
-  if (!cfg[0]?.manutencao) return { ok: true };
+  if (!marcado(cfg[0]?.manutencao)) return { ok: true };
   let userId = sessoes[0]?.user_id ?? null;
   if (!userId) {
     const acesso = await sql<{ email: string }>`select email from gestao_acesso where id = 'principal'`;
@@ -491,7 +491,7 @@ export async function lerPainel() {
     gargalosTipo: gargalosTipo.map((item) => ({ grupo: item.grupo, n: Number(item.n) })),
     equipesPainel: [...equipesMapa.values()],
     config: {
-      manutencao: Boolean(config[0]?.manutencao),
+      manutencao: marcado(config[0]?.manutencao),
       backupEm: config[0]?.backup_em ? String(config[0].backup_em) : null,
       backupAutoEm: config[0]?.backup_auto_em ? String(config[0].backup_auto_em) : null,
       emailPronto: Boolean(process.env.SMTP_PASS?.trim() || config[0]?.smtp_senha),
@@ -525,7 +525,7 @@ function codigoDoNome(nome: string) {
   return base.length >= 2 ? base : "";
 }
 
-function marcado(valor: unknown) {
+export function marcado(valor: unknown) {
   return valor === true || valor === "t" || valor === "true" || valor === 1 || valor === "1";
 }
 
@@ -779,7 +779,7 @@ export async function barrarSePreciso(userId: string) {
     `;
     if (perfil[0]?.bloqueado) throw new Error("Acesso bloqueado.");
     const administrador = perfil[0]?.papel === "administrador";
-    if (cfg[0]?.manutencao && !administrador) throw new Error("Sistema em manutenção.");
+    if (marcado(cfg[0]?.manutencao) && !administrador) throw new Error("Sistema em manutenção.");
   } catch (err) {
     if (err instanceof Error && (err.message === "Sistema em manutenção." || err.message === "Acesso bloqueado.")) throw err;
   }
@@ -809,12 +809,12 @@ export async function lerEstado(userId: string | null) {
     const perfil = await sql<{ bloqueado: boolean; papel: string }>`
       select bloqueado, papel from usuario_perfil where user_id = ${userId}
     `;
-    bloqueado = Boolean(perfil[0]?.bloqueado);
+    bloqueado = marcado(perfil[0]?.bloqueado);
     administrador = perfil[0]?.papel === "administrador" && !bloqueado;
   }
   const feriados = await sql<{ inicio: string; fim: string }>`select inicio, fim from feriados`;
   const datas = [...new Set(feriados.flatMap((item) => expandirPeriodo(String(item.inicio), String(item.fim))))];
-  return { manutencao: Boolean(cfg[0]?.manutencao), bloqueado, administrador, datas };
+  return { manutencao: marcado(cfg[0]?.manutencao), bloqueado, administrador, datas };
 }
 
 async function perfil(sql: Sql, userId: string, campos: { papel?: string; bloqueado?: boolean }) {
@@ -959,6 +959,61 @@ export async function moverAba(id: string, direcao: -1 | 1) {
   if (indice < 0 || !vizinho) return { ok: true };
   await sql`update abas_catalogo set ordem = ${indice + 1 + direcao} where id = ${id}`;
   await sql`update abas_catalogo set ordem = ${indice + 1} where id = ${vizinho.id}`;
+  return { ok: true };
+}
+
+export async function apagarAba(id: string) {
+  const sql = await getSql();
+  const linhas = await sql<{ area: string; nome: string; fixa: boolean }>`
+    select area, nome, fixa from abas_catalogo where id = ${id}
+  `;
+  const aba = linhas[0];
+  if (!aba) throw new Error("Tipo não encontrado.");
+  if (marcado(aba.fixa)) throw new Error("Os tipos originais não podem ser excluídos.");
+  const uso =
+    aba.area === "legislativo"
+      ? await sql<{ n: number }>`select count(*)::int as n from processos where tipo = ${aba.nome}`
+      : await sql<{ n: number }>`select count(*)::int as n from processos_admin where tipo = ${aba.nome}`;
+  if (Number(uso[0]?.n ?? 0) > 0) throw new Error("Este tipo ainda está em processos. Mude esses processos antes de excluir.");
+  await sql`delete from abas_catalogo where id = ${id}`;
+  return { ok: true };
+}
+
+export async function moverStatus(id: string, direcao: -1 | 1) {
+  const sql = await getSql();
+  const atual = await sql<{ area: string }>`select area from status_catalogo where id = ${id}`;
+  if (!atual[0]) throw new Error("Status não encontrado.");
+  const lista = await sql<{ id: string }>`
+    select id from status_catalogo where area = ${atual[0].area} order by ordem asc, nome asc
+  `;
+  const indice = lista.findIndex((item) => item.id === id);
+  const vizinho = lista[indice + direcao];
+  if (indice < 0 || !vizinho) return { ok: true };
+  await sql`update status_catalogo set ordem = ${indice + 1 + direcao} where id = ${id}`;
+  await sql`update status_catalogo set ordem = ${indice + 1} where id = ${vizinho.id}`;
+  return { ok: true };
+}
+
+export async function apagarStatus(id: string) {
+  const sql = await getSql();
+  const atual = await sql<{ area: string; codigo: string; fixo: boolean }>`
+    select area, codigo, fixo from status_catalogo where id = ${id}
+  `;
+  if (!atual[0]) throw new Error("Status não encontrado.");
+  if (marcado(atual[0].fixo)) throw new Error("Este status faz parte do sistema e não pode ser excluído.");
+  const area = atual[0].area;
+  const codigo = atual[0].codigo;
+  const uso =
+    area === "legislativo"
+      ? await sql<{ n: number }>`select count(*)::int as n from processos where status = ${codigo}`
+      : await sql<{ n: number }>`select count(*)::int as n from processos_admin where status = ${codigo}`;
+  if (Number(uso[0]?.n ?? 0) > 0) throw new Error("Este status ainda está em processos. Mude esses processos antes de excluir.");
+  await sql`
+    update status_catalogo
+    set tramite_codigo = null, tramite_dias = null
+    where area = ${area} and tramite_codigo = ${codigo}
+  `;
+  await sql`delete from status_catalogo where id = ${id}`;
   return { ok: true };
 }
 
@@ -1277,8 +1332,13 @@ export async function definirManutencao(ligado: boolean) {
     await sql`delete from processos where em_manutencao = true`;
     await sql`delete from processos_admin where em_manutencao = true`;
   }
-  await sql`update gestao_config set manutencao = ${ligado} where id = 'principal'`;
-  return { manutencao: ligado };
+  if (ligado) await sql`update gestao_config set manutencao = true where id = 'principal'`;
+  else await sql`update gestao_config set manutencao = false where id = 'principal'`;
+  const gravado = await sql<{ manutencao: unknown }>`select manutencao from gestao_config where id = 'principal'`;
+  const ativo = marcado(gravado[0]?.manutencao);
+  if (ativo !== ligado) throw new Error("A manutenção não foi gravada. Tente de novo.");
+  await copiarBancoAgora();
+  return { manutencao: ativo };
 }
 
 export async function salvarSenhaCaixa(senha: string) {

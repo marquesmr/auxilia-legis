@@ -15,16 +15,46 @@ type Modo = "entrar" | "criar" | "esqueci";
 const AVISO_EXCLUSAO = "prazos.conta-excluida";
 const MOTIVO_EXCLUSAO = "prazos.exclusao-motivo";
 const VISTA_EXCLUSAO = "prazos.exclusao-vista";
+const CADASTRO_PENDENTE = "prazos.cadastro-pendente";
+
+type RascunhoCadastro = { nome: string; email: string; senha: string; esperaAte: number; codigo: string };
+
+function lerRascunhoCadastro(): RascunhoCadastro | null {
+  try {
+    const bruto = sessionStorage.getItem(CADASTRO_PENDENTE);
+    if (!bruto) return null;
+    const dados = JSON.parse(bruto) as Partial<RascunhoCadastro>;
+    if (!dados || typeof dados.email !== "string" || !dados.email.includes("@")) return null;
+    return {
+      nome: typeof dados.nome === "string" ? dados.nome : "",
+      email: dados.email,
+      senha: typeof dados.senha === "string" ? dados.senha : "",
+      esperaAte: typeof dados.esperaAte === "number" ? dados.esperaAte : 0,
+      codigo: typeof dados.codigo === "string" ? dados.codigo.replace(/\D/g, "").slice(0, 6) : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function guardarRascunhoCadastro(dados: RascunhoCadastro) {
+  sessionStorage.setItem(CADASTRO_PENDENTE, JSON.stringify(dados));
+}
+
+function limparRascunhoCadastro() {
+  sessionStorage.removeItem(CADASTRO_PENDENTE);
+}
 
 function avisoPendente() {
   return sessionStorage.getItem(AVISO_EXCLUSAO) === "1" && sessionStorage.getItem(VISTA_EXCLUSAO) !== "1";
 }
 
 export function TelaConta() {
-  const [modo, setModo] = useState<Modo>(() => (sessionStorage.getItem(AVISO_EXCLUSAO) === "1" ? "criar" : "entrar"));
-  const [nome, setNome] = useState("");
-  const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
+  const rascunho = lerRascunhoCadastro();
+  const [modo, setModo] = useState<Modo>(() => (rascunho ? "criar" : sessionStorage.getItem(AVISO_EXCLUSAO) === "1" ? "criar" : "entrar"));
+  const [nome, setNome] = useState(rascunho?.nome ?? "");
+  const [email, setEmail] = useState(rascunho?.email ?? "");
+  const [senha, setSenha] = useState(rascunho?.senha ?? "");
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [excluida, setExcluida] = useState(() => sessionStorage.getItem(AVISO_EXCLUSAO) === "1");
@@ -32,18 +62,33 @@ export function TelaConta() {
   const [motivoAviso, setMotivoAviso] = useState(() => sessionStorage.getItem(MOTIVO_EXCLUSAO) ?? "");
   const [enviando, setEnviando] = useState(false);
   const [termos, setTermos] = useState(false);
-  const [confirmando, setConfirmando] = useState(false);
-  const [codigoCadastro, setCodigoCadastro] = useState("");
+  const [confirmando, setConfirmando] = useState(Boolean(rascunho));
+  const [codigoCadastro, setCodigoCadastro] = useState(rascunho?.codigo ?? "");
   const [codigoLink, setCodigoLink] = useState("");
   const [lembrar, setLembrar] = useState(false);
   const [reverSenha, setReverSenha] = useState(false);
-  const [esperaCodigo, setEsperaCodigo] = useState(0);
+  const [esperaCodigo, setEsperaCodigo] = useState(() => {
+    const falta = (rascunho?.esperaAte ?? 0) - Date.now();
+    return falta > 0 ? Math.ceil(falta / 1000) : 0;
+  });
 
   useEffect(() => {
     if (esperaCodigo <= 0) return;
     const id = window.setTimeout(() => setEsperaCodigo((valor) => valor - 1), 1000);
     return () => window.clearTimeout(id);
   }, [esperaCodigo]);
+
+  useEffect(() => {
+    if (!confirmando) return;
+    const atual = lerRascunhoCadastro();
+    guardarRascunhoCadastro({
+      nome: nome.trim(),
+      email: email.trim(),
+      senha,
+      esperaAte: atual?.esperaAte && atual.esperaAte > Date.now() ? atual.esperaAte : Date.now() + Math.max(esperaCodigo, 0) * 1000,
+      codigo: codigoCadastro,
+    });
+  }, [confirmando, nome, email, senha, codigoCadastro, esperaCodigo]);
 
   useEffect(() => {
     soltarTemaDaConta();
@@ -60,6 +105,8 @@ export function TelaConta() {
       return;
     }
     if (params.get("senha") === "1") {
+      limparRascunhoCadastro();
+      setConfirmando(false);
       const emailQ = params.get("email") ?? "";
       const codigoQ = (params.get("codigo") ?? "").replace(/\D/g, "").slice(0, 6);
       if (emailQ) setEmail(emailQ);
@@ -67,6 +114,7 @@ export function TelaConta() {
       setModo("esqueci");
       return;
     }
+    if (lerRascunhoCadastro()) return;
     const guardado = lerLembranca();
     if (guardado) {
       setEmail(guardado.email);
@@ -141,6 +189,8 @@ export function TelaConta() {
     setEnviando(true);
     try {
       await pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim() } });
+      const esperaAte = Date.now() + 40_000;
+      guardarRascunhoCadastro({ nome: nome.trim(), email: email.trim(), senha, esperaAte, codigo: "" });
       setConfirmando(true);
       setEsperaCodigo(40);
       setAviso("Enviamos o código de confirmação para o seu e-mail.");
@@ -159,6 +209,7 @@ export function TelaConta() {
       await criarContaComCodigo({
         data: { nome: nome.trim(), email: email.trim(), senha, codigo: codigoCadastro },
       });
+      limparRascunhoCadastro();
       window.location.assign("/");
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Não foi possível confirmar o e-mail.");
@@ -206,7 +257,9 @@ export function TelaConta() {
         </div>
       </div>
       <p className="mt-4 text-sm leading-relaxed text-muted">
-        {excluida
+        {confirmando
+          ? "O código continua valendo nesta página. Pode abrir o e-mail e voltar para digitar."
+          : excluida
           ? "Sua conta foi excluída e você foi desconectado. Para entrar de novo, crie outra conta."
           : modo === "criar"
             ? "Crie a conta com e-mail e senha. O e-mail precisa ser confirmado com o código enviado."
@@ -243,6 +296,7 @@ export function TelaConta() {
             <button
               type="button"
               onClick={() => {
+                limparRascunhoCadastro();
                 setConfirmando(false);
                 setCodigoCadastro("");
                 setErro("");

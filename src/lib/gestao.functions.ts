@@ -203,7 +203,7 @@ export const marcarPresenca = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export const estadoSistema = createServerFn({ method: "GET" }).handler(async () => {
+export const estadoSistema = createServerFn({ method: "POST" }).handler(async () => {
   const { getSessionUser } = await import("./auth/verify.server");
   const { lerEstado } = await import("./gestao.server");
   let userId: string | null = null;
@@ -313,6 +313,46 @@ export const moverAbaGestao = createServerFn({ method: "POST" })
     const { exigirGestao, moverAba } = await import("./gestao.server");
     await exigirGestao(data.token);
     return moverAba(data.id, data.direcao);
+  });
+
+export const apagarAbaGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; id?: unknown };
+    return { token: tokenOk(bruto.token), id: idOk(bruto.id) };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, apagarAba } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return apagarAba(data.id);
+  });
+
+export const moverStatusGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; id?: unknown; direcao?: unknown };
+    if (bruto.direcao !== -1 && bruto.direcao !== 1) throw new Error("Dados inválidos");
+    return { token: tokenOk(bruto.token), id: idOk(bruto.id), direcao: bruto.direcao as -1 | 1 };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, moverStatus } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return moverStatus(data.id, data.direcao);
+  });
+
+export const apagarStatusGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; id?: unknown };
+    return { token: tokenOk(bruto.token), id: idOk(bruto.id) };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, apagarStatus } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return apagarStatus(data.id);
   });
 
 export const logsGestao = createServerFn({ method: "POST" })

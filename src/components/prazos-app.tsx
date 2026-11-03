@@ -204,6 +204,8 @@ function PranchetaGrafico({ className }: { className?: string }) {
 
 export function PrazosApp() {
   const { user, isPending } = useCurrentUserState();
+  const sessaoResolvida = useRef(false);
+  if (!isPending) sessaoResolvida.current = true;
   const irPara = useNavigate();
   const [ready, setReady] = useState(false);
   const [contaId, setContaId] = useState<string | null>(null);
@@ -295,9 +297,14 @@ export function PrazosApp() {
         .catch(() => undefined);
     };
     const id = window.setInterval(ler, 30_000);
+    const aoVoltar = () => {
+      if (document.visibilityState === "visible") ler();
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
     return () => {
       vivo = false;
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", aoVoltar);
     };
   }, [user?.id, ready]);
 
@@ -832,7 +839,7 @@ export function PrazosApp() {
     }
   }
 
-  if (isPending) return <CarregandoTemis />;
+  if (isPending && !sessaoResolvida.current) return <CarregandoTemis />;
 
   if (trava) {
     return (

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   backupGestao,
   backupsAutomaticosGestao,
+  apagarStatusGestao,
   bloquearUsuarioGestao,
   definirPapelGestao,
   desvincularEquipeGestao,
@@ -11,6 +12,7 @@ import {
   feriadoGestao,
   logsGestao,
   manutencaoGestao,
+  moverStatusGestao,
   restaurarAutomaticoGestao,
   restaurarGestao,
   salvarSenhaCaixaGestao,
@@ -47,12 +49,14 @@ export function SecaoUsuarios({
   onMudou,
   onErro,
   onAviso,
+  onConfirmar,
 }: {
   token: string;
   painel: Painel;
   onMudou: () => void;
   onErro: (texto: string) => void;
   onAviso: (texto: string) => void;
+  onConfirmar: (texto: string, agir: () => void) => void;
 }) {
   const [equipeId, setEquipeId] = useState(painel.equipesPainel[0]?.id ?? "");
   const [userId, setUserId] = useState(painel.pessoas[0]?.id ?? "");
@@ -147,19 +151,21 @@ export function SecaoUsuarios({
                     <button
                       type="button"
                       disabled={!motivoExclusaoId}
-                      onClick={() => {
-                        void (async () => {
-                          onErro("");
-                          try {
-                            await excluirUsuarioGestao({ data: { token, userId: pessoa.id, motivo: motivoExclusaoId } });
-                            onAviso(`Conta de ${pessoa.nome} excluída.`);
-                            onMudou();
-                            setAlvoExclusao(null);
-                          } catch (err) {
-                            onErro(err instanceof Error ? err.message : "Não foi possível concluir.");
-                          }
-                        })();
-                      }}
+                      onClick={() =>
+                        onConfirmar(`Excluir a conta de ${pessoa.nome}? A pessoa é desconectada na hora.`, () => {
+                          void (async () => {
+                            onErro("");
+                            try {
+                              await excluirUsuarioGestao({ data: { token, userId: pessoa.id, motivo: motivoExclusaoId } });
+                              onAviso(`Conta de ${pessoa.nome} excluída.`);
+                              onMudou();
+                              setAlvoExclusao(null);
+                            } catch (err) {
+                              onErro(err instanceof Error ? err.message : "Não foi possível concluir.");
+                            }
+                          })();
+                        })
+                      }
                       className="h-9 rounded-lg border border-line px-3 text-seal disabled:opacity-50"
                     >
                       Confirmar exclusão
@@ -216,7 +222,11 @@ export function SecaoUsuarios({
                     {membro.papel !== "dono" && (
                       <button
                         type="button"
-                        onClick={() => void agir(desvincularEquipeGestao({ data: { token, equipeId: equipe.id, userId: membro.id } }), "Pessoa removida da equipe.")}
+                        onClick={() =>
+                          onConfirmar(`Remover ${membro.nome} da equipe ${equipe.nome}?`, () => {
+                            void agir(desvincularEquipeGestao({ data: { token, equipeId: equipe.id, userId: membro.id } }), "Pessoa removida da equipe.");
+                          })
+                        }
                         className="shrink-0 text-sm font-medium text-pine"
                       >
                         Remover
@@ -239,6 +249,7 @@ export function SecaoSistema({
   onMudou,
   onErro,
   onAviso,
+  onConfirmar,
   acesso,
 }: {
   token: string;
@@ -246,6 +257,7 @@ export function SecaoSistema({
   onMudou: () => void;
   onErro: (texto: string) => void;
   onAviso: (texto: string) => void;
+  onConfirmar: (texto: string, agir: () => void) => void;
   acesso: ReactNode;
 }) {
   const [de, setDe] = useState("");
@@ -311,8 +323,8 @@ export function SecaoSistema({
           type="button"
           onClick={() =>
             void manutencaoGestao({ data: { token, ligado: !painel.config.manutencao } })
-              .then(() => {
-                onAviso(painel.config.manutencao ? "Sistema liberado." : "Sistema em manutenção.");
+              .then((resultado) => {
+                onAviso(resultado.manutencao ? "Sistema em manutenção. Quem não é administrador vê o aviso e não usa o sistema." : "Sistema liberado.");
                 onMudou();
               })
               .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível mudar a manutenção."))
@@ -396,7 +408,16 @@ export function SecaoSistema({
               </span>
               <button
                 type="button"
-                onClick={() => void feriadoGestao({ data: { token, apagar: true, id: item.id, nome: "", tipo: "feriado", inicio: "", fim: "" } }).then(onMudou)}
+                onClick={() =>
+                  onConfirmar(`Remover ${item.nome}?`, () => {
+                    void feriadoGestao({ data: { token, apagar: true, id: item.id, nome: "", tipo: "feriado", inicio: "", fim: "" } })
+                      .then(() => {
+                        onAviso("Dia removido.");
+                        onMudou();
+                      })
+                      .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível remover."));
+                  })
+                }
                 className="text-sm font-medium text-pine"
               >
                 Remover
@@ -563,12 +584,14 @@ export function SecaoStatus({
   onMudou,
   onErro,
   onAviso,
+  onConfirmar,
 }: {
   token: string;
   status: StatusPainel[];
   onMudou: () => void;
   onErro: (texto: string) => void;
   onAviso: (texto: string) => void;
+  onConfirmar: (texto: string, agir: () => void) => void;
 }) {
   const [area, setArea] = useState<"legislativo" | "administrativo">("legislativo");
   const [nome, setNome] = useState("");
@@ -732,7 +755,29 @@ export function SecaoStatus({
                       : ""}
                   </span>
                 </span>
-                <button type="button" onClick={() => abrirEdicao(item)} className="font-medium text-pine">Editar</button>
+                <span className="flex shrink-0 gap-3">
+                  <button type="button" onClick={() => void moverStatusGestao({ data: { token, id: item.id, direcao: -1 } }).then(() => onMudou()).catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível subir."))} className="font-medium text-pine">Subir</button>
+                  <button type="button" onClick={() => void moverStatusGestao({ data: { token, id: item.id, direcao: 1 } }).then(() => onMudou()).catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível descer."))} className="font-medium text-pine">Descer</button>
+                  <button type="button" onClick={() => abrirEdicao(item)} className="font-medium text-pine">Editar</button>
+                  {!item.fixo && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onConfirmar(`Excluir o status ${item.nome}?`, () => {
+                          void apagarStatusGestao({ data: { token, id: item.id } })
+                            .then(() => {
+                              onAviso("Status excluído.");
+                              onMudou();
+                            })
+                            .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível excluir o status."));
+                        })
+                      }
+                      className="font-medium text-seal"
+                    >
+                      Excluir
+                    </button>
+                  )}
+                </span>
               </div>
             )}
           </li>
