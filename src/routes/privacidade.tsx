@@ -102,7 +102,7 @@ function Privacidade() {
 
         <Titulo>10. Crianças e adolescentes</Titulo>
         <p className="text-justify">
-          O Programa não se destina a menor de 18 anos. Na criação da conta por e-mail a data de nascimento pode ser qualquer uma até hoje. Se a data mostrar menos de 18 anos, a conta não é criada e aquele e-mail fica restrito por 7 dias. A restrição aparece na área restrita. Antes desse prazo, a liberação só ocorre depois de contato com auxilialegis@marquestecnologies.com. Não se coleta dado de criança para abrir conta.
+          O Programa não se destina a menor de 18 anos. Na criação da conta por e-mail a data de nascimento pode ser qualquer uma até hoje. Se a data mostrar menos de 18 anos, a conta não é criada e aquele e-mail fica restrito por 7 dias. A restrição aparece na área restrita. Se a data foi preenchida errada, a pessoa maior de 18 anos pode escrever para auxilialegis@marquestecnologies.com e enviar um comprovante. Esse comprovante fica apenas na caixa de e-mail e não é guardado no Programa. Antes do prazo, a liberação só ocorre depois desse contato. Não se coleta dado de criança para abrir conta.
         </p>
 
         <Titulo>11. Alterações</Titulo>

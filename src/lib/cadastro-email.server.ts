@@ -54,7 +54,7 @@ function textoAte(ate: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
-  return `Este e-mail está restrito até ${quando}. Para liberar antes, escreva para auxilialegis@marquestecnologies.com.`;
+  return `Este e-mail está restrito até ${quando}. Se errou a data, escreva para auxilialegis@marquestecnologies.com e envie um comprovante de que você tem 18 anos ou mais. A liberação antes do prazo só ocorre depois desse contato.`;
 }
 
 export async function barrarEmailRestrito(email: string, nascimento: string) {
