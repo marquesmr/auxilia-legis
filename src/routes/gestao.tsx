@@ -15,6 +15,7 @@ import {
 } from "@/lib/gestao.functions";
 import { SecaoSistema, SecaoStatus, SecaoUsuarios } from "@/components/gestao-extra";
 import { CampoSenha } from "@/components/campo-senha";
+import { useConfirmarExclusao } from "@/components/confirmar-exclusao";
 
 export const Route = createFileRoute("/gestao")({ component: Gestao });
 
@@ -237,7 +238,7 @@ function PainelVivo({
   const [guia, setGuia] = useState<"geral" | "usuarios" | "tipos" | "sistema">("geral");
   const [editandoAba, setEditandoAba] = useState<string | null>(null);
   const [nomeEdicao, setNomeEdicao] = useState("");
-  const [confirma, setConfirma] = useState<{ texto: string; agir: () => void } | null>(null);
+  const exclusao = useConfirmarExclusao();
 
   function avisar(texto: string) {
     setErro("");
@@ -250,7 +251,7 @@ function PainelVivo({
   }
 
   function pedirConfirmacao(texto: string, agir: () => void) {
-    setConfirma({ texto, agir });
+    exclusao.pedir(texto, agir);
   }
 
   useEffect(() => setEmail(painel.email), [painel.email]);
@@ -348,7 +349,7 @@ function PainelVivo({
       )}
 
       {(aviso || erro) && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 px-4" role="alertdialog">
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-ink/40 px-4" role="alertdialog">
           <div className="w-full max-w-sm rounded-2xl border border-line bg-sheet p-5">
             <p className={"text-sm leading-relaxed " + (erro ? "text-seal" : "text-ink")}>{erro || aviso}</p>
             <button
@@ -364,29 +365,7 @@ function PainelVivo({
           </div>
         </div>
       )}
-      {confirma && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 px-4" role="alertdialog">
-          <div className="w-full max-w-sm rounded-2xl border border-line bg-sheet p-5">
-            <p className="text-sm leading-relaxed text-ink">{confirma.texto}</p>
-            <div className="mt-4 flex gap-2">
-              <button type="button" onClick={() => setConfirma(null)} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink">
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const agir = confirma.agir;
-                  setConfirma(null);
-                  agir();
-                }}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-ink text-sm font-medium text-sheet"
-              >
-                Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {exclusao.dialogo}
 
       <div className="mt-5 flex flex-wrap gap-2">
         {(

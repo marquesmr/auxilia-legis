@@ -76,6 +76,7 @@ import { entrarPeloLink } from "@/lib/auth/senha-email.functions";
 import { NOME_APLICACAO } from "@/lib/nome-aplicacao";
 import { registrarAcesso } from "@/lib/lembrar-acesso";
 import { AvisoSenha } from "@/components/aviso-senha";
+import { useConfirmarExclusao } from "@/components/confirmar-exclusao";
 
 type Filtro = "abertos" | "atencao" | "vencidos" | "prazo" | "concluidos" | "todos";
 
@@ -1887,6 +1888,7 @@ function PainelEquipe({
   const [sobre, setSobre] = useState<string | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [nomeEdicao, setNomeEdicao] = useState("");
+  const exclusao = useConfirmarExclusao();
   const soltar = useContext(SoltarProcessoContext);
   const selecionada = equipes.find((equipe) => equipe.id === atual) ?? null;
   const soltou = useRef(false);
@@ -1930,6 +1932,7 @@ function PainelEquipe({
 
   return (
     <div className="rounded-2xl border border-line bg-sheet p-4">
+      {exclusao.dialogo}
       <div className="flex items-center gap-2 text-sm font-medium text-ink">
         <Users className="size-4 text-pine" />
         Equipe
@@ -2059,12 +2062,20 @@ function PainelEquipe({
                   </span>
                 </span>
                 {selecionada.papel === "dono" && membro.papel !== "dono" && (
-                  <button type="button" onClick={() => void onRemover(membro.email)} className="inline-flex h-11 items-center text-sm font-medium text-seal">
+                  <button
+                    type="button"
+                    onClick={() => exclusao.pedir(`Remover ${membro.nome} da equipe?`, () => void onRemover(membro.email))}
+                    className="inline-flex h-11 items-center text-sm font-medium text-seal"
+                  >
                     Remover
                   </button>
                 )}
                 {selecionada.papel !== "dono" && membro.email.toLowerCase() === meuEmail.toLowerCase() && (
-                  <button type="button" onClick={() => void onRemover(membro.email)} className="inline-flex h-11 items-center text-sm font-medium text-seal">
+                  <button
+                    type="button"
+                    onClick={() => exclusao.pedir(`Sair da equipe ${selecionada.nome}?`, () => void onRemover(membro.email))}
+                    className="inline-flex h-11 items-center text-sm font-medium text-seal"
+                  >
                     Sair
                   </button>
                 )}
@@ -2074,7 +2085,11 @@ function PainelEquipe({
               <li key={convite} className="flex items-center justify-between gap-2 text-sm text-muted">
                 <span className="min-w-0 truncate">{convite} · convite</span>
                 {selecionada.papel === "dono" && (
-                  <button type="button" onClick={() => void onRemover(convite)} className="inline-flex h-11 items-center text-sm font-medium text-seal">
+                  <button
+                    type="button"
+                    onClick={() => exclusao.pedir(`Cancelar o convite de ${convite}?`, () => void onRemover(convite))}
+                    className="inline-flex h-11 items-center text-sm font-medium text-seal"
+                  >
                     Remover
                   </button>
                 )}
