@@ -317,7 +317,7 @@ export function TelaConta() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-10">
+    <main className="min-h-screen bg-[#f3eee6] lg:grid lg:grid-cols-2">
       {reverSenha && email && (
         <AvisoSenha
           email={email}
@@ -347,29 +347,49 @@ export function TelaConta() {
           }}
         />
       )}
-      <div className="flex items-center gap-3">
-        <div className="grid size-11 place-items-center rounded-xl bg-pine text-sheet" aria-hidden>
-          <Scale className="size-5" strokeWidth={1.75} />
+      <aside className="hidden min-h-screen flex-col bg-[#1a4033] px-10 py-8 text-[#f4efe4] lg:flex xl:px-14">
+        <div className="flex items-center gap-3">
+          <div className="grid size-12 place-items-center rounded-2xl bg-[#f4efe4] text-[#1a4033]" aria-hidden>
+            <Scale className="size-6" strokeWidth={1.75} />
+          </div>
+          <p className="font-display text-2xl">Auxilia Legis</p>
         </div>
-        <div>
-          <h1 className="font-display text-2xl leading-tight text-ink sm:text-3xl">Assistente do Poder Legislativo</h1>
+        <h1 className="mt-auto max-w-xl font-display text-5xl leading-[1.05] tracking-tight xl:text-6xl">
+          Assistente do
+          <br />
+          Poder Legislativo
+        </h1>
+        <div className="mt-16">
+          <p className="text-center text-sm">
+            <Link to="/privacidade" className="hover:underline">
+              Política de Privacidade
+            </Link>
+            <span> · </span>
+            <Link to="/termos" className="hover:underline">
+              Termos de Serviço
+            </Link>
+          </p>
+          <Link
+            to="/gestao"
+            className="mt-4 inline-flex h-12 w-full items-center justify-center rounded-2xl border border-[#f4efe4]/45 text-sm font-medium"
+          >
+            Área restrita
+          </Link>
         </div>
-      </div>
-      <p className="mt-4 text-sm leading-relaxed text-muted">
-        {confirmando
-          ? "O código continua valendo nesta página. Pode abrir o e-mail e voltar para digitar."
-          : excluida
-          ? "Sua conta foi excluída e você foi desconectado. Para entrar de novo, crie outra conta."
-          : modo === "criar"
-            ? "Crie a conta com e-mail e senha. O e-mail precisa ser confirmado com o código enviado."
-            : "Entre com o mesmo e-mail e senha para abrir os processos neste navegador."}
-      </p>
-
-      <div className="mt-6 rounded-2xl border border-line bg-sheet p-5">
+      </aside>
+      <section className="flex min-h-screen items-center justify-center px-4 py-8">
+        <div className="w-full max-w-[440px]">
+          <div className="mb-6 flex items-center gap-3 text-[#1a4033] lg:hidden">
+            <div className="grid size-11 place-items-center rounded-2xl bg-[#1a4033] text-[#f4efe4]" aria-hidden>
+              <Scale className="size-5" strokeWidth={1.75} />
+            </div>
+            <p className="font-display text-xl">Auxilia Legis</p>
+          </div>
+          <div className="rounded-[28px] bg-[#fffdf8] px-6 py-7 shadow-[0_18px_50px_rgba(28,25,21,0.06)] sm:px-8">
         {confirmando ? (
           <form className="flex flex-col gap-3" onSubmit={(event) => void confirmarCadastro(event)}>
-            <h2 className="font-display text-2xl text-ink">Confirmar e-mail</h2>
-            <p className="text-sm text-muted">
+            <h2 className="font-display text-3xl text-ink">Confirmar e-mail</h2>
+            <p className="text-justify text-sm leading-relaxed text-muted">
               Digite o código enviado para {email}. Ele vale por 24 horas.
             </p>
             {aviso && <p className="rounded-xl bg-pine-soft px-3 py-2 text-justify text-sm leading-relaxed text-pine">{aviso}</p>}
@@ -386,7 +406,7 @@ export function TelaConta() {
                 required
               />
             </label>
-            <button type="submit" disabled={enviando} className="inline-flex h-12 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-60">
+            <button type="submit" disabled={enviando} className={botaoVerde}>
               {enviando ? "Confirmando…" : "Confirmar e criar conta"}
             </button>
             <button type="button" onClick={() => void enviarCodigoCadastro()} disabled={enviando || esperaCodigo > 0} className="h-11 text-sm font-medium text-pine disabled:opacity-60">
@@ -401,7 +421,7 @@ export function TelaConta() {
                 setErro("");
                 setAviso("");
               }}
-              className="h-11 text-sm font-medium text-pine"
+              className="h-11 text-sm font-medium text-muted"
             >
               Voltar
             </button>
@@ -423,7 +443,14 @@ export function TelaConta() {
           />
         ) : (
       <form onSubmit={enviar} className="flex flex-col gap-3">
-        <h2 className="font-display text-2xl text-ink">{modo === "criar" ? "Criar conta" : "Login"}</h2>
+        <h2 className="font-display text-3xl text-ink">{modo === "criar" ? "Criar conta" : "Login"}</h2>
+        {(excluida || modo === "criar") && (
+          <p className="text-justify text-sm leading-relaxed text-muted">
+            {excluida
+              ? "Sua conta foi excluída e você foi desconectado. Para entrar de novo, crie outra conta."
+              : "Crie a conta com e-mail e senha. O e-mail precisa ser confirmado com o código enviado."}
+          </p>
+        )}
         {aviso && <p className="rounded-xl bg-pine-soft px-3 py-2 text-justify text-sm leading-relaxed text-pine">{aviso}</p>}
         {erro && (
           <p role="alert" className="rounded-xl bg-seal-soft px-3 py-2 text-justify text-sm leading-relaxed text-seal">
@@ -458,7 +485,7 @@ export function TelaConta() {
           </label>
           </>
         )}
-        <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-ink">
           E-mail
           <input
             type="email"
@@ -470,7 +497,7 @@ export function TelaConta() {
             disabled={Boolean(liberacao)}
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-ink">
           Senha
           <CampoSenha
             value={senha}
@@ -482,35 +509,29 @@ export function TelaConta() {
           />
         </label>
         {modo === "entrar" && (
-          <>
-            <label className="flex items-center gap-2 text-sm text-ink">
+          <div className="flex items-center justify-between gap-3 pt-1 text-sm text-ink">
+            <label className="flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={lembrar}
                 onChange={(evento) => setLembrar(evento.target.checked)}
-                className="size-4 shrink-0"
+                className="size-4 shrink-0 accent-[#1a4033]"
               />
               Lembre-se de mim
             </label>
-          </>
+            <button
+              type="button"
+              onClick={() => {
+                setModo("esqueci");
+                setErro("");
+              }}
+              className="text-ink"
+            >
+              Esqueci minha senha
+            </button>
+          </div>
         )}
-        {modo === "entrar" && (
-          <button
-            type="button"
-            onClick={() => {
-              setModo("esqueci");
-              setErro("");
-            }}
-            className="self-start text-sm font-medium text-pine"
-          >
-            Esqueci minha senha
-          </button>
-        )}
-        <button
-          type="submit"
-          disabled={enviando}
-          className="inline-flex h-12 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-60"
-        >
+        <button type="submit" disabled={enviando} className={botaoVerde}>
           {enviando ? "Aguarde…" : modo === "criar" ? "Criar conta" : "Login"}
         </button>
         <button
@@ -519,15 +540,15 @@ export function TelaConta() {
             setModo(modo === "criar" ? "entrar" : "criar");
             setErro("");
           }}
-          className="h-11 text-sm font-medium text-pine"
+          className="h-10 text-sm text-ink"
         >
           {modo === "criar" ? "Login" : "Criar conta"}
         </button>
-      </form>
-        )}
-      </div>
-
-      <div className="mt-4 flex flex-col gap-2">
+        <div className="flex items-center gap-3 text-xs text-muted">
+          <span className="h-px flex-1 bg-line" />
+          ou
+          <span className="h-px flex-1 bg-line" />
+        </div>
         {GROK_PROVIDERS.map((provedor) => (
           <button
             key={provedor.providerId}
@@ -538,32 +559,58 @@ export function TelaConta() {
                 setErro(falha instanceof Error ? falha.message : "Não foi possível entrar.");
               });
             }}
-            className="inline-flex h-12 items-center justify-center rounded-xl border border-line bg-sheet text-sm font-medium text-ink"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-[#e4ddd2] bg-white text-sm font-medium text-ink"
           >
+            <IconeProvedor id={provedor.idp} />
             Continuar com {provedor.label}
           </button>
         ))}
-      </div>
-      <p className="mt-6 text-center text-sm">
-        <Link to="/privacidade" className="font-medium text-pine">
-          Política de Privacidade
-        </Link>
-        <span className="text-muted"> · </span>
-        <Link to="/termos" className="font-medium text-pine">
-          Termos de Serviço
-        </Link>
-      </p>
-      <Link
-        to="/gestao"
-        className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-xl border border-line bg-sheet text-sm font-medium text-ink"
-      >
-        Área restrita
-      </Link>
+      </form>
+        )}
+          </div>
+          <div className="mt-6 lg:hidden">
+            <p className="text-center text-sm text-ink">
+              <Link to="/privacidade" className="font-medium">
+                Política de Privacidade
+              </Link>
+              <span className="text-muted"> · </span>
+              <Link to="/termos" className="font-medium">
+                Termos de Serviço
+              </Link>
+            </p>
+            <Link
+              to="/gestao"
+              className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-2xl border border-[#1a4033]/30 text-sm font-medium text-[#1a4033]"
+            >
+              Área restrita
+            </Link>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
 
-const campo = "h-11 w-full rounded-xl border border-line bg-paper px-3 text-sm font-normal text-ink";
+const campo = "h-12 w-full rounded-xl border border-transparent bg-[#f4efe6] px-3 text-sm font-normal text-ink outline-none focus:border-[#1a4033]/30";
+const botaoVerde = "inline-flex h-12 items-center justify-center rounded-xl bg-[#1a4033] text-sm font-medium text-[#f7f3ea] disabled:opacity-60";
+
+function IconeProvedor({ id }: { id: string }) {
+  if (id === "google") {
+    return (
+      <svg viewBox="0 0 18 18" className="size-4" aria-hidden>
+        <path fill="#4285F4" d="M17.6 9.2c0-.6-.1-1.2-.2-1.8H9v3.4h4.8a4.1 4.1 0 0 1-1.8 2.7v2.2h2.9c1.7-1.6 2.7-3.9 2.7-6.5z" />
+        <path fill="#34A853" d="M9 18c2.4 0 4.5-.8 6-2.2l-2.9-2.2c-.8.6-1.9.9-3.1.9-2.4 0-4.4-1.6-5.1-3.8H.9v2.3A9 9 0 0 0 9 18z" />
+        <path fill="#FBBC05" d="M3.9 10.7A5.4 5.4 0 0 1 3.6 9c0-.6.1-1.2.3-1.7V5H.9a9 9 0 0 0 0 8l3-2.3z" />
+        <path fill="#EA4335" d="M9 3.6c1.3 0 2.5.5 3.4 1.3l2.6-2.6A9 9 0 0 0 .9 5l3 2.3C4.6 5.2 6.6 3.6 9 3.6z" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 16 16" className="size-4" aria-hidden>
+      <path fill="currentColor" d="M9.3 6.8 14.7 1h-1.3L8.7 5.9 5.2 1H1l5.7 8.1L1 15h1.3l5-5.6L10.8 15H15L9.3 6.8Zm-1.8 2L2.8 2h1.5l8.9 12h-1.5l-4.2-5.2Z" />
+    </svg>
+  );
+}
 
 function RecuperarSenha({
   emailInicial,
@@ -663,7 +710,7 @@ function RecuperarSenha({
           </label>
         </>
       )}
-      <button type="submit" disabled={enviando} className="inline-flex h-12 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-60">
+      <button type="submit" disabled={enviando} className={botaoVerde}>
         {enviando ? "Aguarde…" : enviado ? "Redefinir senha" : "Enviar código"}
       </button>
       {enviado && (
