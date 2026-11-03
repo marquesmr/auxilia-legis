@@ -45,6 +45,7 @@ import {
   todayIso,
   definirSemExpediente,
   urgencia,
+  type DiaMarcado,
   type Urgencia,
 } from "@/lib/prazos";
 import { CarregandoTemis } from "@/components/carregando-temis";
@@ -66,6 +67,7 @@ import { marcarPresenca, estadoSistema, consultarExclusao, abrirGestaoPelaConta,
 import { definirStatus, encerraStatus, nomeStatus, statusDaArea } from "@/lib/status-catalogo";
 import { carregarInicio } from "@/lib/inicio.functions";
 import { AvisoContaExcluida } from "@/components/aviso-exclusao";
+import { CalendarioExpediente } from "@/components/calendario-expediente";
 import { MOTIVOS_SAIDA } from "@/lib/motivos-saida";
 import { signOut } from "@/lib/auth/client";
 import { BotaoConfiguracoes } from "@/components/configuracoes";
@@ -259,6 +261,7 @@ export function PrazosApp() {
   const [trava, setTrava] = useState<string | null>(null);
   const [souGestor, setSouGestor] = useState(false);
   const [excluida, setExcluida] = useState(false);
+  const [diasMarcados, setDiasMarcados] = useState<DiaMarcado[]>([]);
   const [motivoExclusaoId, setMotivoExclusaoId] = useState("");
   const exclusaoVista = useRef(false);
   const tresColunas = useGradeTresColunas();
@@ -307,6 +310,7 @@ export function PrazosApp() {
         .then((estado) => {
           if (!vivo) return;
           definirSemExpediente(estado.datas);
+          setDiasMarcados(estado.dias ?? []);
           setSouGestor(Boolean(estado.administrador));
           if (estado.bloqueado) setTrava("Seu acesso está bloqueado.");
           else if (estado.manutencao && !estado.administrador) setTrava("O sistema está em manutenção. Tente de novo mais tarde.");
@@ -388,6 +392,7 @@ export function PrazosApp() {
         setAbasAdm(pacote.abas.administrativo);
         definirStatus(pacote.status);
         definirSemExpediente(pacote.estado.datas);
+        setDiasMarcados(pacote.estado.dias ?? []);
         setSouGestor(Boolean(pacote.estado.administrador));
         if (pacote.estado.bloqueado) setTrava("Seu acesso está bloqueado.");
         else if (pacote.estado.manutencao && !pacote.estado.administrador) setTrava("O sistema está em manutenção. Tente de novo mais tarde.");
@@ -893,7 +898,8 @@ export function PrazosApp() {
   if (!ready || contaId !== user.id) return <CarregandoTemis />;
 
   return (
-    <div className="mx-auto min-h-screen max-w-6xl px-4 py-6 md:px-8 md:py-8">
+    <div className="mx-auto min-h-screen max-w-[100rem] px-4 py-6 md:px-8 md:py-8 xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-start xl:gap-6">
+      <div className="min-w-0">
       <header className="flex flex-col gap-4 border-b border-line pb-6 md:flex-row md:items-center md:justify-between">
         <h1 className="font-display text-2xl leading-tight text-ink sm:text-3xl">Assistente do Poder Legislativo</h1>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
@@ -964,6 +970,9 @@ export function PrazosApp() {
           <PranchetaGrafico className="size-5 shrink-0" />
           Controle e Estatística de Processos Administrativo
         </button>
+      </div>
+      <div className="mt-4 xl:hidden">
+        <CalendarioExpediente dias={diasMarcados} />
       </div>
 
       {area === "administrativo" ? (
@@ -1684,6 +1693,10 @@ export function PrazosApp() {
         </p>
       )}
       <AjudaFlutuante nome={meuNome} area={area} />
+      </div>
+      <div className="hidden xl:block">
+        <CalendarioExpediente dias={diasMarcados} />
+      </div>
     </div>
   );
 }

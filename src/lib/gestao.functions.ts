@@ -516,7 +516,7 @@ export const feriadoGestao = createServerFn({ method: "POST" })
       apagar: Boolean(bruto.apagar),
       id: typeof bruto.id === "string" ? bruto.id.slice(0, 80) : "",
       nome: typeof bruto.nome === "string" ? bruto.nome : "",
-      tipo: bruto.tipo === "recesso" ? "recesso" : "feriado",
+      tipo: bruto.tipo === "recesso" ? "recesso" : bruto.tipo === "facultativo" ? "facultativo" : "feriado",
       inicio: typeof bruto.inicio === "string" ? bruto.inicio.slice(0, 10) : "",
       fim: typeof bruto.fim === "string" ? bruto.fim.slice(0, 10) : "",
     };

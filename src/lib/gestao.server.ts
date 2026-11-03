@@ -907,9 +907,28 @@ export async function lerEstado(userId: string | null) {
     bloqueado = marcado(perfil[0]?.bloqueado);
     administrador = perfil[0]?.papel === "administrador" && !bloqueado;
   }
-  const feriados = await sql<{ inicio: string; fim: string }>`select inicio, fim from feriados`;
-  const datas = [...new Set(feriados.flatMap((item) => expandirPeriodo(String(item.inicio), String(item.fim))))];
-  return { manutencao: marcado(cfg[0]?.manutencao), bloqueado, administrador, datas };
+  const feriados = await sql<{ inicio: string; fim: string; nome: string; tipo: string }>`
+    select inicio, fim, nome, tipo from feriados
+  `;
+  const dias = feriados.flatMap((item) => {
+    const tipo: "feriado" | "facultativo" | "recesso" =
+      item.tipo === "recesso" || item.tipo === "facultativo" ? item.tipo : "feriado";
+    return expandirPeriodo(String(item.inicio), String(item.fim)).map((data) => ({
+      data,
+      nome: item.nome,
+      tipo,
+    }));
+  });
+  const unicos = new Map<string, { data: string; nome: string; tipo: "feriado" | "facultativo" | "recesso" }>();
+  for (const dia of dias) if (!unicos.has(dia.data)) unicos.set(dia.data, dia);
+  const lista = [...unicos.values()];
+  return {
+    manutencao: marcado(cfg[0]?.manutencao),
+    bloqueado,
+    administrador,
+    datas: lista.map((item) => item.data),
+    dias: lista,
+  };
 }
 
 async function perfil(sql: Sql, userId: string, campos: { papel?: string; bloqueado?: boolean }) {
@@ -1513,7 +1532,7 @@ export async function salvarFeriado(entrada: { nome: string; tipo: string; inici
   if (nome.length < 2) throw new Error("Dê um nome ao dia.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(entrada.inicio) || !/^\d{4}-\d{2}-\d{2}$/.test(entrada.fim)) throw new Error("Datas inválidas.");
   if (entrada.fim < entrada.inicio) throw new Error("O fim não pode ser antes do início.");
-  const tipo = entrada.tipo === "recesso" ? "recesso" : "feriado";
+  const tipo = entrada.tipo === "recesso" ? "recesso" : entrada.tipo === "facultativo" ? "facultativo" : "feriado";
   const sql = await getSql();
   await sql`
     insert into feriados (id, inicio, fim, nome, tipo)

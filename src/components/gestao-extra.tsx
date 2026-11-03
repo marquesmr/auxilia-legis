@@ -411,7 +411,7 @@ export function SecaoSistema({
   const [pagina, setPagina] = useState(0);
   const [logs, setLogs] = useState<Awaited<ReturnType<typeof logsGestao>> | null>(null);
   const [nomeFeriado, setNomeFeriado] = useState("");
-  const [tipoFeriado, setTipoFeriado] = useState<"feriado" | "recesso">("feriado");
+  const [tipoFeriado, setTipoFeriado] = useState<"feriado" | "recesso" | "facultativo">("feriado");
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
   const [pontos, setPontos] = useState<Awaited<ReturnType<typeof backupsAutomaticosGestao>>>([]);
@@ -573,8 +573,9 @@ export function SecaoSistema({
           }}
         >
           <input value={nomeFeriado} onChange={(evento) => setNomeFeriado(evento.target.value)} placeholder="Nome" className="h-11 rounded-xl border border-line bg-paper px-3 text-sm md:col-span-2" spellCheck lang="pt-BR" />
-          <select value={tipoFeriado} onChange={(evento) => setTipoFeriado(evento.target.value as "feriado" | "recesso")} className="h-11 rounded-xl border border-line bg-paper px-3 text-sm text-ink">
+          <select value={tipoFeriado} onChange={(evento) => setTipoFeriado(evento.target.value as "feriado" | "recesso" | "facultativo")} className="h-11 rounded-xl border border-line bg-paper px-3 text-sm text-ink">
             <option value="feriado">Feriado</option>
+            <option value="facultativo">Ponto facultativo</option>
             <option value="recesso">Recesso</option>
           </select>
           <input type="date" value={inicio} onChange={(evento) => setInicio(evento.target.value)} className="h-11 rounded-xl border border-line bg-paper px-3 text-sm" />
@@ -588,7 +589,7 @@ export function SecaoSistema({
           {painel.feriados.map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-2 text-sm">
               <span className="text-ink">
-                {item.nome} <span className="text-muted">· {item.tipo === "recesso" ? "Recesso" : "Feriado"} · {item.inicio}{item.fim !== item.inicio ? ` a ${item.fim}` : ""}</span>
+                {item.nome} <span className="text-muted">· {item.tipo === "recesso" ? "Recesso" : item.tipo === "facultativo" ? "Ponto facultativo" : "Feriado"} · {item.inicio}{item.fim !== item.inicio ? ` a ${item.fim}` : ""}</span>
               </span>
               <button
                 type="button"
