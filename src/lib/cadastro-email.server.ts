@@ -99,7 +99,7 @@ export async function abrirSessaoConta(userId: string) {
   });
 }
 
-export async function criarContaComCodigo(nome: string, email: string, senha: string, codigo: string) {
+export async function criarContaComCodigo(nome: string, email: string, senha: string, codigo: string, idade: number) {
   const sql = await getSql();
   await tabela(sql);
   const linhas = await sql<{ codigo_hash: string; tentativas: number; valido: boolean }>`
@@ -126,6 +126,8 @@ export async function criarContaComCodigo(nome: string, email: string, senha: st
     emailVerified: true,
   });
   if (!usuario?.id) throw new Error("Não foi possível criar a conta.");
+  await sql`alter table "user" add column if not exists idade smallint`;
+  await sql`update "user" set idade = ${idade} where id = ${usuario.id}`;
   await ctx.internalAdapter.linkAccount({
     userId: usuario.id,
     providerId: "credential",

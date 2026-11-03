@@ -17,7 +17,7 @@ const MOTIVO_EXCLUSAO = "prazos.exclusao-motivo";
 const VISTA_EXCLUSAO = "prazos.exclusao-vista";
 const CADASTRO_PENDENTE = "prazos.cadastro-pendente";
 
-type RascunhoCadastro = { nome: string; email: string; senha: string; esperaAte: number; codigo: string };
+type RascunhoCadastro = { nome: string; email: string; senha: string; idade: string; esperaAte: number; codigo: string };
 
 function lerRascunhoCadastro(): RascunhoCadastro | null {
   try {
@@ -29,6 +29,7 @@ function lerRascunhoCadastro(): RascunhoCadastro | null {
       nome: typeof dados.nome === "string" ? dados.nome : "",
       email: dados.email,
       senha: typeof dados.senha === "string" ? dados.senha : "",
+      idade: typeof dados.idade === "string" ? dados.idade.replace(/\D/g, "").slice(0, 3) : "",
       esperaAte: typeof dados.esperaAte === "number" ? dados.esperaAte : 0,
       codigo: typeof dados.codigo === "string" ? dados.codigo.replace(/\D/g, "").slice(0, 6) : "",
     };
@@ -53,6 +54,7 @@ export function TelaConta() {
   const rascunho = lerRascunhoCadastro();
   const [modo, setModo] = useState<Modo>(() => (rascunho ? "criar" : sessionStorage.getItem(AVISO_EXCLUSAO) === "1" ? "criar" : "entrar"));
   const [nome, setNome] = useState(rascunho?.nome ?? "");
+  const [idade, setIdade] = useState(rascunho?.idade ?? "");
   const [email, setEmail] = useState(rascunho?.email ?? "");
   const [senha, setSenha] = useState(rascunho?.senha ?? "");
   const [erro, setErro] = useState("");
@@ -85,10 +87,11 @@ export function TelaConta() {
       nome: nome.trim(),
       email: email.trim(),
       senha,
+      idade,
       esperaAte: atual?.esperaAte && atual.esperaAte > Date.now() ? atual.esperaAte : Date.now() + Math.max(esperaCodigo, 0) * 1000,
       codigo: codigoCadastro,
     });
-  }, [confirmando, nome, email, senha, codigoCadastro, esperaCodigo]);
+  }, [confirmando, nome, email, senha, idade, codigoCadastro, esperaCodigo]);
 
   useEffect(() => {
     soltarTemaDaConta();
@@ -172,6 +175,13 @@ export function TelaConta() {
       setErro("Informe seu nome.");
       return;
     }
+    if (modo === "criar") {
+      const anos = Number(idade);
+      if (!Number.isInteger(anos) || anos < 18 || anos > 120) {
+        setErro("Informe a idade. É preciso ter 18 anos ou mais.");
+        return;
+      }
+    }
     if (senha.length < 8) {
       setErro("A senha precisa ter pelo menos 8 caracteres.");
       return;
@@ -190,7 +200,7 @@ export function TelaConta() {
     try {
       await pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim() } });
       const esperaAte = Date.now() + 40_000;
-      guardarRascunhoCadastro({ nome: nome.trim(), email: email.trim(), senha, esperaAte, codigo: "" });
+      guardarRascunhoCadastro({ nome: nome.trim(), email: email.trim(), senha, idade, esperaAte, codigo: "" });
       setConfirmando(true);
       setEsperaCodigo(40);
       setAviso("Enviamos o código de confirmação para o seu e-mail.");
@@ -207,7 +217,7 @@ export function TelaConta() {
     setEnviando(true);
     try {
       await criarContaComCodigo({
-        data: { nome: nome.trim(), email: email.trim(), senha, codigo: codigoCadastro },
+        data: { nome: nome.trim(), email: email.trim(), senha, codigo: codigoCadastro, idade: Number(idade) },
       });
       limparRascunhoCadastro();
       window.location.assign("/");
@@ -332,6 +342,7 @@ export function TelaConta() {
           </p>
         )}
         {modo === "criar" && (
+          <>
           <label className="flex flex-col gap-1 text-sm font-medium text-ink">
             Nome
             <input
@@ -342,6 +353,18 @@ export function TelaConta() {
               required
             />
           </label>
+          <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+            Idade
+            <input
+              value={idade}
+              onChange={(e) => setIdade(e.target.value.replace(/\D/g, "").slice(0, 3))}
+              className={campo}
+              inputMode="numeric"
+              placeholder="18 ou mais"
+              required
+            />
+          </label>
+          </>
         )}
         <label className="flex flex-col gap-1 text-sm font-medium text-ink">
           E-mail
@@ -428,9 +451,15 @@ export function TelaConta() {
           </button>
         ))}
       </div>
-      <Link to="/privacidade" className="mt-6 text-center text-sm font-medium text-pine">
-        Política de Privacidade
-      </Link>
+      <p className="mt-6 text-center text-sm">
+        <Link to="/privacidade" className="font-medium text-pine">
+          Política de Privacidade
+        </Link>
+        <span className="text-muted"> · </span>
+        <Link to="/termos" className="font-medium text-pine">
+          Termos de Serviço
+        </Link>
+      </p>
       <Link
         to="/gestao"
         className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-xl border border-line bg-sheet text-sm font-medium text-ink"

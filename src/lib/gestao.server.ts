@@ -2,6 +2,7 @@ import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { readFileSync, statfsSync } from "node:fs";
 import { cpus, freemem, totalmem } from "node:os";
 import { promisify } from "node:util";
+import { abrirBackup, cifrarBackup } from "@/lib/backup-cripto";
 import { copiarBancoAgora, getSql, lerTrafego, puxarNuvem, semPersistencia, type Sql } from "@/lib/db";
 import { motivoExclusao } from "@/lib/motivos-exclusao";
 
@@ -1124,8 +1125,9 @@ function resumoDoBackup(conteudo: string) {
 }
 
 async function guardarBackup(sql: Sql, automatico: boolean) {
-  const conteudo = await montarBackup(sql);
-  const resumo = resumoDoBackup(conteudo);
+  const claro = await montarBackup(sql);
+  const resumo = resumoDoBackup(claro);
+  const conteudo = cifrarBackup(claro);
   await sql`
     insert into gestao_backups (id, automatico, conteudo, contas, processos, administrativos)
     values (${crypto.randomUUID()}, ${automatico}, ${conteudo}, ${resumo.contas}, ${resumo.processos}, ${resumo.administrativos})
@@ -1176,10 +1178,16 @@ export async function listarBackupsAutomaticos() {
     let processos = linha.processos;
     let administrativos = linha.administrativos;
     if (contas == null && linha.conteudo) {
-      const resumo = resumoDoBackup(linha.conteudo);
-      contas = resumo.contas;
-      processos = resumo.processos;
-      administrativos = resumo.administrativos;
+      try {
+        const resumo = resumoDoBackup(abrirBackup(linha.conteudo));
+        contas = resumo.contas;
+        processos = resumo.processos;
+        administrativos = resumo.administrativos;
+      } catch {
+        contas = 0;
+        processos = 0;
+        administrativos = 0;
+      }
       await sql`
         update gestao_backups
         set contas = ${contas}, processos = ${processos}, administrativos = ${administrativos}
@@ -1267,6 +1275,7 @@ function idsDe(linhas: unknown, campo: string) {
 
 export async function restaurarBackup(conteudo: string) {
   if (conteudo.length > 12_000_000) throw new Error("O arquivo é grande demais.");
+  const claro = abrirBackup(conteudo);
   let dados: {
     versao?: number;
     processos?: Record<string, unknown>[];
@@ -1275,7 +1284,7 @@ export async function restaurarBackup(conteudo: string) {
     contas?: Record<string, unknown>[];
   };
   try {
-    dados = JSON.parse(conteudo) as typeof dados;
+    dados = JSON.parse(claro) as typeof dados;
   } catch {
     throw new Error("Arquivo de backup inválido.");
   }

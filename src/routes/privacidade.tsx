@@ -38,7 +38,7 @@ function Privacidade() {
 
         <Titulo>2. Quais dados são tratados</Titulo>
         <p className="text-justify">
-          Dados da conta: nome, e-mail, hash da senha (a senha em texto claro não é guardada), identificador da conta no Google ou no X quando o login é feito por esses meios, e códigos temporários de confirmação de e-mail ou de redefinição de senha.
+          Dados da conta: nome, idade informada na criação da conta por e-mail, e-mail, hash da senha (a senha em texto claro não é guardada), identificador da conta no Google ou no X quando o login é feito por esses meios, e códigos temporários de confirmação de e-mail ou de redefinição de senha. A conta por e-mail só é criada para quem declara 18 anos ou mais.
         </p>
         <p className="text-justify">
           Dados lançados pelo usuário: número e ano do processo, tipo, parte, assunto, status, prazos, andamentos, valores, vigência, documento do contratado, links de publicação e o histórico de quem alterou o quê. No administrativo, isso pode incluir CPF, CNPJ e comunicações internas. Preferências de tema, cor e área de abertura também são gravadas na conta.
@@ -66,9 +66,15 @@ function Privacidade() {
           A ajuda do canto da tela envia a pergunta, o primeiro nome e o histórico recente daquela conversa a um modelo de linguagem de terceiro (LLM7), somente para formular a resposta. Não envia a lista de processos, documentos nem senhas. A pergunta não deve conter dado sensível ou de terceiro.
         </p>
 
-        <Titulo>5. Google Drive</Titulo>
+        <Titulo>5. Backups cifrados</Titulo>
         <p className="text-justify">
-          O backup no Google Drive não é automático. Só ocorre quando alguém autorizado na área restrita escolhe essa opção e autoriza o escopo drive.file. Esse escopo permite criar a pasta Auxilia Legis e o arquivo do backup na conta Google escolhida na hora. Não autoriza ler o restante do Drive. A conta Google não precisa ser a mesma do login de administrador. O arquivo fica sob a conta Google que autorizou o envio, e a exclusão dele é feita no próprio Drive.
+          Todo backup, automático ou manual, é cifrado pelo sistema antes de ser gravado, baixado ou enviado. A cifra é AES-256-GCM. A chave fica somente no sistema e não acompanha o arquivo. O arquivo não mostra contas, processos, senhas nem documentos.
+        </p>
+        <p className="text-justify">
+          Nem o controlador, nem quem guarda o arquivo no computador, nem a conta Google que recebe a cópia no Drive conseguem ler as informações. Não há tela, exportação nem consulta que revele o conteúdo do arquivo. A decifragem existe apenas como etapa interna da restauração, feita pelo sistema, para repor os dados. O controlador não usa o backup para conhecer o que está nas contas.
+        </p>
+        <p className="text-justify">
+          O envio ao Google Drive não é automático. Só ocorre quando alguém autorizado na área restrita escolhe essa opção e autoriza o escopo drive.file. Esse escopo cria a pasta Auxilia Legis e o arquivo cifrado na conta Google escolhida na hora. Não autoriza ler o restante do Drive. A conta Google não precisa ser a mesma do login de administrador. Apagar o arquivo é feito no próprio Drive.
         </p>
 
         <Titulo>6. Transferência internacional</Titulo>
@@ -96,7 +102,7 @@ function Privacidade() {
 
         <Titulo>10. Crianças e adolescentes</Titulo>
         <p className="text-justify">
-          O Programa não se destina a menor de 18 anos. Não se coleta dado de criança de forma intencional. Cadastro em nome de menor deve ser removido mediante pedido ao e-mail de contato.
+          O Programa não se destina a menor de 18 anos. Na criação da conta por e-mail a idade é obrigatória, e o cadastro é recusado abaixo de 18. Não se coleta dado de criança de forma intencional.
         </p>
 
         <Titulo>11. Alterações</Titulo>

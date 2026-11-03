@@ -529,7 +529,7 @@ export function SecaoSistema({
               <div className="w-full max-w-md rounded-2xl border border-line bg-sheet p-5 shadow-lg">
                 <h3 id="titulo-backup" className="font-display text-2xl text-ink">Backup manual</h3>
                 <p className="mt-2 text-sm text-muted">
-                  Guarda neste computador ou no Google Drive. No Drive, a pasta é Auxilia Legis e o arquivo se chama {nomeBackupManual()}.
+                  Guarda neste computador ou no Google Drive. O arquivo sai cifrado: só o sistema o abre, na restauração. No Drive, a pasta é Auxilia Legis e o arquivo se chama {nomeBackupManual()}.
                 </p>
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                   <button type="button" onClick={backupNoComputador} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line px-4 text-sm font-medium text-ink">
