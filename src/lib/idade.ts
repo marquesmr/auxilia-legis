@@ -24,7 +24,7 @@ export function limitesNascimento(agora = new Date()) {
     day: "2-digit",
   }).format(agora);
   const [ano, mes, dia] = hoje.split("-").map(Number);
-  const max = `${String(ano - 18).padStart(4, "0")}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+  const max = hoje;
   const min = `${String(ano - 120).padStart(4, "0")}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
   return { min, max };
 }

@@ -178,8 +178,8 @@ export function TelaConta() {
     }
     if (modo === "criar") {
       const anos = idadeEm(nascimento);
-      if (anos == null || anos < 18 || anos > 120) {
-        setErro("Escolha a data de nascimento. É preciso ter 18 anos ou mais.");
+      if (anos == null || anos > 120) {
+        setErro("Escolha a data de nascimento.");
         return;
       }
     }
@@ -188,6 +188,10 @@ export function TelaConta() {
       return;
     }
     if (modo === "criar") {
+      if ((idadeEm(nascimento) ?? 0) < 18) {
+        void enviarCodigoCadastro();
+        return;
+      }
       setTermos(true);
       return;
     }
@@ -199,7 +203,7 @@ export function TelaConta() {
     setAviso("");
     setEnviando(true);
     try {
-      await pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim() } });
+      await pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim(), nascimento } });
       const esperaAte = Date.now() + 40_000;
       guardarRascunhoCadastro({ nome: nome.trim(), email: email.trim(), senha, nascimento, esperaAte, codigo: "" });
       setConfirmando(true);

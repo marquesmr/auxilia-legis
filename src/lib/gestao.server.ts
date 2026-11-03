@@ -451,6 +451,20 @@ export async function lerPainel() {
   const feriados = await sql<{ id: string; inicio: string; fim: string; nome: string; tipo: string }>`
     select id, inicio, fim, nome, tipo from feriados order by inicio asc
   `;
+  await sql`
+    create table if not exists email_restrito (
+      email text primary key,
+      nascimento date,
+      restrito_ate timestamptz not null,
+      criado_em timestamptz not null default now()
+    )
+  `;
+  const restritos = await sql<{ email: string; nascimento: string | null; restrito_ate: string }>`
+    select email, nascimento::text as nascimento, restrito_ate
+    from email_restrito
+    where restrito_ate > now()
+    order by restrito_ate asc
+  `;
   const equipesMapa = new Map<string, { id: string; nome: string; membros: { id: string; nome: string; email: string; papel: string }[] }>();
   for (const linha of equipesLinhas) {
     const equipe = equipesMapa.get(linha.equipe_id) ?? { id: linha.equipe_id, nome: linha.equipe, membros: [] };
@@ -499,8 +513,19 @@ export async function lerPainel() {
       emailPronto: Boolean(process.env.SMTP_PASS?.trim() || config[0]?.smtp_senha),
     },
     feriados: feriados.map((item) => ({ ...item, inicio: String(item.inicio).slice(0, 10), fim: String(item.fim).slice(0, 10) })),
+    restritos: restritos.map((item) => ({
+      email: item.email,
+      nascimento: item.nascimento ? String(item.nascimento).slice(0, 10) : "",
+      ate: String(item.restrito_ate),
+    })),
     status: await listarStatusCatalogo(),
   };
+}
+
+export async function liberarEmailRestrito(email: string) {
+  const sql = await getSql();
+  await sql`delete from email_restrito where lower(email) = ${email.toLowerCase()}`;
+  return { email };
 }
 
 export async function criarAba(area: "legislativo" | "administrativo", nome: string) {

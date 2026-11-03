@@ -12,6 +12,7 @@ import {
   editarStatusGestao,
   excluirUsuarioGestao,
   feriadoGestao,
+  liberarRestricaoGestao,
   logsGestao,
   manutencaoGestao,
   restaurarAutomaticoGestao,
@@ -94,6 +95,29 @@ export function SecaoUsuarios({
         <p className="mt-1 text-sm text-muted">
           Consulta só lê. Administrador, depois de atribuído, entra na área restrita com o e-mail e a senha da própria conta. O acesso do gestor que já existe continua valendo.
         </p>
+        <h3 className="mt-4 text-sm font-medium text-ink">E-mails restritos</h3>
+        <p className="mt-1 text-sm text-muted">Menor de 18 anos. O e-mail fica 7 dias sem criar conta, salvo contato em auxilialegis@marquestecnologies.com.</p>
+        <ul className="mt-3 flex flex-col gap-2">
+          {painel.restritos.length === 0 && <li className="text-sm text-muted">Nenhum e-mail restrito.</li>}
+          {painel.restritos.map((item) => (
+            <li key={item.email} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm">
+              <span className="text-ink">
+                {item.email} <span className="text-muted">· menor de 18 · até {horaCheia(item.ate)}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  onConfirmar(`Liberar ${item.email}? Só depois do contato em auxilialegis@marquestecnologies.com.`, () => {
+                    void agir(liberarRestricaoGestao({ data: { token, email: item.email } }), "E-mail liberado.");
+                  })
+                }
+                className="h-9 rounded-lg border border-line px-3 text-ink"
+              >
+                Liberar
+              </button>
+            </li>
+          ))}
+        </ul>
         <ul className="mt-3 flex flex-col gap-3">
           {painel.pessoas.map((pessoa) => (
             <li key={pessoa.id} className="rounded-xl border border-line p-3 text-sm">

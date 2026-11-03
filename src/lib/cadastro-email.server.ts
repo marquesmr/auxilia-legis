@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, randomInt, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
+import { idadeEm } from "@/lib/idade";
 import { getSql } from "@/lib/db";
 import { botaoEmail, codigoEmail, emailHtml, enviarEmail, urlDoSite } from "@/lib/email.server";
 import { senhaDaCaixa } from "@/lib/senha-email.server";
@@ -33,15 +34,63 @@ async function tabela(sql: Awaited<ReturnType<typeof getSql>>) {
   `;
 }
 
-export async function pedirCodigoCadastro(email: string, nome: string) {
+async function tabelaRestricao(sql: Awaited<ReturnType<typeof getSql>>) {
+  await sql`
+    create table if not exists email_restrito (
+      email text primary key,
+      nascimento date,
+      restrito_ate timestamptz not null,
+      criado_em timestamptz not null default now()
+    )
+  `;
+}
+
+function textoAte(ate: string) {
+  const quando = new Date(ate).toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `Este e-mail está restrito até ${quando}. Para liberar antes, escreva para auxilialegis@marquestecnologies.com.`;
+}
+
+export async function barrarEmailRestrito(email: string, nascimento: string) {
+  const idade = idadeEm(nascimento);
+  if (idade == null || idade > 120) throw new Error("Escolha a data de nascimento.");
+  const sql = await getSql();
+  await tabelaRestricao(sql);
+  const ativo = await sql<{ restrito_ate: string }>`
+    select restrito_ate from email_restrito where email = ${email} and restrito_ate > now()
+  `;
+  if (ativo[0]) throw new Error(textoAte(String(ativo[0].restrito_ate)));
+  if (idade < 18) {
+    const gravado = await sql<{ restrito_ate: string }>`
+      insert into email_restrito (email, nascimento, restrito_ate)
+      values (${email}, ${nascimento}, now() + interval '7 days')
+      on conflict (email) do update
+      set nascimento = excluded.nascimento,
+          restrito_ate = greatest(email_restrito.restrito_ate, now() + interval '7 days')
+      returning restrito_ate
+    `;
+    throw new Error(
+      `Menor de 18 anos não cria conta. ${textoAte(String(gravado[0]?.restrito_ate ?? new Date(Date.now() + 7 * 86400000).toISOString()))}`,
+    );
+  }
+}
+
+export async function pedirCodigoCadastro(email: string, nome: string, nascimento: string) {
   const sql = await getSql();
   await tabela(sql);
+  const existente = await sql<{ id: string }>`select id from "user" where lower(email) = ${email}`;
+  if (existente[0]) throw new Error("Já existe uma conta com este e-mail.");
+  await barrarEmailRestrito(email, nascimento);
   const senhaCaixa = await senhaDaCaixa();
   if (!senhaCaixa) {
     throw new Error("A caixa auxilialegis@marquestecnologies.com ainda não tem senha. Guarde-a na área restrita.");
   }
-  const existente = await sql<{ id: string }>`select id from "user" where lower(email) = ${email}`;
-  if (existente[0]) throw new Error("Já existe uma conta com este e-mail.");
   const recente = await sql<{ recente: boolean }>`
     select criado_em > now() - interval '40 seconds' as recente
     from codigo_cadastro
@@ -102,6 +151,7 @@ export async function abrirSessaoConta(userId: string) {
 export async function criarContaComCodigo(nome: string, email: string, senha: string, codigo: string, idade: number, nascimento: string) {
   const sql = await getSql();
   await tabela(sql);
+  await barrarEmailRestrito(email, nascimento);
   const linhas = await sql<{ codigo_hash: string; tentativas: number; valido: boolean }>`
     select codigo_hash, tentativas, expira_em > now() as valido
     from codigo_cadastro

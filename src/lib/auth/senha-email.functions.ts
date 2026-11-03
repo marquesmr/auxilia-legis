@@ -10,14 +10,16 @@ function emailOk(valor: unknown) {
 export const pedirCodigoCadastro = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
-    const bruto = input as { email?: unknown; nome?: unknown };
+    const bruto = input as { email?: unknown; nome?: unknown; nascimento?: unknown };
     const nome = typeof bruto.nome === "string" ? bruto.nome.trim().replace(/\s+/g, " ").slice(0, 80) : "";
     if (nome.length < 2) throw new Error("Informe seu nome.");
-    return { email: emailOk(bruto.email), nome };
+    const nascimento = typeof bruto.nascimento === "string" ? bruto.nascimento : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nascimento)) throw new Error("Escolha a data de nascimento.");
+    return { email: emailOk(bruto.email), nome, nascimento };
   })
   .handler(async ({ data }) => {
     const { pedirCodigoCadastro: pedir } = await import("../cadastro-email.server");
-    return pedir(data.email, data.nome);
+    return pedir(data.email, data.nome, data.nascimento);
   });
 
 export const entrarPeloLink = createServerFn({ method: "POST" })
@@ -39,7 +41,7 @@ export const criarContaComCodigo = createServerFn({ method: "POST" })
     if (nome.length < 2) throw new Error("Informe seu nome.");
     const nascimento = typeof bruto.nascimento === "string" ? bruto.nascimento : "";
     const idade = idadeEm(nascimento);
-    if (idade == null || idade < 18 || idade > 120) throw new Error("Escolha a data de nascimento. É preciso ter 18 anos ou mais.");
+    if (idade == null || idade > 120) throw new Error("Escolha a data de nascimento.");
     const senha = typeof bruto.senha === "string" ? bruto.senha : "";
     if (senha.length < 8) throw new Error("A senha precisa ter pelo menos 8 caracteres.");
     if (senha.length > 128) throw new Error("A senha está longa demais.");

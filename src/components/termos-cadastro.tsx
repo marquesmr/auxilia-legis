@@ -75,7 +75,7 @@ export function TextoDosTermos() {
         O Programa é disponibilizado por Carlos Marques, com sede em Mário Campos/MG, doravante denominado Titular. Ao criar uma conta, marcar a opção de aceite ou utilizar o Programa, o usuário declara ter lido, compreendido e concordado integralmente com estes Termos, bem como com a Política de Privacidade vinculada. Se não concordar, não crie conta nem utilize o Programa.
       </p>
       <p className="text-justify">
-        O uso do Programa por pessoa jurídica pressupõe que o representante possui poderes para vincular a entidade. A conta criada por e-mail exige a data de nascimento e só pode ser aberta por quem já completou 18 anos.
+        O uso do Programa por pessoa jurídica pressupõe que o representante possui poderes para vincular a entidade. A conta criada por e-mail pede a data de nascimento. Menor de 18 anos não cria conta: o e-mail fica restrito por 7 dias, salvo liberação após contato com auxilialegis@marquestecnologies.com.
       </p>
       <h3 className="pt-1 font-medium">2. Descrição do serviço</h3>
       <p className="text-justify">

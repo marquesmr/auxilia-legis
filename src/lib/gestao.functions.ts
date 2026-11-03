@@ -220,6 +220,21 @@ function idOk(valor: unknown) {
   return valor.trim().slice(0, 80);
 }
 
+export const liberarRestricaoGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; email?: unknown };
+    const email = typeof bruto.email === "string" ? bruto.email.trim().toLowerCase() : "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("E-mail inválido.");
+    return { token: tokenOk(bruto.token), email };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, liberarEmailRestrito } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return liberarEmailRestrito(data.email);
+  });
+
 export const definirPapelGestao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
