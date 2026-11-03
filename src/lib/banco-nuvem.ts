@@ -1,4 +1,4 @@
-import { del, get, head, list, put } from "@vercel/blob";
+import { get, head, put } from "@vercel/blob";
 
 /**
  * Cópia durável do PGLite. Sem DATABASE_URL cada função da Vercel nascia com o
@@ -123,34 +123,30 @@ export async function gravarCopia(arquivo: Blob, etag: string | null): Promise<s
   return salvo.etag;
 }
 
-const PREFIXO_TRAVA = `auxilia-legis/${PASTA}/restricao/`;
-
-function caminhoTrava(email: string) {
-  return `${PREFIXO_TRAVA}${encodeURIComponent(email.trim().toLowerCase())}.json`;
-}
+const CAMINHO_TRAVAS = `auxilia-legis/${PASTA}/emails-restritos.json`;
 
 export type TravaEmail = { email: string; nascimento: string; ate: string };
 
-export async function lerTravaEmail(email: string): Promise<TravaEmail | null> {
+type MapaTravas = Record<string, { nascimento: string; ate: string }>;
+
+async function lerMapaTravas(): Promise<MapaTravas> {
   const chave = token();
-  if (!chave) return null;
+  if (!chave) return {};
   try {
-    const resposta = await get(caminhoTrava(email), { access: "private", token: chave, useCache: false });
-    if (!resposta?.stream) return null;
-    const dados = JSON.parse(await new Response(resposta.stream).text()) as Partial<TravaEmail>;
-    if (!dados.ate || !dados.email) return null;
-    return { email: dados.email, nascimento: dados.nascimento ?? "", ate: dados.ate };
+    const resposta = await get(CAMINHO_TRAVAS, { access: "private", token: chave, useCache: false });
+    if (!resposta?.stream) return {};
+    const dados = JSON.parse(await new Response(resposta.stream).text()) as MapaTravas;
+    return dados && typeof dados === "object" ? dados : {};
   } catch (err) {
-    if (naoAchei(err)) return null;
+    if (naoAchei(err)) return {};
     throw err;
   }
 }
 
-export async function gravarTravaEmail(email: string, nascimento: string, ate: string) {
+async function gravarMapaTravas(mapa: MapaTravas) {
   const chave = token();
   if (!chave) return;
-  const corpo = JSON.stringify({ email: email.trim().toLowerCase(), nascimento, ate });
-  await put(caminhoTrava(email), corpo, {
+  await put(CAMINHO_TRAVAS, JSON.stringify(mapa), {
     access: "private",
     token: chave,
     allowOverwrite: true,
@@ -160,32 +156,33 @@ export async function gravarTravaEmail(email: string, nascimento: string, ate: s
   });
 }
 
+export async function lerTravaEmail(email: string): Promise<TravaEmail | null> {
+  const normal = email.trim().toLowerCase();
+  const item = (await lerMapaTravas())[normal];
+  if (!item?.ate || new Date(item.ate).getTime() <= Date.now()) return null;
+  return { email: normal, nascimento: item.nascimento ?? "", ate: item.ate };
+}
+
+export async function gravarTravaEmail(email: string, nascimento: string, ate: string) {
+  const normal = email.trim().toLowerCase();
+  const mapa = await lerMapaTravas();
+  const atual = mapa[normal]?.ate;
+  const ateFinal = atual && new Date(atual).getTime() > new Date(ate).getTime() ? atual : ate;
+  mapa[normal] = { nascimento, ate: ateFinal };
+  await gravarMapaTravas(mapa);
+}
+
 export async function apagarTravaEmail(email: string) {
-  const chave = token();
-  if (!chave) return;
-  try {
-    await del(caminhoTrava(email), { token: chave });
-  } catch (err) {
-    if (!naoAchei(err)) throw err;
-  }
+  const normal = email.trim().toLowerCase();
+  const mapa = await lerMapaTravas();
+  if (!mapa[normal]) return;
+  delete mapa[normal];
+  await gravarMapaTravas(mapa);
 }
 
 export async function listarTravasEmail(): Promise<TravaEmail[]> {
-  const chave = token();
-  if (!chave) return [];
-  const achados = await list({ prefix: PREFIXO_TRAVA, token: chave });
-  const lista: TravaEmail[] = [];
-  for (const item of achados.blobs) {
-    try {
-      const resposta = await get(item.pathname, { access: "private", token: chave, useCache: false });
-      if (!resposta?.stream) continue;
-      const dados = JSON.parse(await new Response(resposta.stream).text()) as Partial<TravaEmail>;
-      if (!dados.email || !dados.ate) continue;
-      if (new Date(dados.ate).getTime() <= Date.now()) continue;
-      lista.push({ email: dados.email, nascimento: dados.nascimento ?? "", ate: dados.ate });
-    } catch {
-      /* um arquivo ruim não esconde os outros */
-    }
-  }
-  return lista;
+  const mapa = await lerMapaTravas();
+  return Object.entries(mapa)
+    .filter(([, item]) => item?.ate && new Date(item.ate).getTime() > Date.now())
+    .map(([email, item]) => ({ email, nascimento: item.nascimento ?? "", ate: item.ate }));
 }

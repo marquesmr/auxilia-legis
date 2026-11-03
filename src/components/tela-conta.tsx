@@ -47,6 +47,41 @@ function limparRascunhoCadastro() {
   sessionStorage.removeItem(CADASTRO_PENDENTE);
 }
 
+const TRAVA_LOCAL = "prazos.emails-restritos";
+
+function travasLocais() {
+  try {
+    const dados = JSON.parse(localStorage.getItem(TRAVA_LOCAL) || "{}") as Record<string, number>;
+    return dados && typeof dados === "object" ? dados : {};
+  } catch {
+    return {};
+  }
+}
+
+function marcarTravaLocal(email: string) {
+  const normal = email.trim().toLowerCase();
+  const mapa = travasLocais();
+  mapa[normal] = Math.max(mapa[normal] ?? 0, Date.now() + 7 * 24 * 60 * 60 * 1000);
+  localStorage.setItem(TRAVA_LOCAL, JSON.stringify(mapa));
+}
+
+function travaLocalDe(email: string) {
+  const ate = travasLocais()[email.trim().toLowerCase()];
+  return typeof ate === "number" && ate > Date.now() ? ate : null;
+}
+
+function textoTrava(ate: number | string) {
+  const quando = new Date(ate).toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `Menor de 18 anos não cria conta. Este e-mail está restrito até ${quando}. Se errou a data, escreva para auxilialegis@marquestecnologies.com e envie um comprovante de que você tem 18 anos ou mais. A liberação antes do prazo só ocorre depois desse contato.`;
+}
+
 function avisoPendente() {
   return sessionStorage.getItem(AVISO_EXCLUSAO) === "1" && sessionStorage.getItem(VISTA_EXCLUSAO) !== "1";
 }
@@ -188,7 +223,9 @@ export function TelaConta() {
       return;
     }
     if (modo === "criar") {
-      if ((idadeEm(nascimento) ?? 0) < 18) {
+      const presa = travaLocalDe(email);
+      if (presa || (idadeEm(nascimento) ?? 0) < 18) {
+        if ((idadeEm(nascimento) ?? 0) < 18) marcarTravaLocal(email);
         void enviarCodigoCadastro();
         return;
       }
@@ -202,8 +239,22 @@ export function TelaConta() {
     setErro("");
     setAviso("");
     setEnviando(true);
+    const menor = (idadeEm(nascimento) ?? 0) < 18;
+    if (menor) marcarTravaLocal(email);
     try {
-      await pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim(), nascimento } });
+      const resultado = await pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim(), nascimento } });
+      if (resultado && typeof resultado === "object" && "restrito" in resultado && resultado.restrito) {
+        marcarTravaLocal(email);
+        setErro(resultado.mensagem);
+        return;
+      }
+      if (menor) {
+        setErro(textoTrava(travaLocalDe(email) ?? Date.now()));
+        return;
+      }
+      const mapa = travasLocais();
+      delete mapa[email.trim().toLowerCase()];
+      localStorage.setItem(TRAVA_LOCAL, JSON.stringify(mapa));
       const esperaAte = Date.now() + 40_000;
       guardarRascunhoCadastro({ nome: nome.trim(), email: email.trim(), senha, nascimento, esperaAte, codigo: "" });
       setConfirmando(true);
@@ -221,9 +272,20 @@ export function TelaConta() {
     setErro("");
     setEnviando(true);
     try {
-      await criarContaComCodigo({
+      if (travaLocalDe(email)) {
+        setErro(textoTrava(travaLocalDe(email) ?? Date.now()));
+        setEnviando(false);
+        return;
+      }
+      const resultado = await criarContaComCodigo({
         data: { nome: nome.trim(), email: email.trim(), senha, codigo: codigoCadastro, nascimento },
       });
+      if (resultado && typeof resultado === "object" && "restrito" in resultado && resultado.restrito) {
+        marcarTravaLocal(email);
+        setErro(resultado.mensagem);
+        setEnviando(false);
+        return;
+      }
       limparRascunhoCadastro();
       window.location.assign("/");
     } catch (err) {
