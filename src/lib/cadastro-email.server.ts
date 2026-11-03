@@ -1,7 +1,8 @@
 import { createHmac, randomBytes, randomInt, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { idadeEm } from "@/lib/idade";
-import { getSql } from "@/lib/db";
+import { copiarBancoAgora, getSql, puxarNuvem } from "@/lib/db";
+import { gravarTravaEmail, lerTravaEmail } from "@/lib/banco-nuvem";
 import { botaoEmail, codigoEmail, emailHtml, enviarEmail, urlDoSite } from "@/lib/email.server";
 import { senhaDaCaixa } from "@/lib/senha-email.server";
 
@@ -60,24 +61,32 @@ function textoAte(ate: string) {
 export async function barrarEmailRestrito(email: string, nascimento: string) {
   const idade = idadeEm(nascimento);
   if (idade == null || idade > 120) throw new Error("Escolha a data de nascimento.");
+  const normal = email.trim().toLowerCase();
+  const trava = await lerTravaEmail(normal);
+  if (trava && new Date(trava.ate).getTime() > Date.now()) throw new Error(textoAte(trava.ate));
   const sql = await getSql();
+  await puxarNuvem();
   await tabelaRestricao(sql);
   const ativo = await sql<{ restrito_ate: string }>`
-    select restrito_ate from email_restrito where email = ${email} and restrito_ate > now()
+    select restrito_ate from email_restrito where lower(email) = ${normal} and restrito_ate > now()
   `;
-  if (ativo[0]) throw new Error(textoAte(String(ativo[0].restrito_ate)));
+  if (ativo[0]) {
+    const ate = new Date(ativo[0].restrito_ate).toISOString();
+    await gravarTravaEmail(normal, nascimento, ate);
+    throw new Error(textoAte(ate));
+  }
   if (idade < 18) {
-    const gravado = await sql<{ restrito_ate: string }>`
+    const ate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await gravarTravaEmail(normal, nascimento, ate);
+    await sql`
       insert into email_restrito (email, nascimento, restrito_ate)
-      values (${email}, ${nascimento}, now() + interval '7 days')
+      values (${normal}, ${nascimento}, ${ate}::timestamptz)
       on conflict (email) do update
       set nascimento = excluded.nascimento,
-          restrito_ate = greatest(email_restrito.restrito_ate, now() + interval '7 days')
-      returning restrito_ate
+          restrito_ate = greatest(email_restrito.restrito_ate, excluded.restrito_ate)
     `;
-    throw new Error(
-      `Menor de 18 anos não cria conta. ${textoAte(String(gravado[0]?.restrito_ate ?? new Date(Date.now() + 7 * 86400000).toISOString()))}`,
-    );
+    await copiarBancoAgora();
+    throw new Error(`Menor de 18 anos não cria conta. ${textoAte(ate)}`);
   }
 }
 
