@@ -56,11 +56,12 @@ export function lerTextoCalendario(texto: string, ano = anoDoTexto(texto)): Feri
   };
 
   const linhas = texto.replace(/\r/g, "\n");
-  for (const trecho of linhas.matchAll(/(\d{1,2})\s*[\/.\-]\s*(\d{1,2})\s*[:\-–]\s*([^\n]{3,90})/g)) {
+  const dataNome = /(\d{1,2})\s*[\/.\-]\s*(\d{1,2})\s*[:\-–]\s*((?:(?!\d{1,2}\s*[\/.\-]\s*\d{1,2}\s*[:\-–]).)+)/g;
+  for (const trecho of linhas.matchAll(dataNome)) {
     const dia = Number(trecho[1]);
     const mes = Number(trecho[2]);
     const inicio = dataValida(ano, mes, dia);
-    guardar({ nome: trecho[3], inicio, fim: inicio, tipo: tipoDoNome(trecho[3]) });
+    guardar({ nome: trecho[3] ?? "", inicio, fim: inicio, tipo: tipoDoNome(trecho[3] ?? "") });
   }
 
   for (const trecho of linhas.matchAll(/de\s+(\d{1,2})\s+a\s+(\d{1,2})\s+de\s+([a-zçãéõáíóúâêô]+)/gi)) {

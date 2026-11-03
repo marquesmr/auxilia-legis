@@ -3,6 +3,7 @@ import { readFileSync, statfsSync } from "node:fs";
 import { cpus, freemem, totalmem } from "node:os";
 import { promisify } from "node:util";
 import { gravarLiberacaoTrava, listarTravasEmail, marcarTravaAnalise } from "@/lib/banco-nuvem";
+import { lerTextoCalendario } from "@/lib/calendario-leitura";
 import { abrirBackup, cifrarBackup } from "@/lib/backup-cripto";
 import { copiarBancoAgora, getSql, lerTrafego, puxarNuvem, semPersistencia, type Sql } from "@/lib/db";
 import { botaoEmail, emailHtml, enviarEmail, urlDoSite } from "@/lib/email.server";
@@ -455,6 +456,7 @@ export async function lerPainel() {
     select manutencao, backup_em, backup_auto_em, smtp_senha from gestao_config where id = 'principal'
   `;
   await colunasFeriado(sql);
+  await separarFeriadosColados(sql);
   const feriados = await sql<{ id: string; inicio: string; fim: string; nome: string; tipo: string; status: string; ambito: string }>`
     select id, inicio, fim, nome, tipo, status, ambito from feriados order by inicio asc
   `;
@@ -1538,6 +1540,35 @@ export async function restaurarBackup(conteudo: string) {
 async function colunasFeriado(sql: Sql) {
   await sql`alter table feriados add column if not exists status text not null default 'ativo'`;
   await sql`alter table feriados add column if not exists ambito text not null default ''`;
+}
+
+async function separarFeriadosColados(sql: Sql) {
+  const linhas = await sql<{ id: string; inicio: string; nome: string }>`
+    select id, inicio, nome from feriados where status = 'pendente'
+  `;
+  let mudou = false;
+  for (const linha of linhas) {
+    const nome = String(linha.nome);
+    if (!/\d{1,2}\s*\/\s*\d{1,2}\s*[:\-–]/.test(nome)) continue;
+    const inicio = String(linha.inicio).slice(0, 10);
+    const [ano, mes, dia] = inicio.split("-").map(Number);
+    if (!ano || !mes || !dia) continue;
+    const partes = lerTextoCalendario(`${dia}/${mes}: ${nome}`, ano);
+    if (partes.length < 2) continue;
+    await sql`delete from feriados where id = ${linha.id}`;
+    for (const parte of partes) {
+      const existe = await sql<{ id: string }>`
+        select id from feriados where inicio = ${parte.inicio}::date and lower(nome) = ${parte.nome.toLowerCase()} limit 1
+      `;
+      if (existe[0]) continue;
+      await sql`
+        insert into feriados (id, inicio, fim, nome, tipo, status, ambito)
+        values (${crypto.randomUUID()}, ${parte.inicio}, ${parte.fim}, ${parte.nome}, ${parte.tipo}, 'pendente', '')
+      `;
+    }
+    mudou = true;
+  }
+  if (mudou) await copiarBancoAgora();
 }
 
 export async function salvarFeriado(entrada: { nome: string; tipo: string; inicio: string; fim: string }) {
