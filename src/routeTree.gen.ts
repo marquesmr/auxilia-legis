@@ -14,6 +14,7 @@ import { Route as GestaoRouteImport } from './routes/gestao'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as TermosRouteImport } from './routes/termos'
+import { Route as ApiAvisoPoliticaRouteImport } from './routes/api/aviso-politica'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,6 +42,11 @@ const TermosRoute = TermosRouteImport.update({
   path: '/termos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAvisoPoliticaRoute = ApiAvisoPoliticaRouteImport.update({
+  id: '/api/aviso-politica',
+  path: '/api/aviso-politica',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/privacidade': typeof PrivacidadeRoute
   '/termos': typeof TermosRoute
+  '/api/aviso-politica': typeof ApiAvisoPoliticaRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/privacidade': typeof PrivacidadeRoute
   '/termos': typeof TermosRoute
+  '/api/aviso-politica': typeof ApiAvisoPoliticaRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -70,14 +78,28 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/privacidade': typeof PrivacidadeRoute
   '/termos': typeof TermosRoute
+  '/api/aviso-politica': typeof ApiAvisoPoliticaRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/gestao' | '/login' | '/privacidade' | '/termos' | '/api/auth/$'
+    | '/'
+    | '/gestao'
+    | '/login'
+    | '/privacidade'
+    | '/termos'
+    | '/api/aviso-politica'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/gestao' | '/login' | '/privacidade' | '/termos' | '/api/auth/$'
+  to:
+    | '/'
+    | '/gestao'
+    | '/login'
+    | '/privacidade'
+    | '/termos'
+    | '/api/aviso-politica'
+    | '/api/auth/$'
   id:
     | '__root__'
     | '/'
@@ -85,6 +107,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/privacidade'
     | '/termos'
+    | '/api/aviso-politica'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -94,6 +117,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   PrivacidadeRoute: typeof PrivacidadeRoute
   TermosRoute: typeof TermosRoute
+  ApiAvisoPoliticaRoute: typeof ApiAvisoPoliticaRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -134,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/aviso-politica': {
+      id: '/api/aviso-politica'
+      path: '/api/aviso-politica'
+      fullPath: '/api/aviso-politica'
+      preLoaderRoute: typeof ApiAvisoPoliticaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -150,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   PrivacidadeRoute: PrivacidadeRoute,
   TermosRoute: TermosRoute,
+  ApiAvisoPoliticaRoute: ApiAvisoPoliticaRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
