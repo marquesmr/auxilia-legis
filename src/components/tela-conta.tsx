@@ -370,7 +370,7 @@ export function TelaConta() {
           <form className="flex flex-col gap-3" onSubmit={(event) => void confirmarCadastro(event)}>
             <h2 className="font-display text-2xl text-ink">Confirmar e-mail</h2>
             <p className="text-sm text-muted">
-              Digite o código enviado para {email}. Ele vale por 24 horas e sai de auxilialegis@marquestecnologies.com.
+              Digite o código enviado para {email}. Ele vale por 24 horas.
             </p>
             {aviso && <p className="rounded-xl bg-pine-soft px-3 py-2 text-justify text-sm leading-relaxed text-pine">{aviso}</p>}
             {erro && <p className="rounded-xl bg-seal-soft px-3 py-2 text-justify text-sm leading-relaxed text-seal">{erro}</p>}
