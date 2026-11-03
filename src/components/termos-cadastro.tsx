@@ -22,7 +22,7 @@ export function TermosCadastro({ onContinuar, onVoltar }: { onContinuar: () => v
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 px-3 py-4 sm:items-center">
       <div className="flex max-h-[min(44rem,100%)] w-full max-w-xl flex-col rounded-2xl border border-line bg-sheet p-5">
         <h2 className="font-display text-2xl text-ink">Termos de Uso e Diretrizes</h2>
-        <p className="mt-1 text-xs text-muted">Programa Auxilia Legis · Atualizado em 29 de outubro de 2026</p>
+        <p className="mt-1 text-xs text-muted">Programa Auxilia Legis · Atualizado em 3 de novembro de 2026</p>
         <div
           ref={leitura}
           onScroll={medir}
@@ -85,7 +85,7 @@ export function TextoDosTermos() {
         O Programa não é sistema oficial de qualquer órgão público, Poder Legislativo, Judiciário ou entidade administrativa. Não substitui diários oficiais, sistemas de protocolo, certidões, intimações eletrônicas ou controles jurídicos formais.
       </p>
       <p className="text-justify">
-        As informações cadastradas são de responsabilidade exclusiva do usuário. O Programa apenas organiza e exibe os dados fornecidos por ele.
+        As informações cadastradas são de responsabilidade exclusiva do usuário que as lançou. O Programa apenas organiza e exibe o que foi informado. O Titular não confere, não valida e não tem como saber se a conta é compartilhada, se os dados são de terceiros, se estão corretos, completos ou se o uso infringe estes Termos ou a lei. Tudo o que entra no sistema — processos, partes, documentos, prazos, comunicações e qualquer outro conteúdo — não é de responsabilidade do Titular, criador do Programa.
       </p>
       <h3 className="pt-1 font-medium">3. Conta de usuário e segurança</h3>
       <p className="text-justify">
@@ -99,7 +99,7 @@ export function TextoDosTermos() {
         O usuário compromete-se a utilizar o Programa de forma lícita, ética e em conformidade com a legislação brasileira aplicável. É vedado cadastrar dados falsos, incompletos ou de terceiros sem autorização legítima. É vedado armazenar conteúdo ilegal, difamatório, ofensivo, confidencial de terceiros ou que viole direitos de propriedade intelectual ou de privacidade.
       </p>
       <p className="text-justify">
-        É vedado tentar acessar contas de outros usuários, realizar engenharia reversa, descompilar, interferir no funcionamento ou sobrecarregar a infraestrutura. É vedado utilizar o Programa para spam, phishing ou qualquer atividade ilícita. É vedado revender, sublicenciar ou explorar comercialmente o acesso ao Programa sem autorização escrita. O usuário é integralmente responsável pelo conteúdo que cadastra e pelos andamentos que registra.
+        É vedado tentar acessar contas de outros usuários, realizar engenharia reversa, descompilar, interferir no funcionamento ou sobrecarregar a infraestrutura. É vedado utilizar o Programa para spam, phishing ou qualquer atividade ilícita. É vedado revender, sublicenciar ou explorar comercialmente o acesso ao Programa sem autorização escrita. O usuário é integralmente responsável pelo conteúdo que cadastra, por dados de terceiros que inserir e pelos andamentos que registra. O descumprimento dessas vedações não transfere a responsabilidade ao Titular, que não fiscaliza o uso de cada conta.
       </p>
       <h3 className="pt-1 font-medium">5. Prazos, notificações e limitação de escopo</h3>
       <p className="text-justify">
