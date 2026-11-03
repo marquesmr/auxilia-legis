@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, lazy, Suspense, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Archive,
@@ -58,13 +58,10 @@ import { adicionarNaEquipe, criarEquipe, listarEquipes, removerDaEquipe, renomea
 import { TelaConta } from "@/components/tela-conta";
 import { TrocaSenhaPerfil } from "@/components/troca-senha";
 import { Timbrado, TimbradoRodape } from "@/components/timbrado";
-import { PainelEstatisticas } from "@/components/estatisticas";
 import { intervaloPeriodo, type PeriodoRelatorio } from "@/lib/admin";
 import type { ProcessoAdmin } from "@/lib/admin";
-import { AdminPainel } from "@/components/admin-painel";
 import { AjudaFlutuante } from "@/components/ajuda-flutuante";
 import { CampoMes } from "@/components/campo-mes";
-import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { marcarPresenca, estadoSistema, consultarExclusao, abrirGestaoPelaConta } from "@/lib/gestao.functions";
 import { definirStatus, encerraStatus, nomeStatus, statusDaArea } from "@/lib/status-catalogo";
 import { carregarInicio } from "@/lib/inicio.functions";
@@ -73,6 +70,10 @@ import { signOut } from "@/lib/auth/client";
 import { BotaoConfiguracoes } from "@/components/configuracoes";
 import { assumirTemaDaConta, lerPreferencias } from "@/lib/preferencias";
 import { entrarPeloLink } from "@/lib/auth/senha-email.functions";
+
+const AdminPainel = lazy(() => import("@/components/admin-painel").then((mod) => ({ default: mod.AdminPainel })));
+const PainelEstatisticas = lazy(() => import("@/components/estatisticas").then((mod) => ({ default: mod.PainelEstatisticas })));
+const BotaoRelatorio = lazy(() => import("@/components/botao-relatorio").then((mod) => ({ default: mod.BotaoRelatorio })));
 import { NOME_APLICACAO } from "@/lib/nome-aplicacao";
 import { registrarAcesso } from "@/lib/lembrar-acesso";
 import { AvisoSenha } from "@/components/aviso-senha";
@@ -950,6 +951,7 @@ export function PrazosApp() {
       </div>
 
       {area === "administrativo" ? (
+        <Suspense fallback={<p className="mt-6 text-sm text-muted">Carregando…</p>}>
         <AdminPainel
           equipeAtual={equipeAtual}
           equipes={equipes}
@@ -972,6 +974,7 @@ export function PrazosApp() {
           />
           <CaixaAvisos perm={perm} onAtivar={ativarAvisos} />
         </AdminPainel>
+        </Suspense>
       ) : (
       <SoltarProcessoContext.Provider value={moverLegislativo}>
       <div className="mt-4 grid gap-6 md:grid-cols-[16rem_1fr]">
@@ -1040,7 +1043,9 @@ export function PrazosApp() {
           </div>
 
           {guia === "estatisticas" ? (
-            <PainelEstatisticas processos={processos} />
+            <Suspense fallback={<p className="text-sm text-muted">Carregando…</p>}>
+              <PainelEstatisticas processos={processos} />
+            </Suspense>
           ) : guia === "relatorio" ? (
             <RelatorioLegislativo
               periodo={periodoRelatorio}
@@ -2229,9 +2234,13 @@ function RelatorioLegislativo({
                 {relatorio.itens.length === 1 ? "processo" : "processos"}
               </p>
             </div>
-            <BotaoRelatorio />
+            <Suspense fallback={null}>
+              <BotaoRelatorio />
+            </Suspense>
           </div>
-          <PainelEstatisticas processos={relatorio.itens} className="relatorio-graficos mt-4 grid gap-4 lg:grid-cols-2" />
+          <Suspense fallback={null}>
+            <PainelEstatisticas processos={relatorio.itens} className="relatorio-graficos mt-4 grid gap-4 lg:grid-cols-2" />
+          </Suspense>
           {relatorio.itens.length === 0 ? (
             <p className="mt-4 text-sm text-muted">Nenhum processo neste período.</p>
           ) : (
