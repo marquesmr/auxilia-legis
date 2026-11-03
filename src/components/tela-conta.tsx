@@ -223,10 +223,14 @@ export function TelaConta() {
       return;
     }
     if (modo === "criar") {
+      const anos = idadeEm(nascimento) ?? 0;
       const presa = travaLocalDe(email);
-      if (presa || (idadeEm(nascimento) ?? 0) < 18) {
-        if ((idadeEm(nascimento) ?? 0) < 18) marcarTravaLocal(email);
-        void enviarCodigoCadastro();
+      if (presa || anos < 18) {
+        if (anos < 18) marcarTravaLocal(email);
+        setErro(textoTrava(presa ?? Date.now() + 7 * 24 * 60 * 60 * 1000));
+        void pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim(), nascimento } }).catch((err) => {
+          setErro(err instanceof Error && err.message ? err.message : textoTrava(presa ?? Date.now()));
+        });
         return;
       }
       setTermos(true);
@@ -239,22 +243,19 @@ export function TelaConta() {
     setErro("");
     setAviso("");
     setEnviando(true);
-    const menor = (idadeEm(nascimento) ?? 0) < 18;
-    if (menor) marcarTravaLocal(email);
+    if ((idadeEm(nascimento) ?? 0) < 18) {
+      marcarTravaLocal(email);
+      setErro(textoTrava(travaLocalDe(email) ?? Date.now() + 7 * 24 * 60 * 60 * 1000));
+      setEnviando(false);
+      return;
+    }
     try {
       const resultado = await pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim(), nascimento } });
-      if (resultado && typeof resultado === "object" && "restrito" in resultado && resultado.restrito) {
-        marcarTravaLocal(email);
-        setErro(resultado.mensagem);
+      if (!resultado || typeof resultado !== "object" || !("enviado" in resultado) || !resultado.enviado) {
+        const mensagem = resultado && typeof resultado === "object" && "mensagem" in resultado ? String(resultado.mensagem) : "";
+        setErro(mensagem || "Não foi possível enviar o código.");
         return;
       }
-      if (menor) {
-        setErro(textoTrava(travaLocalDe(email) ?? Date.now()));
-        return;
-      }
-      const mapa = travasLocais();
-      delete mapa[email.trim().toLowerCase()];
-      localStorage.setItem(TRAVA_LOCAL, JSON.stringify(mapa));
       const esperaAte = Date.now() + 40_000;
       guardarRascunhoCadastro({ nome: nome.trim(), email: email.trim(), senha, nascimento, esperaAte, codigo: "" });
       setConfirmando(true);
@@ -282,7 +283,7 @@ export function TelaConta() {
       });
       if (resultado && typeof resultado === "object" && "restrito" in resultado && resultado.restrito) {
         marcarTravaLocal(email);
-        setErro(resultado.mensagem);
+        setErro("mensagem" in resultado && typeof resultado.mensagem === "string" ? resultado.mensagem : textoTrava(Date.now()));
         setEnviando(false);
         return;
       }

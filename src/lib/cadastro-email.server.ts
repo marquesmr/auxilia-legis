@@ -46,17 +46,6 @@ async function tabelaRestricao(sql: Awaited<ReturnType<typeof getSql>>) {
   `;
 }
 
-class RestricaoEmail extends Error {}
-
-function sinalizarRestricao(mensagem: string): never {
-  throw new RestricaoEmail(mensagem);
-}
-
-export function restricaoDoErro(err: unknown) {
-  if (err instanceof RestricaoEmail) return err.message;
-  return null;
-}
-
 function textoAte(ate: string) {
   const quando = new Date(ate).toLocaleString("pt-BR", {
     timeZone: "America/Sao_Paulo",
@@ -74,7 +63,7 @@ export async function barrarEmailRestrito(email: string, nascimento: string) {
   if (idade == null || idade > 120) throw new Error("Escolha a data de nascimento.");
   const normal = email.trim().toLowerCase();
   const trava = await lerTravaEmail(normal);
-  if (trava && new Date(trava.ate).getTime() > Date.now()) sinalizarRestricao(textoAte(trava.ate));
+  if (trava && new Date(trava.ate).getTime() > Date.now()) throw new Error(textoAte(trava.ate));
   const sql = await getSql();
   await puxarNuvem();
   await tabelaRestricao(sql);
@@ -84,7 +73,7 @@ export async function barrarEmailRestrito(email: string, nascimento: string) {
   if (ativo[0]) {
     const ate = new Date(ativo[0].restrito_ate).toISOString();
     await gravarTravaEmail(normal, nascimento, ate);
-    sinalizarRestricao(textoAte(ate));
+    throw new Error(textoAte(ate));
   }
   if (idade < 18) {
     const ate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -97,7 +86,7 @@ export async function barrarEmailRestrito(email: string, nascimento: string) {
           restrito_ate = greatest(email_restrito.restrito_ate, excluded.restrito_ate)
     `;
     await copiarBancoAgora();
-    sinalizarRestricao(`Menor de 18 anos não cria conta. ${textoAte(ate)}`);
+    throw new Error(`Menor de 18 anos não cria conta. ${textoAte(ate)}`);
   }
 }
 
@@ -106,13 +95,7 @@ export async function pedirCodigoCadastro(email: string, nome: string, nasciment
   await tabela(sql);
   const existente = await sql<{ id: string }>`select id from "user" where lower(email) = ${email}`;
   if (existente[0]) throw new Error("Já existe uma conta com este e-mail.");
-  try {
-    await barrarEmailRestrito(email, nascimento);
-  } catch (err) {
-    const mensagem = restricaoDoErro(err);
-    if (mensagem) return { restrito: true as const, mensagem };
-    throw err;
-  }
+  await barrarEmailRestrito(email, nascimento);
   const senhaCaixa = await senhaDaCaixa();
   if (!senhaCaixa) {
     throw new Error("A caixa auxilialegis@marquestecnologies.com ainda não tem senha. Guarde-a na área restrita.");
@@ -177,13 +160,7 @@ export async function abrirSessaoConta(userId: string) {
 export async function criarContaComCodigo(nome: string, email: string, senha: string, codigo: string, idade: number, nascimento: string) {
   const sql = await getSql();
   await tabela(sql);
-  try {
-    await barrarEmailRestrito(email, nascimento);
-  } catch (err) {
-    const mensagem = restricaoDoErro(err);
-    if (mensagem) return { restrito: true as const, mensagem };
-    throw err;
-  }
+  await barrarEmailRestrito(email, nascimento);
   const linhas = await sql<{ codigo_hash: string; tentativas: number; valido: boolean }>`
     select codigo_hash, tentativas, expira_em > now() as valido
     from codigo_cadastro
