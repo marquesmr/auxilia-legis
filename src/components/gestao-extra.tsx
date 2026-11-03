@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   backupGestao,
@@ -460,15 +460,20 @@ export function SecaoSistema({
   const [googleId, setGoogleId] = useState("");
   const [imagemCalendario, setImagemCalendario] = useState("");
   const [lendoCalendario, setLendoCalendario] = useState(false);
+  const [ocultos, setOcultos] = useState<string[]>([]);
+  const filaDecisao = useRef(Promise.resolve());
 
   function decidirDia(id: string, ambito: "nacional" | "municipal" | "descartar") {
     onErro("");
-    void decidirFeriadoGestao({ data: { token, id, ambito } })
-      .then(() => {
-        onAviso(ambito === "descartar" ? "Feriado descartado." : "Feriado liberado no calendário.");
-        onMudou();
-      })
-      .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível decidir o feriado."));
+    setOcultos((atual) => (atual.includes(id) ? atual : [...atual, id]));
+    filaDecisao.current = filaDecisao.current
+      .catch(() => undefined)
+      .then(() => decidirFeriadoGestao({ data: { token, id, ambito } }))
+      .then(() => undefined)
+      .catch((err: unknown) => {
+        setOcultos((atual) => atual.filter((item) => item !== id));
+        onErro(err instanceof Error ? err.message : "Não foi possível decidir o feriado.");
+      });
   }
 
   function abrirEscolhaBackup() {
@@ -651,9 +656,9 @@ export function SecaoSistema({
           </button>
         </div>
         {imagemCalendario && <p className="mt-2 text-sm text-muted">Imagem pronta para leitura.</p>}
-        {painel.feriados.some((item) => item.status === "pendente") && (
+        {painel.feriados.some((item) => item.status === "pendente" && !ocultos.includes(item.id)) && (
           <ul className="mt-3 flex flex-col gap-2">
-            {painel.feriados.filter((item) => item.status === "pendente").map((item) => (
+            {painel.feriados.filter((item) => item.status === "pendente" && !ocultos.includes(item.id)).map((item) => (
               <li key={item.id} className="rounded-xl border border-line px-3 py-2 text-sm">
                 <p className="text-ink">
                   {item.nome}{" "}

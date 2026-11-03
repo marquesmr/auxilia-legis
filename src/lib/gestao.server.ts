@@ -1537,9 +1537,15 @@ export async function restaurarBackup(conteudo: string) {
   return resultado;
 }
 
+let feriadoPronto = false;
+
 async function colunasFeriado(sql: Sql) {
-  await sql`alter table feriados add column if not exists status text not null default 'ativo'`;
-  await sql`alter table feriados add column if not exists ambito text not null default ''`;
+  if (feriadoPronto) return;
+  await semPersistencia(async () => {
+    await sql`alter table feriados add column if not exists status text not null default 'ativo'`;
+    await sql`alter table feriados add column if not exists ambito text not null default ''`;
+  });
+  feriadoPronto = true;
 }
 
 async function separarFeriadosColados(sql: Sql) {
@@ -1620,13 +1626,12 @@ export async function decidirFeriado(id: string, ambito: "nacional" | "municipal
   await colunasFeriado(sql);
   if (ambito === "descartar") {
     await sql`delete from feriados where id = ${id} and status = 'pendente'`;
-    await copiarBancoAgora();
     return { ok: true };
   }
-  const linhas = await sql<{ id: string }>`select id from feriados where id = ${id} and status = 'pendente'`;
+  const linhas = await sql<{ id: string }>`
+    update feriados set status = 'ativo', ambito = ${ambito} where id = ${id} and status = 'pendente' returning id
+  `;
   if (!linhas[0]) throw new Error("Esse feriado já foi decidido.");
-  await sql`update feriados set status = 'ativo', ambito = ${ambito} where id = ${id}`;
-  await copiarBancoAgora();
   return { ok: true };
 }
 
