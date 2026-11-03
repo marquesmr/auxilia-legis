@@ -12,6 +12,7 @@ import {
   editarStatusGestao,
   excluirUsuarioGestao,
   feriadoGestao,
+  editarFeriadoGestao,
   lerCalendarioGestao,
   decidirFeriadoGestao,
   liberarRestricaoGestao,
@@ -461,7 +462,61 @@ export function SecaoSistema({
   const [imagemCalendario, setImagemCalendario] = useState("");
   const [lendoCalendario, setLendoCalendario] = useState(false);
   const [ocultos, setOcultos] = useState<string[]>([]);
+  const [editandoId, setEditandoId] = useState("");
+  const [editNome, setEditNome] = useState("");
+  const [editTipo, setEditTipo] = useState<"feriado" | "recesso" | "facultativo">("feriado");
+  const [editInicio, setEditInicio] = useState("");
+  const [editFim, setEditFim] = useState("");
+  const [editAmbito, setEditAmbito] = useState<"" | "nacional" | "municipal">("");
   const filaDecisao = useRef(Promise.resolve());
+
+  function abrirEdicao(item: { id: string; nome: string; tipo: string; inicio: string; fim: string; ambito: string }) {
+    setEditandoId(item.id);
+    setEditNome(item.nome);
+    setEditTipo(item.tipo === "recesso" || item.tipo === "facultativo" ? item.tipo : "feriado");
+    setEditInicio(item.inicio);
+    setEditFim(item.fim);
+    setEditAmbito(item.ambito === "nacional" || item.ambito === "municipal" ? item.ambito : "");
+  }
+
+  function guardarEdicao() {
+    const id = editandoId;
+    if (!id) return;
+    onErro("");
+    void editarFeriadoGestao({ data: { token, id, nome: editNome, tipo: editTipo, inicio: editInicio, fim: editFim || editInicio, ambito: editAmbito } })
+      .then(() => {
+        setEditandoId("");
+        onAviso("Feriado atualizado.");
+        onMudou();
+      })
+      .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível editar."));
+  }
+
+  function blocoEdicao() {
+    return (
+      <div className="grid gap-2">
+        <input value={editNome} onChange={(evento) => setEditNome(evento.target.value)} placeholder="Nome" className="h-11 rounded-xl border border-line bg-paper px-3 text-sm" spellCheck lang="pt-BR" />
+        <div className="grid gap-2 sm:grid-cols-2">
+          <select value={editTipo} onChange={(evento) => setEditTipo(evento.target.value as "feriado" | "recesso" | "facultativo")} className="h-11 rounded-xl border border-line bg-paper px-3 text-sm text-ink">
+            <option value="feriado">Feriado</option>
+            <option value="facultativo">Ponto facultativo</option>
+            <option value="recesso">Recesso</option>
+          </select>
+          <select value={editAmbito} onChange={(evento) => setEditAmbito(evento.target.value as "" | "nacional" | "municipal")} className="h-11 rounded-xl border border-line bg-paper px-3 text-sm text-ink">
+            <option value="">Nacional ou municipal</option>
+            <option value="nacional">Nacional</option>
+            <option value="municipal">Municipal</option>
+          </select>
+          <input type="date" value={editInicio} onChange={(evento) => setEditInicio(evento.target.value)} className="h-11 rounded-xl border border-line bg-paper px-3 text-sm" />
+          <input type="date" value={editFim} onChange={(evento) => setEditFim(evento.target.value)} className="h-11 rounded-xl border border-line bg-paper px-3 text-sm" />
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={guardarEdicao} className="h-9 rounded-lg bg-pine px-3 text-sm font-medium text-sheet">Guardar</button>
+          <button type="button" onClick={() => setEditandoId("")} className="h-9 rounded-lg border border-line px-3 text-sm text-ink">Cancelar</button>
+        </div>
+      </div>
+    );
+  }
 
   function decidirDia(id: string, ambito: "nacional" | "municipal" | "descartar") {
     onErro("");
@@ -660,24 +715,31 @@ export function SecaoSistema({
           <ul className="mt-3 flex flex-col gap-2">
             {painel.feriados.filter((item) => item.status === "pendente" && !ocultos.includes(item.id)).map((item) => (
               <li key={item.id} className="rounded-xl border border-line px-3 py-2 text-sm">
-                <p className="text-ink">
-                  {item.nome}{" "}
-                  <span className="text-muted">
-                    · {rotuloTipoFeriado(item.tipo)} · {item.inicio}{item.fim !== item.inicio ? ` a ${item.fim}` : ""}
-                  </span>
-                </p>
-                <p className="mt-1 text-justify text-sm leading-relaxed text-ink">Este feriado é nacional ou municipal?</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => void decidirDia(item.id, "nacional")} className="h-9 rounded-lg bg-ink px-3 text-sheet">Nacional</button>
-                  <button type="button" onClick={() => void decidirDia(item.id, "municipal")} className="h-9 rounded-lg bg-ink px-3 text-sheet">Municipal</button>
-                  <button
-                    type="button"
-                    onClick={() => onConfirmar(`Descartar ${item.nome}?`, () => void decidirDia(item.id, "descartar"))}
-                    className="h-9 rounded-lg border border-line px-3 text-ink"
-                  >
-                    Descartar
-                  </button>
-                </div>
+                {editandoId === item.id ? (
+                  blocoEdicao()
+                ) : (
+                  <>
+                    <p className="text-ink">
+                      {item.nome}{" "}
+                      <span className="text-muted">
+                        · {rotuloTipoFeriado(item.tipo)} · {item.inicio}{item.fim !== item.inicio ? ` a ${item.fim}` : ""}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-justify text-sm leading-relaxed text-ink">Este feriado é nacional ou municipal?</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button type="button" onClick={() => void decidirDia(item.id, "nacional")} className="h-9 rounded-lg bg-ink px-3 text-sheet">Nacional</button>
+                      <button type="button" onClick={() => void decidirDia(item.id, "municipal")} className="h-9 rounded-lg bg-ink px-3 text-sheet">Municipal</button>
+                      <button type="button" onClick={() => abrirEdicao(item)} className="h-9 rounded-lg border border-line px-3 text-ink">Editar</button>
+                      <button
+                        type="button"
+                        onClick={() => onConfirmar(`Descartar ${item.nome}?`, () => void decidirDia(item.id, "descartar"))}
+                        className="h-9 rounded-lg border border-line px-3 text-ink"
+                      >
+                        Descartar
+                      </button>
+                    </div>
+                  </>
+                )}
               </li>
             ))}
           </ul>
@@ -710,26 +772,37 @@ export function SecaoSistema({
         <ul className="mt-3 flex flex-col gap-2">
           {painel.feriados.filter((item) => item.status !== "pendente").length === 0 && <li className="text-sm text-muted">Nenhum dia fora do expediente.</li>}
           {painel.feriados.filter((item) => item.status !== "pendente").map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-ink">
-                {item.nome} <span className="text-muted">· {rotuloTipoFeriado(item.tipo)}{item.ambito === "nacional" ? " · nacional" : item.ambito === "municipal" ? " · municipal" : ""} · {item.inicio}{item.fim !== item.inicio ? ` a ${item.fim}` : ""}</span>
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  onConfirmar(`Remover ${item.nome}?`, () => {
-                    void feriadoGestao({ data: { token, apagar: true, id: item.id, nome: "", tipo: "feriado", inicio: "", fim: "" } })
-                      .then(() => {
-                        onAviso("Dia removido.");
-                        onMudou();
-                      })
-                      .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível remover."));
-                  })
-                }
-                className="text-sm font-medium text-pine"
-              >
-                Remover
-              </button>
+            <li key={item.id} className="text-sm">
+              {editandoId === item.id ? (
+                blocoEdicao()
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-ink">
+                    {item.nome} <span className="text-muted">· {rotuloTipoFeriado(item.tipo)}{item.ambito === "nacional" ? " · nacional" : item.ambito === "municipal" ? " · municipal" : ""} · {item.inicio}{item.fim !== item.inicio ? ` a ${item.fim}` : ""}</span>
+                  </span>
+                  <span className="flex shrink-0 gap-3">
+                    <button type="button" onClick={() => abrirEdicao(item)} className="text-sm font-medium text-pine">
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onConfirmar(`Remover ${item.nome}?`, () => {
+                          void feriadoGestao({ data: { token, apagar: true, id: item.id, nome: "", tipo: "feriado", inicio: "", fim: "" } })
+                            .then(() => {
+                              onAviso("Dia removido.");
+                              onMudou();
+                            })
+                            .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível remover."));
+                        })
+                      }
+                      className="text-sm font-medium text-pine"
+                    >
+                      Remover
+                    </button>
+                  </span>
+                </div>
+              )}
             </li>
           ))}
         </ul>

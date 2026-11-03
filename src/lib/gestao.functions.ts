@@ -529,6 +529,29 @@ export const feriadoGestao = createServerFn({ method: "POST" })
     return salvarFeriado(data);
   });
 
+export const editarFeriadoGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; id?: unknown; nome?: unknown; tipo?: unknown; inicio?: unknown; fim?: unknown; ambito?: unknown };
+    const id = typeof bruto.id === "string" ? bruto.id.slice(0, 80) : "";
+    if (!id) throw new Error("Feriado inválido.");
+    return {
+      token: tokenOk(bruto.token),
+      id,
+      nome: typeof bruto.nome === "string" ? bruto.nome : "",
+      tipo: bruto.tipo === "recesso" ? "recesso" : bruto.tipo === "facultativo" ? "facultativo" : "feriado",
+      inicio: typeof bruto.inicio === "string" ? bruto.inicio.slice(0, 10) : "",
+      fim: typeof bruto.fim === "string" ? bruto.fim.slice(0, 10) : "",
+      ambito: bruto.ambito === "nacional" || bruto.ambito === "municipal" ? bruto.ambito : "",
+    };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, editarFeriado } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return editarFeriado(data);
+  });
+
 export const lerCalendarioGestao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");

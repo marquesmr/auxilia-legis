@@ -1592,6 +1592,24 @@ export async function salvarFeriado(entrada: { nome: string; tipo: string; inici
   return { ok: true };
 }
 
+export async function editarFeriado(entrada: { id: string; nome: string; tipo: string; inicio: string; fim: string; ambito: string }) {
+  const nome = entrada.nome.trim().replace(/\s+/g, " ").slice(0, 80);
+  if (!entrada.id) throw new Error("Feriado inválido.");
+  if (nome.length < 2) throw new Error("Dê um nome ao dia.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(entrada.inicio) || !/^\d{4}-\d{2}-\d{2}$/.test(entrada.fim)) throw new Error("Datas inválidas.");
+  if (entrada.fim < entrada.inicio) throw new Error("O fim não pode ser antes do início.");
+  const tipo = entrada.tipo === "recesso" ? "recesso" : entrada.tipo === "facultativo" ? "facultativo" : "feriado";
+  const ambito = entrada.ambito === "nacional" || entrada.ambito === "municipal" ? entrada.ambito : "";
+  const sql = await getSql();
+  await colunasFeriado(sql);
+  const linhas = await sql<{ id: string }>`
+    update feriados set nome = ${nome}, tipo = ${tipo}, inicio = ${entrada.inicio}, fim = ${entrada.fim}, ambito = ${ambito}
+    where id = ${entrada.id} returning id
+  `;
+  if (!linhas[0]) throw new Error("Feriado não encontrado.");
+  return { ok: true };
+}
+
 export async function apagarFeriado(id: string) {
   const sql = await getSql();
   await sql`delete from feriados where id = ${id}`;
