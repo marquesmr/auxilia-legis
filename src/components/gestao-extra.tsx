@@ -12,6 +12,8 @@ import {
   editarStatusGestao,
   excluirUsuarioGestao,
   feriadoGestao,
+  lerCalendarioGestao,
+  decidirFeriadoGestao,
   liberarRestricaoGestao,
   logsGestao,
   manterBloqueioGestao,
@@ -45,6 +47,41 @@ const PAPEIS = [
   ["administrador", "Administrador"],
   ["consulta", "Consulta"],
 ] as const;
+
+function rotuloTipoFeriado(tipo: string) {
+  if (tipo === "recesso") return "Recesso";
+  if (tipo === "facultativo") return "Ponto facultativo";
+  return "Feriado";
+}
+
+function comprimirImagem(arquivo: File) {
+  return new Promise<string>((resolve, reject) => {
+    const url = URL.createObjectURL(arquivo);
+    const img = new Image();
+    img.onload = () => {
+      const limite = 1600;
+      const escala = Math.min(1, limite / Math.max(img.width, img.height));
+      const tela = document.createElement("canvas");
+      tela.width = Math.max(1, Math.round(img.width * escala));
+      tela.height = Math.max(1, Math.round(img.height * escala));
+      tela.getContext("2d")?.drawImage(img, 0, 0, tela.width, tela.height);
+      URL.revokeObjectURL(url);
+      let qualidade = 0.72;
+      let saida = tela.toDataURL("image/jpeg", qualidade);
+      while (saida.length > 1_200_000 && qualidade > 0.4) {
+        qualidade = Math.round((qualidade - 0.1) * 10) / 10;
+        saida = tela.toDataURL("image/jpeg", qualidade);
+      }
+      if (saida.length > 1_400_000) reject(new Error("A imagem ficou grande demais. Envie o mês ou um arquivo menor."));
+      else resolve(saida);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Não foi possível abrir a imagem."));
+    };
+    img.src = url;
+  });
+}
 
 function hora(valor: string | null) {
   if (!valor) return "ainda não";
@@ -421,6 +458,18 @@ export function SecaoSistema({
   const [restaurando, setRestaurando] = useState(false);
   const [escolhaBackup, setEscolhaBackup] = useState(false);
   const [googleId, setGoogleId] = useState("");
+  const [imagemCalendario, setImagemCalendario] = useState("");
+  const [lendoCalendario, setLendoCalendario] = useState(false);
+
+  function decidirDia(id: string, ambito: "nacional" | "municipal" | "descartar") {
+    onErro("");
+    void decidirFeriadoGestao({ data: { token, id, ambito } })
+      .then(() => {
+        onAviso(ambito === "descartar" ? "Feriado descartado." : "Feriado liberado no calendário.");
+        onMudou();
+      })
+      .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível decidir o feriado."));
+  }
 
   function abrirEscolhaBackup() {
     setEscolhaBackup(true);
@@ -558,7 +607,76 @@ export function SecaoSistema({
 
       <section className="rounded-2xl border border-line bg-sheet p-4">
         <h2 className="text-sm font-medium text-ink">Feriados e recesso</h2>
-        <p className="mt-1 text-sm text-muted">A contagem de prazo desconta fins de semana e estes dias.</p>
+        <p className="mt-1 text-justify text-sm leading-relaxed text-muted">A contagem de prazo desconta fins de semana e estes dias. A imagem do calendário é lida automaticamente. Cada feriado fica pendente até você dizer se é nacional ou municipal.</p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(evento) => {
+              const arquivo = evento.target.files?.[0];
+              evento.target.value = "";
+              if (!arquivo) return;
+              void comprimirImagem(arquivo)
+                .then(setImagemCalendario)
+                .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível abrir a imagem."));
+            }}
+            className="text-sm text-ink"
+          />
+          <button
+            type="button"
+            disabled={!imagemCalendario || lendoCalendario}
+            onClick={() =>
+              void (async () => {
+                setLendoCalendario(true);
+                onErro("");
+                try {
+                  const resultado = await lerCalendarioGestao({ data: { token, imagem: imagemCalendario } });
+                  setImagemCalendario("");
+                  onAviso(
+                    resultado.novos
+                      ? `${resultado.novos} dia(s) lido(s). Cada um fica pendente até você dizer se é nacional ou municipal.`
+                      : "Nenhum dia novo. Os que a imagem tem já estavam lançados.",
+                  );
+                  onMudou();
+                } catch (err) {
+                  onErro(err instanceof Error ? err.message : "Não foi possível ler o calendário.");
+                } finally {
+                  setLendoCalendario(false);
+                }
+              })()
+            }
+            className="inline-flex h-11 items-center justify-center rounded-xl bg-pine px-4 text-sm font-medium text-sheet disabled:opacity-60"
+          >
+            {lendoCalendario ? "Lendo…" : "Ler calendário"}
+          </button>
+        </div>
+        {imagemCalendario && <p className="mt-2 text-sm text-muted">Imagem pronta para leitura.</p>}
+        {painel.feriados.some((item) => item.status === "pendente") && (
+          <ul className="mt-3 flex flex-col gap-2">
+            {painel.feriados.filter((item) => item.status === "pendente").map((item) => (
+              <li key={item.id} className="rounded-xl border border-line px-3 py-2 text-sm">
+                <p className="text-ink">
+                  {item.nome}{" "}
+                  <span className="text-muted">
+                    · {rotuloTipoFeriado(item.tipo)} · {item.inicio}{item.fim !== item.inicio ? ` a ${item.fim}` : ""}
+                  </span>
+                </p>
+                <p className="mt-1 text-justify text-sm leading-relaxed text-ink">Este feriado é nacional ou municipal?</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void decidirDia(item.id, "nacional")} className="h-9 rounded-lg bg-ink px-3 text-sheet">Nacional</button>
+                  <button type="button" onClick={() => void decidirDia(item.id, "municipal")} className="h-9 rounded-lg bg-ink px-3 text-sheet">Municipal</button>
+                  <button
+                    type="button"
+                    onClick={() => onConfirmar(`Descartar ${item.nome}?`, () => void decidirDia(item.id, "descartar"))}
+                    className="h-9 rounded-lg border border-line px-3 text-ink"
+                  >
+                    Descartar
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
         <form
           className="mt-3 grid gap-2 md:grid-cols-5"
           onSubmit={(evento: FormEvent) => {
@@ -585,11 +703,11 @@ export function SecaoSistema({
           </button>
         </form>
         <ul className="mt-3 flex flex-col gap-2">
-          {painel.feriados.length === 0 && <li className="text-sm text-muted">Nenhum dia fora do expediente.</li>}
-          {painel.feriados.map((item) => (
+          {painel.feriados.filter((item) => item.status !== "pendente").length === 0 && <li className="text-sm text-muted">Nenhum dia fora do expediente.</li>}
+          {painel.feriados.filter((item) => item.status !== "pendente").map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-2 text-sm">
               <span className="text-ink">
-                {item.nome} <span className="text-muted">· {item.tipo === "recesso" ? "Recesso" : item.tipo === "facultativo" ? "Ponto facultativo" : "Feriado"} · {item.inicio}{item.fim !== item.inicio ? ` a ${item.fim}` : ""}</span>
+                {item.nome} <span className="text-muted">· {rotuloTipoFeriado(item.tipo)}{item.ambito === "nacional" ? " · nacional" : item.ambito === "municipal" ? " · municipal" : ""} · {item.inicio}{item.fim !== item.inicio ? ` a ${item.fim}` : ""}</span>
               </span>
               <button
                 type="button"

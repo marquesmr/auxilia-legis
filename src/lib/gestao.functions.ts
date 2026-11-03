@@ -529,6 +529,40 @@ export const feriadoGestao = createServerFn({ method: "POST" })
     return salvarFeriado(data);
   });
 
+export const lerCalendarioGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; imagem?: unknown };
+    const imagem = typeof bruto.imagem === "string" ? bruto.imagem : "";
+    if (!imagem.startsWith("data:image/") || imagem.length > 1_400_000) throw new Error("Envie uma imagem de até 1 MB.");
+    return { token: tokenOk(bruto.token), imagem };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, guardarFeriadosLidos } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    const { lerImagemCalendario } = await import("./calendario-imagem.server");
+    const itens = await lerImagemCalendario(data.imagem);
+    return guardarFeriadosLidos(itens);
+  });
+
+export const decidirFeriadoGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; id?: unknown; ambito?: unknown };
+    const ambito = bruto.ambito === "nacional" || bruto.ambito === "municipal" || bruto.ambito === "descartar" ? bruto.ambito : "";
+    if (!ambito) throw new Error("Diga se o feriado é nacional ou municipal.");
+    const id = typeof bruto.id === "string" ? bruto.id.slice(0, 80) : "";
+    if (!id) throw new Error("Feriado inválido.");
+    return { token: tokenOk(bruto.token), id, ambito };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, decidirFeriado } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return decidirFeriado(data.id, data.ambito as "nacional" | "municipal" | "descartar");
+  });
+
 export const manutencaoGestao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
