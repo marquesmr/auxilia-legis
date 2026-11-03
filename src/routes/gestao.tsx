@@ -14,7 +14,7 @@ import {
   ordenarAbasGestao,
   ordenarStatusGestao,
 } from "@/lib/gestao.functions";
-import { SecaoSistema, SecaoStatus, SecaoUsuarios, novaOrdem } from "@/components/gestao-extra";
+import { SecaoContas, SecaoSistema, SecaoStatus, SecaoUsuarios, novaOrdem } from "@/components/gestao-extra";
 import { CampoSenha } from "@/components/campo-senha";
 import { useConfirmarExclusao } from "@/components/confirmar-exclusao";
 
@@ -284,7 +284,7 @@ function PainelVivo({
   const [aviso, setAviso] = useState("");
   const [erro, setErro] = useState("");
   const [pulso, setPulso] = useState<number[]>([]);
-  const [guia, setGuia] = useState<"geral" | "usuarios" | "tipos" | "sistema">("geral");
+  const [guia, setGuia] = useState<"geral" | "usuarios" | "contas" | "tipos" | "sistema">("geral");
   const [editandoAba, setEditandoAba] = useState<string | null>(null);
   const [nomeEdicao, setNomeEdicao] = useState("");
   const [sobreAba, setSobreAba] = useState<string | null>(null);
@@ -422,6 +422,7 @@ function PainelVivo({
           [
             ["geral", "Visão geral"],
             ["usuarios", "Usuários e equipes"],
+            ["contas", "Bloqueios e exclusões"],
             ["tipos", "Tipos e status"],
             ["sistema", "Logs e sistema"],
           ] as const
@@ -533,6 +534,9 @@ function PainelVivo({
 
       {guia === "usuarios" && (
         <SecaoUsuarios token={token} painel={painel} onMudou={onMudou} onErro={falhar} onAviso={avisar} onConfirmar={pedirConfirmacao} />
+      )}
+      {guia === "contas" && (
+        <SecaoContas token={token} painel={painel} onMudou={onMudou} onErro={falhar} onAviso={avisar} onConfirmar={pedirConfirmacao} />
       )}
 
       {guia === "tipos" && (

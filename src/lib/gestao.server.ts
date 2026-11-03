@@ -8,6 +8,7 @@ import { copiarBancoAgora, getSql, lerTrafego, puxarNuvem, semPersistencia, type
 import { botaoEmail, emailHtml, enviarEmail, urlDoSite } from "@/lib/email.server";
 import { idadeEm } from "@/lib/idade";
 import { motivoExclusao } from "@/lib/motivos-exclusao";
+import { motivoSaida } from "@/lib/motivos-saida";
 import { senhaDaCaixa } from "@/lib/senha-email.server";
 
 const scrypt = promisify(scryptCb);
@@ -302,6 +303,7 @@ export async function abasAtivas() {
 
 export async function lerPainel() {
   await puxarNuvem();
+  await aplicarExclusoesVencidas();
   const sql = await getSql();
   await garantirGestao(sql);
   await garantirConfig(sql);
@@ -543,6 +545,7 @@ export async function lerPainel() {
       ate: item.ate,
       analise: Boolean(item.analise),
     })),
+    pedidos: await listarPedidosExclusao(),
     status: await listarStatusCatalogo(),
   };
 }
@@ -931,7 +934,8 @@ export async function definirPapel(userId: string, papel: string) {
 
 export async function excluirUsuario(userId: string, motivo: string) {
   const sql = await getSql();
-  if (!motivoExclusao(motivo)) throw new Error("Escolha o motivo da exclusão.");
+  await tabelaPedido(sql);
+  if (!motivoExclusao(motivo) && !motivo.startsWith("saida:")) throw new Error("Escolha o motivo da exclusão.");
   const usuarios = await sql<{ id: string; email: string; name: string }>`
     select id, email, name from "user" where id = ${userId}
   `;
@@ -965,7 +969,90 @@ export async function excluirUsuario(userId: string, motivo: string) {
   await sql`delete from presenca where user_id = ${userId}`;
   await sql`delete from "verification" where lower(identifier) = ${usuario.email.toLowerCase()}`;
   await sql`delete from "user" where id = ${userId}`;
+  await sql`delete from pedido_exclusao where user_id = ${userId}`;
   return { nome: usuario.name };
+}
+
+async function tabelaPedido(sql: Sql) {
+  await sql`
+    create table if not exists pedido_exclusao (
+      user_id text primary key,
+      email text not null,
+      motivo text not null,
+      detalhe text not null default '',
+      pedido_em timestamptz not null default now(),
+      expira_em timestamptz not null
+    )
+  `;
+}
+
+export async function aplicarExclusoesVencidas() {
+  const sql = await getSql();
+  await tabelaPedido(sql);
+  const vencidos = await sql<{ user_id: string; motivo: string; detalhe: string }>`
+    select user_id, motivo, detalhe from pedido_exclusao where expira_em <= now()
+  `;
+  for (const item of vencidos) {
+    const existe = await sql<{ id: string }>`select id from "user" where id = ${item.user_id}`;
+    const motivo = item.motivo === "outros" ? `saida:outros:${item.detalhe.slice(0, 240)}` : `saida:${item.motivo}`;
+    if (existe[0]) await excluirUsuario(item.user_id, motivo);
+    else await sql`delete from pedido_exclusao where user_id = ${item.user_id}`;
+  }
+}
+
+export async function pedirExclusaoConta(userId: string, motivo: string, detalhe: string) {
+  if (!motivoSaida(motivo)) throw new Error("Escolha o motivo.");
+  const texto = detalhe.trim().replace(/\s+/g, " ").slice(0, 500);
+  if (motivo === "outros" && texto.length < 5) throw new Error("Descreva o motivo.");
+  const sql = await getSql();
+  await tabelaPedido(sql);
+  await aplicarExclusoesVencidas();
+  const usuarios = await sql<{ id: string; email: string }>`select id, email from "user" where id = ${userId}`;
+  const usuario = usuarios[0];
+  if (!usuario) throw new Error("Conta não encontrada.");
+  const expira = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  await sql`
+    insert into pedido_exclusao (user_id, email, motivo, detalhe, pedido_em, expira_em)
+    values (${usuario.id}, ${usuario.email.toLowerCase()}, ${motivo}, ${texto}, now(), ${expira}::timestamptz)
+    on conflict (user_id) do update
+    set email = excluded.email, motivo = excluded.motivo, detalhe = excluded.detalhe, pedido_em = now(), expira_em = excluded.expira_em
+  `;
+  await copiarBancoAgora();
+  return { expira };
+}
+
+export async function registrarAcessoConta(userId: string) {
+  const sql = await getSql();
+  await tabelaPedido(sql);
+  await aplicarExclusoesVencidas();
+  const ainda = await sql<{ id: string }>`select id from "user" where id = ${userId}`;
+  if (!ainda[0]) return { cancelou: false, encerrada: true };
+  const pedido = await sql<{ user_id: string }>`
+    select user_id from pedido_exclusao where user_id = ${userId} and expira_em > now()
+  `;
+  if (!pedido[0]) return { cancelou: false, encerrada: false };
+  await sql`delete from pedido_exclusao where user_id = ${userId}`;
+  await copiarBancoAgora();
+  return { cancelou: true, encerrada: false };
+}
+
+export async function listarPedidosExclusao() {
+  const sql = await getSql();
+  await tabelaPedido(sql);
+  await aplicarExclusoesVencidas();
+  const linhas = await sql<{ email: string; motivo: string; detalhe: string; pedido_em: string; expira_em: string }>`
+    select email, motivo, detalhe, pedido_em, expira_em
+    from pedido_exclusao
+    where expira_em > now()
+    order by pedido_em desc
+  `;
+  return linhas.map((item) => ({
+    email: item.email,
+    motivo: item.motivo,
+    detalhe: item.detalhe,
+    pedidoEm: String(item.pedido_em),
+    expiraEm: String(item.expira_em),
+  }));
 }
 
 export async function lerExclusao(filtro: { userId?: string; email?: string }) {
@@ -1157,7 +1244,8 @@ export async function listarLogs(filtro: { de: string; ate: string; texto: strin
 }
 
 async function montarBackup(sql: Sql) {
-  const [usuarios, contas, autenticadores, processos, processosAdmin, equipes, membros, convites, abas, statusCatalogo, feriados, perfis, termos, gestaoAcesso, excluidas] =
+  await tabelaPedido(sql);
+  const [usuarios, contas, autenticadores, processos, processosAdmin, equipes, membros, convites, abas, statusCatalogo, feriados, perfis, termos, gestaoAcesso, excluidas, pedidos] =
     await Promise.all([
       sql`select * from "user"`,
       sql`select "id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt" from "account"`,
@@ -1174,6 +1262,7 @@ async function montarBackup(sql: Sql) {
       sql`select * from termo_aceite`,
       sql`select * from gestao_acesso`,
       sql`select * from conta_excluida`,
+      sql`select * from pedido_exclusao`,
     ]);
   return JSON.stringify({
     versao: 2,
@@ -1194,6 +1283,7 @@ async function montarBackup(sql: Sql) {
     termos,
     gestaoAcesso,
     excluidas,
+    pedidos,
   });
 }
 
@@ -1400,6 +1490,7 @@ export async function restaurarBackup(conteudo: string) {
     await gravarLinhas(sql, "status_catalogo", ["id"], (dados as { statusCatalogo?: unknown }).statusCatalogo);
     await gravarLinhas(sql, "feriados", ["id"], (dados as { feriados?: unknown }).feriados);
     await gravarLinhas(sql, "conta_excluida", ["user_id"], (dados as { excluidas?: unknown }).excluidas);
+    await gravarLinhas(sql, "pedido_exclusao", ["user_id"], (dados as { pedidos?: unknown }).pedidos);
     const processos = await gravarLinhas(sql, "processos", ["id"], dados.processos);
     const administrativos = await gravarLinhas(sql, "processos_admin", ["id"], dados.processosAdmin);
     const ids = [...new Set([...idsDe(dados.usuarios, "id"), ...idsDe(dados.contas, "userId")])];

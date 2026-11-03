@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { motivoExclusao } from "@/lib/motivos-exclusao";
+import { motivoSaida } from "@/lib/motivos-saida";
 
 export function AvisoContaExcluida({ motivo, onEntendi }: { motivo: string; onEntendi: () => void }) {
   const [mais, setMais] = useState(false);
@@ -7,6 +8,9 @@ export function AvisoContaExcluida({ motivo, onEntendi }: { motivo: string; onEn
   const encerrou = useRef(false);
   const contagem = useRef(0);
   const item = motivoExclusao(motivo);
+  const saida = motivo.startsWith("saida:") ? motivo.slice("saida:".length) : "";
+  const detalheSaida = saida.startsWith("outros:") ? saida.slice("outros:".length) : "";
+  const tituloSaida = detalheSaida ? "Outros" : motivoSaida(saida)?.titulo ?? "Pedido do titular";
 
   function encerrar() {
     if (encerrou.current) return;
@@ -31,8 +35,22 @@ export function AvisoContaExcluida({ motivo, onEntendi }: { motivo: string; onEn
         }}
       >
         <h2 className="font-display text-3xl text-ink">Conta excluída</h2>
-        <p className="mt-2 text-justify text-sm leading-relaxed text-ink">Sua conta foi excluída porque você infringiu as diretrizes do sistema.</p>
-        <p className="mt-2 text-justify text-sm leading-relaxed text-muted">{item ? item.resumo : "O motivo fica registrado na exclusão."}</p>
+        {saida ? (
+          <>
+            <p className="mt-2 text-justify text-sm leading-relaxed text-ink">
+              A exclusão foi pedida por você. O prazo de 30 dias terminou sem um novo acesso, e a conta foi encerrada.
+            </p>
+            <p className="mt-2 text-justify text-sm leading-relaxed text-muted">
+              Motivo: {tituloSaida}
+              {detalheSaida ? `. ${detalheSaida}` : ""}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 text-justify text-sm leading-relaxed text-ink">Sua conta foi excluída porque você infringiu as diretrizes do sistema.</p>
+            <p className="mt-2 text-justify text-sm leading-relaxed text-muted">{item ? item.resumo : "O motivo fica registrado na exclusão."}</p>
+          </>
+        )}
         {mais && (
           <div className="mt-3 rounded-xl bg-paper p-3" onClick={(evento) => evento.stopPropagation()}>
             <p className="text-sm font-medium text-ink">{item?.titulo ?? "Motivo"}</p>
@@ -50,6 +68,7 @@ export function AvisoContaExcluida({ motivo, onEntendi }: { motivo: string; onEn
           >
             ENTENDI
           </button>
+          {!saida && (
           <button
             type="button"
             onClick={(evento) => {
@@ -60,6 +79,7 @@ export function AvisoContaExcluida({ motivo, onEntendi }: { motivo: string; onEn
           >
             Saiba mais
           </button>
+          )}
         </div>
         <p className="mt-2 text-center text-xs text-muted">
           Tentativas de sair: {Math.min(tentativas, 5)} de 5. Na quinta, vale como entendi.

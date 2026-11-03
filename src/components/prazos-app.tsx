@@ -62,10 +62,11 @@ import { intervaloPeriodo, type PeriodoRelatorio } from "@/lib/admin";
 import type { ProcessoAdmin } from "@/lib/admin";
 import { AjudaFlutuante } from "@/components/ajuda-flutuante";
 import { CampoMes } from "@/components/campo-mes";
-import { marcarPresenca, estadoSistema, consultarExclusao, abrirGestaoPelaConta } from "@/lib/gestao.functions";
+import { marcarPresenca, estadoSistema, consultarExclusao, abrirGestaoPelaConta, pedirExclusaoConta, registrarAcessoConta } from "@/lib/gestao.functions";
 import { definirStatus, encerraStatus, nomeStatus, statusDaArea } from "@/lib/status-catalogo";
 import { carregarInicio } from "@/lib/inicio.functions";
 import { AvisoContaExcluida } from "@/components/aviso-exclusao";
+import { MOTIVOS_SAIDA } from "@/lib/motivos-saida";
 import { signOut } from "@/lib/auth/client";
 import { BotaoConfiguracoes } from "@/components/configuracoes";
 import { assumirTemaDaConta, lerPreferencias } from "@/lib/preferencias";
@@ -246,6 +247,11 @@ export function PrazosApp() {
   const [situacaoRelatorio, setSituacaoRelatorio] = useState<"todos" | Filtro>("todos");
   const [relatorio, setRelatorio] = useState<{ rotulo: string; inicio: string; fim: string; itens: Processo[] } | null>(null);
   const [perfilOpen, setPerfilOpen] = useState(false);
+  const [excluirOpen, setExcluirOpen] = useState(false);
+  const [motivoSaidaId, setMotivoSaidaId] = useState("");
+  const [detalheSaida, setDetalheSaida] = useState("");
+  const [pedindoExclusao, setPedindoExclusao] = useState(false);
+  const acessoExclusao = useRef(false);
   const [nomePerfil, setNomePerfil] = useState("");
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   const [parte, setParte] = useState(0);
@@ -263,6 +269,16 @@ export function PrazosApp() {
   useEffect(() => {
     if (!user?.id) return;
     assumirTemaDaConta(user.id);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || acessoExclusao.current) return;
+    acessoExclusao.current = true;
+    void registrarAcessoConta()
+      .then((resultado) => {
+        if (resultado.cancelou) setToast("O pedido de exclusão foi cancelado porque a conta foi acessada.");
+      })
+      .catch(() => undefined);
   }, [user?.id]);
 
   useEffect(() => {
@@ -1581,6 +1597,80 @@ export function PrazosApp() {
               </div>
             </form>
             <TrocaSenhaPerfil />
+            <button
+              type="button"
+              onClick={() => setExcluirOpen(true)}
+              className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl border border-line text-sm font-medium text-seal"
+            >
+              Excluir conta
+            </button>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root open={excluirOpen} onOpenChange={setExcluirOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-20 max-h-[90vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Excluir conta</Dialog.Title>
+            <p className="mt-2 text-justify text-sm leading-relaxed text-ink">
+              A exclusão não é imediata. A conta continua disponível por 30 dias, com processos, equipe e acesso como estão. Se ela for acessada de novo nesse prazo, o pedido é cancelado. Depois de 30 dias sem acesso, a conta é encerrada: o login deixa de existir, os processos só seus são apagados e, se você for a única pessoa da equipe, a equipe também sai. Essa etapa não tem volta.
+            </p>
+            <fieldset className="mt-4 flex flex-col gap-2">
+              <legend className="text-sm font-medium text-ink">Motivo</legend>
+              {MOTIVOS_SAIDA.map((item) => (
+                <label key={item.id} className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="radio"
+                    name="motivo-saida"
+                    checked={motivoSaidaId === item.id}
+                    onChange={() => setMotivoSaidaId(item.id)}
+                  />
+                  {item.titulo}
+                </label>
+              ))}
+            </fieldset>
+            {motivoSaidaId === "outros" && (
+              <label className="mt-3 flex flex-col gap-1 text-sm text-ink">
+                Descreva
+                <textarea
+                  value={detalheSaida}
+                  onChange={(evento) => setDetalheSaida(evento.target.value)}
+                  className="min-h-24 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink"
+                  maxLength={500}
+                  required
+                />
+              </label>
+            )}
+            <div className="mt-4 flex gap-2">
+              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
+                Voltar
+              </Dialog.Close>
+              <button
+                type="button"
+                disabled={pedindoExclusao || !motivoSaidaId || (motivoSaidaId === "outros" && detalheSaida.trim().length < 5)}
+                onClick={() =>
+                  void (async () => {
+                    setPedindoExclusao(true);
+                    try {
+                      await pedirExclusaoConta({ data: { motivo: motivoSaidaId, detalhe: detalheSaida } });
+                      setExcluirOpen(false);
+                      setPerfilOpen(false);
+                      setMotivoSaidaId("");
+                      setDetalheSaida("");
+                      setToast("Pedido registrado. A conta fica disponível por 30 dias. Um novo acesso cancela o pedido.");
+                    } catch (err) {
+                      setToast(err instanceof Error ? err.message : "Não foi possível pedir a exclusão.");
+                    } finally {
+                      setPedindoExclusao(false);
+                    }
+                  })()
+                }
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-seal text-sm font-medium text-sheet disabled:opacity-60"
+              >
+                Pedir exclusão
+              </button>
+            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

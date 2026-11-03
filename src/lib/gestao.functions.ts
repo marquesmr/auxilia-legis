@@ -137,6 +137,29 @@ export const listarAbas = createServerFn({ method: "GET" })
     return abasAtivas();
   });
 
+export const pedirExclusaoConta = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { motivo?: unknown; detalhe?: unknown };
+    const motivo = typeof bruto.motivo === "string" ? bruto.motivo : "";
+    const detalhe = typeof bruto.detalhe === "string" ? bruto.detalhe.slice(0, 500) : "";
+    return { motivo, detalhe };
+  })
+  .handler(async ({ data, context }) => {
+    await mesmoLugar();
+    const { pedirExclusaoConta: pedir } = await import("./gestao.server");
+    return pedir(context.userId, data.motivo, data.detalhe);
+  });
+
+export const registrarAcessoConta = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    await mesmoLugar();
+    const { registrarAcessoConta: registrar } = await import("./gestao.server");
+    return registrar(context.userId);
+  });
+
 export const consultarExclusao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");

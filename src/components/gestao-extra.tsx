@@ -23,6 +23,7 @@ import {
 } from "@/lib/gestao.functions";
 import type { painelGestao } from "@/lib/gestao.functions";
 import { MOTIVOS_EXCLUSAO } from "@/lib/motivos-exclusao";
+import { motivoSaida } from "@/lib/motivos-saida";
 import { CampoSenha } from "@/components/campo-senha";
 import { carregarGoogle, enviarBackupDrive, nomeBackupManual, pedirAcessoDrive } from "@/lib/google-drive-backup";
 
@@ -58,7 +59,7 @@ function horaCheia(valor: string) {
   return data.toLocaleString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export function SecaoUsuarios({
+export function SecaoContas({
   token,
   painel,
   onMudou,
@@ -73,35 +74,18 @@ export function SecaoUsuarios({
   onAviso: (texto: string) => void;
   onConfirmar: (texto: string, agir: () => void, rotulo?: string) => void;
 }) {
-  const [equipeId, setEquipeId] = useState(painel.equipesPainel[0]?.id ?? "");
-  const [userId, setUserId] = useState(painel.pessoas[0]?.id ?? "");
-  const [alvoExclusao, setAlvoExclusao] = useState<string | null>(null);
-  const [motivoExclusaoId, setMotivoExclusaoId] = useState("");
   const [liberando, setLiberando] = useState<string | null>(null);
   const [dataLiberacao, setDataLiberacao] = useState("");
-
-  async function agir(tarefa: Promise<unknown>, ok: string) {
-    onErro("");
-    try {
-      await tarefa;
-      onAviso(ok);
-      onMudou();
-    } catch (err) {
-      onErro(err instanceof Error ? err.message : "Não foi possível concluir.");
-    }
-  }
 
   return (
     <div className="mt-5 flex flex-col gap-4">
       <section className="rounded-2xl border border-line bg-sheet p-4">
-        <h2 className="text-sm font-medium text-ink">Usuários e perfis</h2>
-        <p className="mt-1 text-sm text-muted">
-          Consulta só lê. Administrador, depois de atribuído, entra na área restrita com o e-mail e a senha da própria conta. O acesso do gestor que já existe continua valendo.
+        <h2 className="text-sm font-medium text-ink">E-mails bloqueados</h2>
+        <p className="mt-1 text-justify text-sm leading-relaxed text-muted">
+          Menor de 18 anos. Dá para liberar com a data confirmada por e-mail ou manter o bloqueio para análise.
         </p>
-        <h3 className="mt-4 text-sm font-medium text-ink">E-mails restritos</h3>
-        <p className="mt-1 text-justify text-sm leading-relaxed text-muted">Menor de 18 anos. Dá para liberar com a data confirmada por e-mail ou manter o bloqueio para análise.</p>
         <ul className="mt-3 flex flex-col gap-2">
-          {painel.restritos.length === 0 && <li className="text-sm text-muted">Nenhum e-mail restrito.</li>}
+          {painel.restritos.length === 0 && <li className="text-sm text-muted">Nenhum e-mail bloqueado.</li>}
           {painel.restritos.map((item) => (
             <li key={item.email} className="rounded-xl border border-line px-3 py-2 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -180,6 +164,67 @@ export function SecaoUsuarios({
             </li>
           ))}
         </ul>
+      </section>
+      <section className="rounded-2xl border border-line bg-sheet p-4">
+        <h2 className="text-sm font-medium text-ink">Pedidos de exclusão</h2>
+        <p className="mt-1 text-justify text-sm leading-relaxed text-muted">
+          A conta continua disponível por 30 dias. Se for acessada nesse prazo, o pedido é cancelado.
+        </p>
+        <ul className="mt-3 flex flex-col gap-2">
+          {painel.pedidos.length === 0 && <li className="text-sm text-muted">Nenhum pedido de exclusão.</li>}
+          {painel.pedidos.map((item) => (
+            <li key={item.email} className="rounded-xl border border-line px-3 py-2 text-sm">
+              <p className="text-ink">{item.email}</p>
+              <p className="text-justify text-muted">
+                {motivoSaida(item.motivo)?.titulo ?? item.motivo}
+                {item.detalhe ? ` · ${item.detalhe}` : ""} · pedido em {horaCheia(item.pedidoEm)} · exclusão em {horaCheia(item.expiraEm)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+export function SecaoUsuarios({
+  token,
+  painel,
+  onMudou,
+  onErro,
+  onAviso,
+  onConfirmar,
+}: {
+  token: string;
+  painel: Painel;
+  onMudou: () => void;
+  onErro: (texto: string) => void;
+  onAviso: (texto: string) => void;
+  onConfirmar: (texto: string, agir: () => void, rotulo?: string) => void;
+}) {
+  const [equipeId, setEquipeId] = useState(painel.equipesPainel[0]?.id ?? "");
+  const [userId, setUserId] = useState(painel.pessoas[0]?.id ?? "");
+  const [alvoExclusao, setAlvoExclusao] = useState<string | null>(null);
+  const [motivoExclusaoId, setMotivoExclusaoId] = useState("");
+
+  async function agir(tarefa: Promise<unknown>, ok: string) {
+    onErro("");
+    try {
+      await tarefa;
+      onAviso(ok);
+      onMudou();
+    } catch (err) {
+      onErro(err instanceof Error ? err.message : "Não foi possível concluir.");
+    }
+  }
+
+  return (
+    <div className="mt-5 flex flex-col gap-4">
+      <section className="rounded-2xl border border-line bg-sheet p-4">
+        <h2 className="text-sm font-medium text-ink">Usuários e perfis</h2>
+        <p className="mt-1 text-sm text-muted">
+          Consulta só lê. Administrador, depois de atribuído, entra na área restrita com o e-mail e a senha da própria conta. O acesso do gestor que já existe continua valendo.
+        </p>
         <ul className="mt-3 flex flex-col gap-3">
           {painel.pessoas.map((pessoa) => (
             <li key={pessoa.id} className="rounded-xl border border-line p-3 text-sm">

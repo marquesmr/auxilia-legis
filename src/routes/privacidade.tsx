@@ -30,7 +30,7 @@ function Privacidade() {
 
         <Titulo>1. Controlador</Titulo>
         <p className="text-justify">
-          O controlador dos dados da conta e da operação do Programa é Carlos Marques, com sede em Mário Campos/MG. Não há encarregado nomeado nos termos do art. 41 da LGPD, por se tratar de agente de tratamento de pequeno porte. Pedidos do titular são recebidos diretamente pelo controlador, no e-mail contato@marquestecnologies.com.
+          O controlador dos dados da conta e da operação do Programa é Carlos Marques, com sede em Mário Campos/MG. Não há encarregado nomeado nos termos do art. 41 da LGPD, por se tratar de agente de tratamento de pequeno porte. Pedidos do titular são recebidos diretamente pelo controlador, no e-mail auxilialegis@marquestecnologies.com.
         </p>
         <p className="text-justify">
           Há dois papéis distintos. Em relação ao cadastro, à sessão, aos registros de segurança e à conta, Carlos Marques é controlador. Em relação aos dados de terceiros que o próprio usuário lança nos processos, como nome de parte, CPF, CNPJ, contratado ou comunicação interna, o usuário é quem decide o conteúdo e a finalidade; o Programa atua como operador, nos termos do art. 5º, VII, da LGPD, limitando-se a armazenar e exibir esses dados para a conta e a equipe escolhidas pelo usuário.
@@ -94,7 +94,7 @@ function Privacidade() {
 
         <Titulo>9. Direitos do titular</Titulo>
         <p className="text-justify">
-          O titular pode pedir, nos termos do art. 18 da LGPD, confirmação de tratamento, acesso, correção, anonimização, bloqueio ou eliminação de dado desnecessário ou excessivo, portabilidade, informação sobre compartilhamentos e revisão de decisão, quando houver. Nome e senha podem ser alterados no perfil. A exclusão da conta pode ser pedida no próprio Programa ou pelo e-mail contato@marquestecnologies.com.
+          O titular pode pedir, nos termos do art. 18 da LGPD, confirmação de tratamento, acesso, correção, anonimização, bloqueio ou eliminação de dado desnecessário ou excessivo, portabilidade, informação sobre compartilhamentos e revisão de decisão, quando houver. Nome e senha podem ser alterados no perfil. A exclusão da conta pode ser pedida no perfil ou pelo e-mail auxilialegis@marquestecnologies.com. O pedido espera 30 dias. Se a conta for acessada nesse prazo, o pedido é cancelado. Depois disso, a conta é encerrada.
         </p>
         <p className="text-justify">
           O pedido será respondido no prazo da regulamentação da ANPD. Para proteger a conta, pode ser exigida confirmação de que quem pede é o titular. Se a resposta não for satisfatória, cabe reclamação à Autoridade Nacional de Proteção de Dados.

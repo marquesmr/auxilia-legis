@@ -116,7 +116,7 @@ export function TextoDosTermos() {
         As cópias de segurança são cifradas pelo próprio sistema. A chave não vai no arquivo. Nem o Titular, nem quem guardar o arquivo no computador ou no Google Drive, lê o conteúdo. Só o sistema decifra, e apenas no momento da restauração.
       </p>
       <p className="text-justify">
-        O usuário tem os direitos previstos no art. 18 da LGPD, como acesso, correção, eliminação, portabilidade e informação sobre compartilhamentos. Pedidos devem ser encaminhados a contato@marquestecnologies.com. Dados poderão ser mantidos pelo prazo necessário ao cumprimento de obrigações legais ou ao exercício regular de direitos.
+        O usuário tem os direitos previstos no art. 18 da LGPD, como acesso, correção, eliminação, portabilidade e informação sobre compartilhamentos. Pedidos devem ser encaminhados a auxilialegis@marquestecnologies.com. Dados poderão ser mantidos pelo prazo necessário ao cumprimento de obrigações legais ou ao exercício regular de direitos.
       </p>
       <h3 className="pt-1 font-medium">7. Propriedade intelectual</h3>
       <p className="text-justify">
@@ -139,7 +139,7 @@ export function TextoDosTermos() {
       </p>
       <h3 className="pt-1 font-medium">11. Contato</h3>
       <p className="text-justify">
-        Dúvidas sobre estes Termos ou exercício de direitos de titular de dados: contato@marquestecnologies.com.
+        Dúvidas sobre estes Termos ou exercício de direitos de titular de dados: auxilialegis@marquestecnologies.com.
       </p>
     </>
   );
