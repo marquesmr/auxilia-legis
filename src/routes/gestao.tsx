@@ -300,8 +300,8 @@ function PainelVivo({
     setErro(texto);
   }
 
-  function pedirConfirmacao(texto: string, agir: () => void) {
-    exclusao.pedir(texto, agir);
+  function pedirConfirmacao(texto: string, agir: () => void, rotulo?: string) {
+    exclusao.pedir(texto, agir, rotulo);
   }
 
   useEffect(() => setEmail(painel.email), [painel.email]);

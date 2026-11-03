@@ -70,7 +70,7 @@ export function SecaoUsuarios({
   onMudou: () => void;
   onErro: (texto: string) => void;
   onAviso: (texto: string) => void;
-  onConfirmar: (texto: string, agir: () => void) => void;
+  onConfirmar: (texto: string, agir: () => void, rotulo?: string) => void;
 }) {
   const [equipeId, setEquipeId] = useState(painel.equipesPainel[0]?.id ?? "");
   const [userId, setUserId] = useState(painel.pessoas[0]?.id ?? "");
@@ -109,7 +109,7 @@ export function SecaoUsuarios({
                 onClick={() =>
                   onConfirmar(`Liberar ${item.email}? Só depois do contato em auxilialegis@marquestecnologies.com.`, () => {
                     void agir(liberarRestricaoGestao({ data: { token, email: item.email } }), "E-mail liberado.");
-                  })
+                  }, "Liberar")
                 }
                 className="h-9 rounded-lg border border-line px-3 text-ink"
               >
@@ -294,7 +294,7 @@ export function SecaoSistema({
   onMudou: () => void;
   onErro: (texto: string) => void;
   onAviso: (texto: string) => void;
-  onConfirmar: (texto: string, agir: () => void) => void;
+  onConfirmar: (texto: string, agir: () => void, rotulo?: string) => void;
   acesso: ReactNode;
 }) {
   const [de, setDe] = useState("");
@@ -684,7 +684,7 @@ export function SecaoStatus({
   onMudou: () => void;
   onErro: (texto: string) => void;
   onAviso: (texto: string) => void;
-  onConfirmar: (texto: string, agir: () => void) => void;
+  onConfirmar: (texto: string, agir: () => void, rotulo?: string) => void;
   onOrdem: (ids: string[]) => Promise<void>;
 }) {
   const [area, setArea] = useState<"legislativo" | "administrativo">("legislativo");
