@@ -372,8 +372,8 @@ export function TelaConta() {
             <p className="text-sm text-muted">
               Digite o código enviado para {email}. Ele vale por 24 horas e sai de auxilialegis@marquestecnologies.com.
             </p>
-            {aviso && <p className="rounded-xl bg-pine-soft px-3 py-2 text-sm text-pine">{aviso}</p>}
-            {erro && <p className="rounded-xl bg-seal-soft px-3 py-2 text-sm text-seal">{erro}</p>}
+            {aviso && <p className="rounded-xl bg-pine-soft px-3 py-2 text-justify text-sm leading-relaxed text-pine">{aviso}</p>}
+            {erro && <p className="rounded-xl bg-seal-soft px-3 py-2 text-justify text-sm leading-relaxed text-seal">{erro}</p>}
             <label className="flex flex-col gap-1 text-sm font-medium text-ink">
               Código
               <input
@@ -424,9 +424,9 @@ export function TelaConta() {
         ) : (
       <form onSubmit={enviar} className="flex flex-col gap-3">
         <h2 className="font-display text-2xl text-ink">{modo === "criar" ? "Criar conta" : "Login"}</h2>
-        {aviso && <p className="rounded-xl bg-pine-soft px-3 py-2 text-sm text-pine">{aviso}</p>}
+        {aviso && <p className="rounded-xl bg-pine-soft px-3 py-2 text-justify text-sm leading-relaxed text-pine">{aviso}</p>}
         {erro && (
-          <p role="alert" className="rounded-xl bg-seal-soft px-3 py-2 text-sm text-seal">
+          <p role="alert" className="rounded-xl bg-seal-soft px-3 py-2 text-justify text-sm leading-relaxed text-seal">
             {erro}
           </p>
         )}
@@ -633,8 +633,8 @@ function RecuperarSenha({
   return (
     <form className="flex flex-col gap-3" onSubmit={(event) => void redefinir(event)}>
       <h2 className="font-display text-2xl text-ink">Esqueci minha senha</h2>
-      {aviso && <p className="rounded-xl bg-pine-soft px-3 py-2 text-sm text-pine">{aviso}</p>}
-      {erro && <p className="rounded-xl bg-seal-soft px-3 py-2 text-sm text-seal">{erro}</p>}
+      {aviso && <p className="rounded-xl bg-pine-soft px-3 py-2 text-justify text-sm leading-relaxed text-pine">{aviso}</p>}
+      {erro && <p className="rounded-xl bg-seal-soft px-3 py-2 text-justify text-sm leading-relaxed text-seal">{erro}</p>}
       <label className="flex flex-col gap-1 text-sm font-medium text-ink">
         E-mail
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={campo} autoComplete="email" required />

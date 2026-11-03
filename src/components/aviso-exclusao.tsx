@@ -31,12 +31,12 @@ export function AvisoContaExcluida({ motivo, onEntendi }: { motivo: string; onEn
         }}
       >
         <h2 className="font-display text-3xl text-ink">Conta excluída</h2>
-        <p className="mt-2 text-sm text-ink">Sua conta foi excluída porque você infringiu as diretrizes do sistema.</p>
-        <p className="mt-2 text-sm text-muted">{item ? item.resumo : "O motivo fica registrado na exclusão."}</p>
+        <p className="mt-2 text-justify text-sm leading-relaxed text-ink">Sua conta foi excluída porque você infringiu as diretrizes do sistema.</p>
+        <p className="mt-2 text-justify text-sm leading-relaxed text-muted">{item ? item.resumo : "O motivo fica registrado na exclusão."}</p>
         {mais && (
           <div className="mt-3 rounded-xl bg-paper p-3" onClick={(evento) => evento.stopPropagation()}>
             <p className="text-sm font-medium text-ink">{item?.titulo ?? "Motivo"}</p>
-            <p className="mt-1 text-sm text-ink">{item?.fundamento ?? "A exclusão segue as diretrizes de uso do sistema."}</p>
+            <p className="mt-1 text-justify text-sm leading-relaxed text-ink">{item?.fundamento ?? "A exclusão segue as diretrizes de uso do sistema."}</p>
           </div>
         )}
         <div className="mt-4 flex gap-2">

@@ -99,7 +99,7 @@ export function SecaoUsuarios({
           Consulta só lê. Administrador, depois de atribuído, entra na área restrita com o e-mail e a senha da própria conta. O acesso do gestor que já existe continua valendo.
         </p>
         <h3 className="mt-4 text-sm font-medium text-ink">E-mails restritos</h3>
-        <p className="mt-1 text-sm text-muted">Menor de 18 anos. Dá para liberar com a data confirmada por e-mail ou manter o bloqueio para análise.</p>
+        <p className="mt-1 text-justify text-sm leading-relaxed text-muted">Menor de 18 anos. Dá para liberar com a data confirmada por e-mail ou manter o bloqueio para análise.</p>
         <ul className="mt-3 flex flex-col gap-2">
           {painel.restritos.length === 0 && <li className="text-sm text-muted">Nenhum e-mail restrito.</li>}
           {painel.restritos.map((item) => (

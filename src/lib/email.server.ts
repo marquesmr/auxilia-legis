@@ -49,7 +49,7 @@ export function emailHtml(nome: string, corpo: string, origem = "") {
 <tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fffdf8;border-radius:16px;overflow:hidden;">
 ${banner}
-<tr><td style="padding:28px 32px;font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.6;color:#1c1915;">
+<tr><td style="padding:28px 32px;font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.6;color:#1c1915;text-align:justify;">
 <p style="margin:0 0 16px;">Olá, <strong>${tratamento}</strong>!</p>
 ${corpo}
 <p style="margin:24px 0 0;">Abraço,<br><strong>Equipe Auxilia Legis</strong></p>
