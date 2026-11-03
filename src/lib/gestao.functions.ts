@@ -307,6 +307,29 @@ export const backupGestao = createServerFn({ method: "POST" })
     return fazerBackup();
   });
 
+export const backupsAutomaticosGestao = createServerFn({ method: "POST" })
+  .validator(tokenOk)
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, listarBackupsAutomaticos } = await import("./gestao.server");
+    await exigirGestao(data);
+    return listarBackupsAutomaticos();
+  });
+
+export const restaurarAutomaticoGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; id?: unknown };
+    if (typeof bruto.id !== "string") throw new Error("Escolha um backup da lista.");
+    return { token: tokenOk(bruto.token), id: bruto.id.slice(0, 80) };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, restaurarBackupAutomatico } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return restaurarBackupAutomatico(data.id);
+  });
+
 export const restaurarGestao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");

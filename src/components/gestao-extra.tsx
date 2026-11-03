@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   backupGestao,
+  backupsAutomaticosGestao,
   bloquearUsuarioGestao,
   definirPapelGestao,
   desvincularEquipeGestao,
@@ -8,6 +9,7 @@ import {
   feriadoGestao,
   logsGestao,
   manutencaoGestao,
+  restaurarAutomaticoGestao,
   restaurarGestao,
   salvarSenhaCaixaGestao,
   vincularEquipeGestao,
@@ -29,6 +31,12 @@ function hora(valor: string | null) {
   const data = new Date(valor);
   if (Number.isNaN(data.getTime())) return "—";
   return data.toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function horaCheia(valor: string) {
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return "—";
+  return data.toLocaleString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 export function SecaoUsuarios({
@@ -248,6 +256,23 @@ export function SecaoSistema({
   const [tipoFeriado, setTipoFeriado] = useState<"feriado" | "recesso">("feriado");
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
+  const [pontos, setPontos] = useState<Awaited<ReturnType<typeof backupsAutomaticosGestao>>>([]);
+  const [pontoId, setPontoId] = useState("");
+  const [restaurando, setRestaurando] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    void backupsAutomaticosGestao({ data: token })
+      .then((lista) => {
+        if (!vivo) return;
+        setPontos(lista);
+        setPontoId((atual) => (lista.some((item) => item.id === atual) ? atual : (lista[0]?.id ?? "")));
+      })
+      .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível ler os backups."));
+    return () => {
+      vivo = false;
+    };
+  }, [token, painel.config.backupAutoEm, onErro]);
 
   useEffect(() => {
     let vivo = true;
@@ -418,6 +443,58 @@ export function SecaoSistema({
               }}
             />
           </label>
+        </div>
+        <div className="mt-4 border-t border-line pt-4">
+          <h3 className="text-sm font-medium text-ink">Restaurar backup automático</h3>
+          <p className="mt-1 text-sm text-muted">
+            Cada lançamento guarda um ponto. Escolha em qual voltar. Contas, senhas e processos daquele momento passam a valer.
+          </p>
+          {pontos.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">Nenhum backup automático ainda.</p>
+          ) : (
+            <ul className="mt-3 flex max-h-80 flex-col gap-2 overflow-y-auto">
+              {pontos.map((ponto) => (
+                <li key={ponto.id}>
+                  <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-line px-3 py-2 text-sm">
+                    <input
+                      type="radio"
+                      name="backup-automatico"
+                      className="mt-1"
+                      checked={pontoId === ponto.id}
+                      onChange={() => setPontoId(ponto.id)}
+                    />
+                    <span>
+                      <span className="font-medium text-ink">{horaCheia(ponto.em)}</span>
+                      <span className="text-muted">
+                        {" "}
+                        · {ponto.contas} contas · {ponto.processos} legislativos · {ponto.administrativos} administrativos
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button
+            type="button"
+            disabled={!pontoId || restaurando}
+            onClick={() => {
+              const escolhido = pontos.find((item) => item.id === pontoId);
+              if (!escolhido) return;
+              if (!window.confirm(`Voltar o sistema para o backup de ${horaCheia(escolhido.em)}? Contas, senhas e processos passam a ser os daquele momento.`)) return;
+              setRestaurando(true);
+              void restaurarAutomaticoGestao({ data: { token, id: escolhido.id } })
+                .then((resultado) => {
+                  onAviso(`Sistema voltou para ${horaCheia(escolhido.em)}. ${resultado.contas} contas, ${resultado.processos} legislativos e ${resultado.administrativos} administrativos.`);
+                  onMudou();
+                })
+                .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível restaurar."))
+                .finally(() => setRestaurando(false));
+            }}
+            className="mt-3 inline-flex h-11 items-center rounded-xl bg-pine px-4 text-sm font-medium text-sheet disabled:opacity-60"
+          >
+            {restaurando ? "Restaurando…" : "Restaurar este ponto"}
+          </button>
         </div>
       </section>
 

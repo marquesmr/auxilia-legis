@@ -892,11 +892,29 @@ async function montarBackup(sql: Sql) {
   });
 }
 
+function resumoDoBackup(conteudo: string) {
+  try {
+    const dados = JSON.parse(conteudo) as {
+      usuarios?: unknown[];
+      processos?: unknown[];
+      processosAdmin?: unknown[];
+    };
+    return {
+      contas: Array.isArray(dados.usuarios) ? dados.usuarios.length : 0,
+      processos: Array.isArray(dados.processos) ? dados.processos.length : 0,
+      administrativos: Array.isArray(dados.processosAdmin) ? dados.processosAdmin.length : 0,
+    };
+  } catch {
+    return { contas: 0, processos: 0, administrativos: 0 };
+  }
+}
+
 async function guardarBackup(sql: Sql, automatico: boolean) {
   const conteudo = await montarBackup(sql);
+  const resumo = resumoDoBackup(conteudo);
   await sql`
-    insert into gestao_backups (id, automatico, conteudo)
-    values (${crypto.randomUUID()}, ${automatico}, ${conteudo})
+    insert into gestao_backups (id, automatico, conteudo, contas, processos, administrativos)
+    values (${crypto.randomUUID()}, ${automatico}, ${conteudo}, ${resumo.contas}, ${resumo.processos}, ${resumo.administrativos})
   `;
   if (automatico) await sql`update gestao_config set backup_auto_em = now() where id = 'principal'`;
   else await sql`update gestao_config set backup_em = now() where id = 'principal'`;
@@ -904,9 +922,9 @@ async function guardarBackup(sql: Sql, automatico: boolean) {
     delete from gestao_backups
     where id in (
       select id from gestao_backups
-      where automatico = ${automatico}
+      where automatico = false
       order by criado_em desc
-      offset 3
+      offset 8
     )
   `;
   return conteudo;
@@ -929,6 +947,59 @@ async function backupAutomatico(sql: Sql) {
   const ultimo = linhas[0]?.backup_auto_em ? new Date(linhas[0].backup_auto_em).getTime() : 0;
   if (Date.now() - ultimo < 24 * 60 * 60 * 1000) return;
   await guardarBackup(sql, true);
+}
+
+export async function listarBackupsAutomaticos() {
+  const sql = await getSql();
+  const linhas = await sql<{
+    id: string;
+    criado_em: string;
+    contas: number | null;
+    processos: number | null;
+    administrativos: number | null;
+    conteudo: string | null;
+  }>`
+    select id, criado_em, contas, processos, administrativos,
+      case when contas is null then conteudo else null end as conteudo
+    from gestao_backups
+    where automatico = true
+    order by criado_em desc
+  `;
+  const lista = [];
+  for (const linha of linhas) {
+    let contas = linha.contas;
+    let processos = linha.processos;
+    let administrativos = linha.administrativos;
+    if (contas == null && linha.conteudo) {
+      const resumo = resumoDoBackup(linha.conteudo);
+      contas = resumo.contas;
+      processos = resumo.processos;
+      administrativos = resumo.administrativos;
+      await sql`
+        update gestao_backups
+        set contas = ${contas}, processos = ${processos}, administrativos = ${administrativos}
+        where id = ${linha.id}
+      `;
+    }
+    lista.push({
+      id: linha.id,
+      em: String(linha.criado_em),
+      contas: Number(contas ?? 0),
+      processos: Number(processos ?? 0),
+      administrativos: Number(administrativos ?? 0),
+    });
+  }
+  return lista;
+}
+
+export async function restaurarBackupAutomatico(id: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error("Escolha um backup da lista.");
+  const sql = await getSql();
+  const linhas = await sql<{ conteudo: string }>`
+    select conteudo from gestao_backups where id = ${id} and automatico = true
+  `;
+  if (!linhas[0]) throw new Error("Esse backup automático não existe mais.");
+  return restaurarBackup(linhas[0].conteudo);
 }
 
 export async function fazerBackup() {
