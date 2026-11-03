@@ -75,7 +75,7 @@ export function TextoDosTermos() {
         O Programa é disponibilizado por Carlos Marques, com sede em Mário Campos/MG, doravante denominado Titular. Ao criar uma conta, marcar a opção de aceite ou utilizar o Programa, o usuário declara ter lido, compreendido e concordado integralmente com estes Termos, bem como com a Política de Privacidade vinculada. Se não concordar, não crie conta nem utilize o Programa.
       </p>
       <p className="text-justify">
-        O uso do Programa por pessoa jurídica pressupõe que o representante possui poderes para vincular a entidade. A conta criada por e-mail exige a idade e só pode ser aberta por quem tem 18 anos ou mais.
+        O uso do Programa por pessoa jurídica pressupõe que o representante possui poderes para vincular a entidade. A conta criada por e-mail exige a data de nascimento e só pode ser aberta por quem já completou 18 anos.
       </p>
       <h3 className="pt-1 font-medium">2. Descrição do serviço</h3>
       <p className="text-justify">
@@ -89,7 +89,7 @@ export function TextoDosTermos() {
       </p>
       <h3 className="pt-1 font-medium">3. Conta de usuário e segurança</h3>
       <p className="text-justify">
-        Para sincronização entre dispositivos é necessária conta com nome, idade, e-mail válido e senha de no mínimo 8 caracteres, ou autenticação por Google ou X. O usuário é o único responsável pela veracidade dos dados cadastrais, pela confidencialidade da senha e por todas as atividades realizadas em sua conta.
+        Para sincronização entre dispositivos é necessária conta com nome, data de nascimento, e-mail válido e senha de no mínimo 8 caracteres, ou autenticação por Google ou X. O usuário é o único responsável pela veracidade dos dados cadastrais, pela confidencialidade da senha e por todas as atividades realizadas em sua conta.
       </p>
       <p className="text-justify">
         É vedado compartilhar credenciais, criar contas em nome de terceiros sem autorização ou utilizar contas de forma automatizada sem consentimento expresso do Titular. O Titular poderá suspender ou encerrar contas em caso de indícios de uso fraudulento, violação destes Termos ou risco à segurança do serviço.

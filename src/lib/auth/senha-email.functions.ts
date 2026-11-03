@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { idadeEm } from "@/lib/idade";
 
 function emailOk(valor: unknown) {
   const email = typeof valor === "string" ? valor.trim().toLowerCase() : "";
@@ -33,21 +34,22 @@ export const entrarPeloLink = createServerFn({ method: "POST" })
 export const criarContaComCodigo = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
-    const bruto = input as { nome?: unknown; email?: unknown; senha?: unknown; codigo?: unknown; idade?: unknown };
+    const bruto = input as { nome?: unknown; email?: unknown; senha?: unknown; codigo?: unknown; nascimento?: unknown };
     const nome = typeof bruto.nome === "string" ? bruto.nome.trim().replace(/\s+/g, " ").slice(0, 80) : "";
     if (nome.length < 2) throw new Error("Informe seu nome.");
-    const idade = Number(bruto.idade);
-    if (!Number.isInteger(idade) || idade < 18 || idade > 120) throw new Error("Informe a idade. É preciso ter 18 anos ou mais.");
+    const nascimento = typeof bruto.nascimento === "string" ? bruto.nascimento : "";
+    const idade = idadeEm(nascimento);
+    if (idade == null || idade < 18 || idade > 120) throw new Error("Escolha a data de nascimento. É preciso ter 18 anos ou mais.");
     const senha = typeof bruto.senha === "string" ? bruto.senha : "";
     if (senha.length < 8) throw new Error("A senha precisa ter pelo menos 8 caracteres.");
     if (senha.length > 128) throw new Error("A senha está longa demais.");
     const codigo = String(bruto.codigo ?? "").replace(/\D/g, "");
     if (!/^\d{6}$/.test(codigo)) throw new Error("Informe o código de 6 dígitos enviado por e-mail.");
-    return { nome, email: emailOk(bruto.email), senha, codigo, idade };
+    return { nome, email: emailOk(bruto.email), senha, codigo, idade, nascimento };
   })
   .handler(async ({ data }) => {
     const { criarContaComCodigo: criar } = await import("../cadastro-email.server");
-    return criar(data.nome, data.email, data.senha, data.codigo, data.idade);
+    return criar(data.nome, data.email, data.senha, data.codigo, data.idade, data.nascimento);
   });
 
 export const pedirCodigoSenha = createServerFn({ method: "POST" })

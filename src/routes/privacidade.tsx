@@ -38,7 +38,7 @@ function Privacidade() {
 
         <Titulo>2. Quais dados são tratados</Titulo>
         <p className="text-justify">
-          Dados da conta: nome, idade informada na criação da conta por e-mail, e-mail, hash da senha (a senha em texto claro não é guardada), identificador da conta no Google ou no X quando o login é feito por esses meios, e códigos temporários de confirmação de e-mail ou de redefinição de senha. A conta por e-mail só é criada para quem declara 18 anos ou mais.
+          Dados da conta: nome, data de nascimento escolhida na criação da conta por e-mail, e-mail, hash da senha (a senha em texto claro não é guardada), identificador da conta no Google ou no X quando o login é feito por esses meios, e códigos temporários de confirmação de e-mail ou de redefinição de senha. A conta por e-mail só é criada para quem tem 18 anos ou mais na data escolhida.
         </p>
         <p className="text-justify">
           Dados lançados pelo usuário: número e ano do processo, tipo, parte, assunto, status, prazos, andamentos, valores, vigência, documento do contratado, links de publicação e o histórico de quem alterou o quê. No administrativo, isso pode incluir CPF, CNPJ e comunicações internas. Preferências de tema, cor e área de abertura também são gravadas na conta.
@@ -102,7 +102,7 @@ function Privacidade() {
 
         <Titulo>10. Crianças e adolescentes</Titulo>
         <p className="text-justify">
-          O Programa não se destina a menor de 18 anos. Na criação da conta por e-mail a idade é obrigatória, e o cadastro é recusado abaixo de 18. Não se coleta dado de criança de forma intencional.
+          O Programa não se destina a menor de 18 anos. Na criação da conta por e-mail a data de nascimento é obrigatória, e o cadastro é recusado se a pessoa ainda não completou 18 anos. Não se coleta dado de criança de forma intencional.
         </p>
 
         <Titulo>11. Alterações</Titulo>
