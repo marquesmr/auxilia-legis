@@ -5,6 +5,8 @@ import {
   bloquearUsuarioGestao,
   definirPapelGestao,
   desvincularEquipeGestao,
+  criarStatusGestao,
+  editarStatusGestao,
   excluirUsuarioGestao,
   feriadoGestao,
   logsGestao,
@@ -550,5 +552,192 @@ export function SecaoSistema({
       </section>
       {acesso}
     </div>
+  );
+}
+
+type StatusPainel = Painel["status"][number];
+
+export function SecaoStatus({
+  token,
+  status,
+  onMudou,
+  onErro,
+  onAviso,
+}: {
+  token: string;
+  status: StatusPainel[];
+  onMudou: () => void;
+  onErro: (texto: string) => void;
+  onAviso: (texto: string) => void;
+}) {
+  const [area, setArea] = useState<"legislativo" | "administrativo">("legislativo");
+  const [nome, setNome] = useState("");
+  const [encerra, setEncerra] = useState(false);
+  const [auto, setAuto] = useState(false);
+  const [dias, setDias] = useState("30");
+  const [destino, setDestino] = useState("");
+  const [editando, setEditando] = useState<string | null>(null);
+  const [rascunho, setRascunho] = useState({ nome: "", encerra: false, auto: false, dias: "30", destino: "" });
+  const daArea = status.filter((item) => item.area === area);
+
+  async function criar(evento: FormEvent) {
+    evento.preventDefault();
+    onErro("");
+    try {
+      await criarStatusGestao({
+        data: {
+          token,
+          area,
+          nome,
+          encerra,
+          tramiteDias: area === "administrativo" && auto ? Number(dias) : null,
+          tramiteCodigo: area === "administrativo" && auto ? destino : null,
+        },
+      });
+      setNome("");
+      setEncerra(false);
+      setAuto(false);
+      onAviso("Status criado.");
+      onMudou();
+    } catch (err) {
+      onErro(err instanceof Error ? err.message : "Não foi possível criar o status.");
+    }
+  }
+
+  function abrirEdicao(item: StatusPainel) {
+    setEditando(item.id);
+    setRascunho({
+      nome: item.nome,
+      encerra: item.encerra,
+      auto: item.tramiteDias != null && Boolean(item.tramiteCodigo),
+      dias: String(item.tramiteDias ?? 30),
+      destino: item.tramiteCodigo ?? "",
+    });
+  }
+
+  async function salvar(item: StatusPainel) {
+    onErro("");
+    try {
+      await editarStatusGestao({
+        data: {
+          token,
+          id: item.id,
+          nome: rascunho.nome,
+          encerra: rascunho.encerra,
+          tramiteDias: item.area === "administrativo" && rascunho.auto ? Number(rascunho.dias) : null,
+          tramiteCodigo: item.area === "administrativo" && rascunho.auto ? rascunho.destino : null,
+        },
+      });
+      setEditando(null);
+      onAviso("Status atualizado.");
+      onMudou();
+    } catch (err) {
+      onErro(err instanceof Error ? err.message : "Não foi possível editar o status.");
+    }
+  }
+
+  return (
+    <section className="mt-5 rounded-2xl border border-line bg-sheet p-4">
+      <h2 className="text-sm font-medium text-ink">Status</h2>
+      <p className="mt-1 text-sm text-muted">
+        Crie status novos e edite o nome dos que já existem. No administrativo, um status pode passar sozinho para outro depois de alguns dias corridos.
+      </p>
+      <div className="mt-3 flex gap-2">
+        {(["legislativo", "administrativo"] as const).map((opcao) => (
+          <button
+            key={opcao}
+            type="button"
+            onClick={() => { setArea(opcao); setEditando(null); }}
+            className={"inline-flex h-10 items-center rounded-full px-4 text-sm font-medium " + (area === opcao ? "bg-ink text-sheet" : "border border-line bg-paper text-ink")}
+          >
+            {opcao === "legislativo" ? "Legislativo" : "Administrativo"}
+          </button>
+        ))}
+      </div>
+      <form className="mt-3 grid gap-2" onSubmit={(evento) => void criar(evento)}>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input value={nome} onChange={(evento) => setNome(evento.target.value)} placeholder="Nome do novo status" className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 text-sm text-ink" spellCheck lang="pt-BR" />
+          <button type="submit" className="inline-flex h-11 items-center justify-center rounded-xl bg-pine px-4 text-sm font-medium text-sheet">Adicionar</button>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input type="checkbox" checked={encerra} onChange={(evento) => setEncerra(evento.target.checked)} />
+          Este status encerra o processo
+        </label>
+        {area === "administrativo" && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" checked={auto} onChange={(evento) => setAuto(evento.target.checked)} />
+              Trâmite automático
+            </label>
+            {auto && (
+              <>
+                <input value={dias} onChange={(evento) => setDias(evento.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" className="h-11 w-24 rounded-xl border border-line bg-paper px-3 text-sm" aria-label="Dias" />
+                <span className="text-sm text-muted">dias, passar para</span>
+                <select value={destino} onChange={(evento) => setDestino(evento.target.value)} className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 text-sm text-ink">
+                  <option value="">Escolha o status</option>
+                  {daArea.map((item) => (
+                    <option key={item.codigo} value={item.codigo}>{item.nome}</option>
+                  ))}
+                </select>
+              </>
+            )}
+          </div>
+        )}
+      </form>
+      <ul className="mt-4 flex flex-col gap-2">
+        {daArea.map((item) => (
+          <li key={item.id} className="rounded-xl border border-line px-3 py-2 text-sm">
+            {editando === item.id ? (
+              <div className="flex flex-col gap-2">
+                <input value={rascunho.nome} onChange={(evento) => setRascunho({ ...rascunho, nome: evento.target.value })} className="h-10 rounded-lg border border-line bg-paper px-2" spellCheck lang="pt-BR" />
+                {item.codigo !== "concluido" && item.codigo !== "encerrado" && item.codigo !== "cancelado" && (
+                  <label className="flex items-center gap-2 text-ink">
+                    <input type="checkbox" checked={rascunho.encerra} onChange={(evento) => setRascunho({ ...rascunho, encerra: evento.target.checked })} />
+                    Encerra o processo
+                  </label>
+                )}
+                {item.area === "administrativo" && (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <label className="flex items-center gap-2 text-ink">
+                      <input type="checkbox" checked={rascunho.auto} onChange={(evento) => setRascunho({ ...rascunho, auto: evento.target.checked })} />
+                      Trâmite automático
+                    </label>
+                    {rascunho.auto && (
+                      <>
+                        <input value={rascunho.dias} onChange={(evento) => setRascunho({ ...rascunho, dias: evento.target.value.replace(/\D/g, "").slice(0, 4) })} inputMode="numeric" className="h-10 w-24 rounded-lg border border-line bg-paper px-2" aria-label="Dias" />
+                        <span className="text-muted">dias, passar para</span>
+                        <select value={rascunho.destino} onChange={(evento) => setRascunho({ ...rascunho, destino: evento.target.value })} className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-paper px-2 text-ink">
+                          <option value="">Escolha o status</option>
+                          {daArea.filter((outro) => outro.codigo !== item.codigo).map((outro) => (
+                            <option key={outro.codigo} value={outro.codigo}>{outro.nome}</option>
+                          ))}
+                        </select>
+                      </>
+                    )}
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => void salvar(item)} className="font-medium text-pine">Salvar</button>
+                  <button type="button" onClick={() => setEditando(null)} className="text-muted">Cancelar</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-3">
+                <span>
+                  <span className="block text-ink">{item.nome}</span>
+                  <span className="text-muted">
+                    {item.encerra ? "Encerra o processo" : "Em aberto"}
+                    {item.area === "administrativo" && item.tramiteDias && item.tramiteCodigo
+                      ? ` · em ${item.tramiteDias} dias vai para ${daArea.find((outro) => outro.codigo === item.tramiteCodigo)?.nome ?? item.tramiteCodigo}`
+                      : ""}
+                  </span>
+                </span>
+                <button type="button" onClick={() => abrirEdicao(item)} className="font-medium text-pine">Editar</button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

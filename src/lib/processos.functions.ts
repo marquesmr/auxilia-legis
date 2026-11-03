@@ -13,7 +13,7 @@ function exigirProcesso(input: unknown): Processo {
   if (!id || !numero || !parte || !assunto) throw new Error("Dados inválidos");
   const tipo = typeof bruto.tipo === "string" ? bruto.tipo.trim().replace(/\s+/g, " ") : "";
   if (!/^[\p{L}\p{N}][\p{L}\p{N} .\/'-]{1,39}$/u.test(tipo)) throw new Error("Tipo inválido");
-  if (bruto.status !== "andamento" && bruto.status !== "concluido") throw new Error("Status inválido");
+  if (typeof bruto.status !== "string" || !/^[a-z0-9-]{2,40}$/.test(bruto.status)) throw new Error("Status inválido");
   if (!dataOk(bruto.dataLancamento) || !dataOk(bruto.prazo)) throw new Error("Data inválida");
   const alerta = Number(bruto.alertaDias);
   if (!Number.isInteger(alerta) || alerta < 0 || alerta > 60) throw new Error("Antecedência inválida");
@@ -183,7 +183,7 @@ function linhaParaProcesso(linha: Linha): Processo {
     historico = [];
   }
   const tipo = typeof linha.tipo === "string" && linha.tipo.trim() ? (linha.tipo as TipoProcesso) : "Outros";
-  const status: StatusProcesso = linha.status === "concluido" ? "concluido" : "andamento";
+  const status = typeof linha.status === "string" && /^[a-z0-9-]{2,40}$/.test(linha.status) ? linha.status : "andamento";
   return {
     id: linha.id,
     numero: linha.numero,

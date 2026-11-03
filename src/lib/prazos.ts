@@ -1,7 +1,9 @@
+import { encerraStatus, nomeStatus } from "@/lib/status-catalogo";
+
 export const TIPOS = ["Requerimentos", "Projetos de Lei", "Indicações", "Outros"] as const;
 
 export type TipoProcesso = (typeof TIPOS)[number] | (string & {});
-export type StatusProcesso = "andamento" | "concluido";
+export type StatusProcesso = string;
 export type Urgencia = "vencido" | "hoje" | "proximo" | "ok" | "concluido";
 export const TIPOS_LEI = ["Lei ordinária", "Lei complementar", "Decreto legislativo", "Resolução"] as const;
 export type TipoLei = (typeof TIPOS_LEI)[number];
@@ -97,7 +99,7 @@ export function formatDate(iso: string): string {
 }
 
 export function urgencia(p: Processo, now = new Date()): Urgencia {
-  if (p.status === "concluido") return "concluido";
+  if (encerraStatus("legislativo", p.status)) return "concluido";
   const dias = daysUntil(p.prazo, now);
   if (dias < 0) return "vencido";
   if (dias === 0) return "hoje";
@@ -106,7 +108,7 @@ export function urgencia(p: Processo, now = new Date()): Urgencia {
 }
 
 export function prazoLabel(p: Processo, now = new Date()): string {
-  if (p.status === "concluido") return "Arquivado";
+  if (encerraStatus("legislativo", p.status)) return nomeStatus("legislativo", p.status);
   const dias = daysUntil(p.prazo, now);
   if (dias < 0) {
     const n = Math.abs(dias);

@@ -1,4 +1,5 @@
 import { daysUntil, todayIso, type Andamento } from "@/lib/prazos";
+import { encerraStatus, nomeStatus } from "@/lib/status-catalogo";
 
 export const MODALIDADES = [
   "Pregão",
@@ -43,7 +44,7 @@ export const STATUS_ADMIN = [
   "cancelado",
 ] as const;
 
-export type StatusAdmin = (typeof STATUS_ADMIN)[number];
+export type StatusAdmin = string;
 export type UrgenciaAdmin = "vencido" | "hoje" | "proximo" | "ok" | "encerrado" | "cancelado";
 export type PeriodoRelatorio = "mensal" | "trimestral" | "semestral" | "anual";
 
@@ -82,20 +83,15 @@ export function pedePrevisao(status: StatusAdmin): boolean {
 }
 
 export function normalizarStatus(raw: string): StatusAdmin {
-  if (raw === "concluido" || raw === "encerrado") return "encerrado";
-  if (raw === "cancelado") return "cancelado";
-  if (raw === "execucao") return "execucao";
-  if (raw === "pareceres" || raw === "assinatura" || raw === "proposta") return raw;
+  const codigo = raw.trim().toLowerCase();
+  if (codigo === "concluido" || codigo === "encerrado") return "encerrado";
+  if (codigo === "cancelado" || codigo === "execucao" || codigo === "pareceres" || codigo === "assinatura" || codigo === "proposta") return codigo;
+  if (/^[a-z0-9-]{2,40}$/.test(codigo)) return codigo;
   return "proposta";
 }
 
 export function statusAdminLabel(status: StatusAdmin): string {
-  if (status === "proposta") return "Recebendo proposta";
-  if (status === "pareceres") return "Pareceres";
-  if (status === "assinatura") return "Assinatura de contrato";
-  if (status === "execucao") return "Execução";
-  if (status === "cancelado") return "Cancelado";
-  return "Encerrado";
+  return nomeStatus("administrativo", status);
 }
 
 export type ProcessoAdmin = {
@@ -161,14 +157,14 @@ export function dataAlvo(p: ProcessoAdmin): string {
 export function marcoAdmin(p: ProcessoAdmin): { rotulo: string; data: string | null } {
   if (tipoSimples(p.tipo)) return { rotulo: "Status", data: null };
   if (p.status === "cancelado") return { rotulo: "Cancelado", data: null };
-  if (p.status === "encerrado") return { rotulo: "Encerramento", data: p.encerramento };
+  if (encerraStatus("administrativo", p.status)) return { rotulo: statusAdminLabel(p.status), data: p.status === "encerrado" ? p.encerramento : null };
   if (p.status === "execucao") return { rotulo: "Fim da vigência", data: p.vigenciaFim };
   return { rotulo: "Previsão da etapa", data: p.previsaoEtapa ?? p.encerramento };
 }
 
 export function urgenciaAdmin(p: ProcessoAdmin, now = new Date()): UrgenciaAdmin {
-  if (p.status === "encerrado") return "encerrado";
   if (p.status === "cancelado") return "cancelado";
+  if (encerraStatus("administrativo", p.status)) return "encerrado";
   if (tipoSimples(p.tipo)) return "ok";
   const dias = daysUntil(dataAlvo(p), now);
   if (dias < 0) return "vencido";
@@ -179,8 +175,8 @@ export function urgenciaAdmin(p: ProcessoAdmin, now = new Date()): UrgenciaAdmin
 
 export function prazoAdminLabel(p: ProcessoAdmin, now = new Date()): string {
   if (tipoSimples(p.tipo)) return statusAdminLabel(p.status);
-  if (p.status === "encerrado") return "Encerrado";
   if (p.status === "cancelado") return "Cancelado";
+  if (encerraStatus("administrativo", p.status)) return statusAdminLabel(p.status);
   const dias = daysUntil(dataAlvo(p), now);
   const qual = p.status === "execucao" ? "Vigência" : "Previsão";
   if (dias < 0) {

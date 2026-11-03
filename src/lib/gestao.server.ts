@@ -355,6 +355,10 @@ export async function lerPainel() {
       count(*) filter (where prazo > current_date and prazo <= current_date + 7)::int as semana
     from processos
     where status <> 'concluido'
+      and not exists (
+        select 1 from status_catalogo sc
+        where sc.area = 'legislativo' and sc.codigo = status and sc.encerra
+      )
   `;
   const prazosAdm = await sql<{ hoje: number; atraso: number; semana: number }>`
     select
@@ -368,6 +372,10 @@ export async function lerPainel() {
       end as ref
       from processos_admin
       where status not in ('encerrado', 'cancelado')
+        and not exists (
+          select 1 from status_catalogo sc
+          where sc.area = 'administrativo' and sc.codigo = status and sc.encerra
+        )
         and tipo not in ('Doação', 'Outros')
     ) p
     where ref is not null
@@ -377,13 +385,22 @@ export async function lerPainel() {
       select coalesce(e.nome, 'Sem equipe') as grupo, count(*)::int as n
       from processos p
       left join equipes e on e.id = p.team_id
-      where p.status <> 'concluido' and p.prazo < current_date
+      where p.status <> 'concluido'
+        and not exists (
+          select 1 from status_catalogo sc
+          where sc.area = 'legislativo' and sc.codigo = p.status and sc.encerra
+        )
+        and p.prazo < current_date
       group by 1
       union all
       select coalesce(e.nome, 'Sem equipe'), count(*)::int
       from processos_admin p
       left join equipes e on e.id = p.team_id
       where p.status not in ('encerrado', 'cancelado')
+        and not exists (
+          select 1 from status_catalogo sc
+          where sc.area = 'administrativo' and sc.codigo = p.status and sc.encerra
+        )
         and p.tipo not in ('Doação', 'Outros')
         and coalesce(case when p.status = 'execucao' then p.vigencia_fim else p.previsao_etapa end, p.encerramento) < current_date
       group by 1
@@ -396,12 +413,21 @@ export async function lerPainel() {
     select grupo, sum(n)::int as n from (
       select tipo as grupo, count(*)::int as n
       from processos
-      where status <> 'concluido' and prazo < current_date
+      where status <> 'concluido'
+        and not exists (
+          select 1 from status_catalogo sc
+          where sc.area = 'legislativo' and sc.codigo = status and sc.encerra
+        )
+        and prazo < current_date
       group by tipo
       union all
       select tipo, count(*)::int
       from processos_admin
       where status not in ('encerrado', 'cancelado')
+        and not exists (
+          select 1 from status_catalogo sc
+          where sc.area = 'administrativo' and sc.codigo = status and sc.encerra
+        )
         and tipo not in ('Doação', 'Outros')
         and coalesce(case when status = 'execucao' then vigencia_fim else previsao_etapa end, encerramento) < current_date
       group by tipo
@@ -471,6 +497,7 @@ export async function lerPainel() {
       emailPronto: Boolean(process.env.SMTP_PASS?.trim() || config[0]?.smtp_senha),
     },
     feriados: feriados.map((item) => ({ ...item, inicio: String(item.inicio).slice(0, 10), fim: String(item.fim).slice(0, 10) })),
+    status: await listarStatusCatalogo(),
   };
 }
 
@@ -485,6 +512,123 @@ export async function criarAba(area: "legislativo" | "administrativo", nome: str
     on conflict (area, nome) do update set ativa = true
   `;
   return { nome: limpo };
+}
+
+function codigoDoNome(nome: string) {
+  const base = nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+  return base.length >= 2 ? base : "";
+}
+
+function marcado(valor: unknown) {
+  return valor === true || valor === "t" || valor === "true" || valor === 1 || valor === "1";
+}
+
+export async function listarStatusCatalogo() {
+  const sql = await getSql();
+  const linhas = await sql<{
+    id: string;
+    area: string;
+    codigo: string;
+    nome: string;
+    ordem: number;
+    encerra: boolean;
+    fixo: boolean;
+    tramite_dias: number | null;
+    tramite_codigo: string | null;
+  }>`
+    select id, area, codigo, nome, ordem, encerra, fixo, tramite_dias, tramite_codigo
+    from status_catalogo
+    order by area asc, ordem asc, nome asc
+  `;
+  return linhas.map((linha) => ({
+    id: linha.id,
+    area: linha.area === "administrativo" ? ("administrativo" as const) : ("legislativo" as const),
+    codigo: linha.codigo,
+    nome: linha.nome,
+    ordem: Number(linha.ordem),
+    encerra: marcado(linha.encerra),
+    fixo: marcado(linha.fixo),
+    tramiteDias: linha.tramite_dias == null ? null : Number(linha.tramite_dias),
+    tramiteCodigo: linha.tramite_codigo,
+  }));
+}
+
+export async function criarStatus(entrada: {
+  area: "legislativo" | "administrativo";
+  nome: string;
+  encerra: boolean;
+  tramiteDias: number | null;
+  tramiteCodigo: string | null;
+}) {
+  const nome = entrada.nome.trim().replace(/\s+/g, " ").slice(0, 60);
+  if (nome.length < 2) throw new Error("Dê um nome ao status.");
+  const codigo = codigoDoNome(nome);
+  if (!codigo) throw new Error("Use um nome com letras ou números.");
+  const sql = await getSql();
+  const existe = await sql<{ id: string }>`select id from status_catalogo where area = ${entrada.area} and codigo = ${codigo}`;
+  if (existe.length) throw new Error("Já existe um status com esse nome.");
+  const ordem = await sql<{ n: number }>`select coalesce(max(ordem), 0)::int as n from status_catalogo where area = ${entrada.area}`;
+  const tramite = await tramiteOk(sql, entrada.area, codigo, entrada.tramiteDias, entrada.tramiteCodigo);
+  await sql`
+    insert into status_catalogo (id, area, codigo, nome, ordem, encerra, fixo, tramite_dias, tramite_codigo)
+    values (
+      ${crypto.randomUUID()}, ${entrada.area}, ${codigo}, ${nome}, ${Number(ordem[0]?.n ?? 0) + 1},
+      ${entrada.encerra}, false, ${tramite.dias}, ${tramite.codigo}
+    )
+  `;
+  return { codigo };
+}
+
+export async function editarStatus(entrada: {
+  id: string;
+  nome: string;
+  encerra: boolean;
+  tramiteDias: number | null;
+  tramiteCodigo: string | null;
+}) {
+  const nome = entrada.nome.trim().replace(/\s+/g, " ").slice(0, 60);
+  if (nome.length < 2) throw new Error("Dê um nome ao status.");
+  const sql = await getSql();
+  const atual = await sql<{ area: string; codigo: string; fixo: boolean }>`
+    select area, codigo, fixo from status_catalogo where id = ${entrada.id}
+  `;
+  if (!atual.length) throw new Error("Status não encontrado.");
+  const area = atual[0].area === "administrativo" ? "administrativo" : "legislativo";
+  const encerraFixo = atual[0].codigo === "concluido" || atual[0].codigo === "encerrado" || atual[0].codigo === "cancelado";
+  const tramite = await tramiteOk(sql, area, atual[0].codigo, entrada.tramiteDias, entrada.tramiteCodigo);
+  await sql`
+    update status_catalogo
+    set nome = ${nome},
+        encerra = ${encerraFixo ? true : entrada.encerra},
+        tramite_dias = ${tramite.dias},
+        tramite_codigo = ${tramite.codigo}
+    where id = ${entrada.id}
+  `;
+  return { ok: true };
+}
+
+async function tramiteOk(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  area: "legislativo" | "administrativo",
+  codigo: string,
+  dias: number | null,
+  destino: string | null,
+) {
+  if (area !== "administrativo" || (dias == null && !destino)) return { dias: null, codigo: null };
+  if (dias == null || !destino) throw new Error("Informe os dias e o status de destino do trâmite.");
+  if (!Number.isInteger(dias) || dias < 1 || dias > 3650) throw new Error("Informe de 1 a 3650 dias para o trâmite.");
+  if (destino === codigo) throw new Error("O trâmite precisa ir para outro status.");
+  const existe = await sql<{ id: string }>`
+    select id from status_catalogo where area = 'administrativo' and codigo = ${destino}
+  `;
+  if (!existe.length) throw new Error("Escolha o status de destino do trâmite.");
+  return { dias, codigo: destino };
 }
 
 export async function alternarAba(id: string, ativa: boolean) {
@@ -854,7 +998,7 @@ export async function listarLogs(filtro: { de: string; ate: string; texto: strin
 }
 
 async function montarBackup(sql: Sql) {
-  const [usuarios, contas, autenticadores, processos, processosAdmin, equipes, membros, convites, abas, feriados, perfis, termos, gestaoAcesso, excluidas] =
+  const [usuarios, contas, autenticadores, processos, processosAdmin, equipes, membros, convites, abas, statusCatalogo, feriados, perfis, termos, gestaoAcesso, excluidas] =
     await Promise.all([
       sql`select * from "user"`,
       sql`select "id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt" from "account"`,
@@ -865,6 +1009,7 @@ async function montarBackup(sql: Sql) {
       sql`select * from equipe_membros`,
       sql`select * from equipe_convites`,
       sql`select * from abas_catalogo`,
+      sql`select * from status_catalogo`,
       sql`select * from feriados`,
       sql`select * from usuario_perfil`,
       sql`select * from termo_aceite`,
@@ -884,6 +1029,7 @@ async function montarBackup(sql: Sql) {
     membros,
     convites,
     abas,
+    statusCatalogo,
     feriados,
     perfis,
     termos,
@@ -1084,6 +1230,7 @@ export async function restaurarBackup(conteudo: string) {
     await gravarLinhas(sql, "equipe_membros", ["equipe_id", "user_id"], (dados as { membros?: unknown }).membros);
     await gravarLinhas(sql, "equipe_convites", ["equipe_id", "email"], (dados as { convites?: unknown }).convites);
     await gravarLinhas(sql, "abas_catalogo", ["id"], (dados as { abas?: unknown }).abas);
+    await gravarLinhas(sql, "status_catalogo", ["id"], (dados as { statusCatalogo?: unknown }).statusCatalogo);
     await gravarLinhas(sql, "feriados", ["id"], (dados as { feriados?: unknown }).feriados);
     await gravarLinhas(sql, "conta_excluida", ["user_id"], (dados as { excluidas?: unknown }).excluidas);
     const processos = await gravarLinhas(sql, "processos", ["id"], dados.processos);

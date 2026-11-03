@@ -12,7 +12,7 @@ import {
   trocarAcessoGestao,
   abrirSistemaGestao,
 } from "@/lib/gestao.functions";
-import { SecaoSistema, SecaoUsuarios } from "@/components/gestao-extra";
+import { SecaoSistema, SecaoStatus, SecaoUsuarios } from "@/components/gestao-extra";
 import { CampoSenha } from "@/components/campo-senha";
 
 export const Route = createFileRoute("/gestao")({ component: Gestao });
@@ -338,7 +338,7 @@ function PainelVivo({
           [
             ["geral", "Visão geral"],
             ["usuarios", "Usuários e equipes"],
-            ["tipos", "Tipos de processos"],
+            ["tipos", "Tipos e status"],
             ["sistema", "Logs e sistema"],
           ] as const
         ).map(([id, rotulo]) => (
@@ -452,6 +452,7 @@ function PainelVivo({
       )}
 
       {guia === "tipos" && (
+        <>
       <section className="mt-5 rounded-2xl border border-line bg-sheet p-4">
         <h2 className="text-sm font-medium text-ink">Abas e tipos</h2>
         <p className="mt-1 text-sm text-muted">Uma aba nova passa a aparecer no lançamento, sem alterar o programa.</p>
@@ -513,6 +514,8 @@ function PainelVivo({
           ))}
         </ul>
       </section>
+      <SecaoStatus token={token} status={painel.status} onMudou={onMudou} onErro={setErro} onAviso={setAviso} />
+        </>
       )}
 
       {guia === "sistema" && (

@@ -28,7 +28,6 @@ import {
   reaisParaCentavos,
   rotuloNumero,
   rotuloTipo,
-  STATUS_ADMIN,
   statusAdminLabel,
   urgenciaAdmin,
   type Modalidade,
@@ -46,8 +45,9 @@ import { GraficoAdmin } from "@/components/admin-grafico";
 import { Timbrado, TimbradoRodape } from "@/components/timbrado";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { addDaysIso, formatDate, todayIso, type Andamento } from "@/lib/prazos";
+import { encerraStatus, listaCodigos } from "@/lib/status-catalogo";
 
-type FiltroAdmin = "andamento" | "proposta" | "pareceres" | "assinatura" | "execucao" | "encerrados" | "cancelados" | "atencao" | "todos";
+type FiltroAdmin = string;
 type OrdemAdmin = "numero" | "tipo" | "encerramento";
 type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres";
 type StatusRelatorio = "todos" | StatusAdmin;
@@ -88,7 +88,7 @@ type FormAdmin = {
   nota: string;
 };
 
-const FILTROS: { id: FiltroAdmin; label: string }[] = [
+const FILTROS: { id: string; label: string }[] = [
   { id: "todos", label: "Todos" },
   { id: "andamento", label: "Em curso" },
   { id: "proposta", label: "Recebendo proposta" },
@@ -100,18 +100,25 @@ const FILTROS: { id: FiltroAdmin; label: string }[] = [
   { id: "cancelados", label: "Cancelados" },
 ];
 
+const RESERVADOS = new Set(FILTROS.map((item) => item.id));
+
 const ALERTAS = [1, 3, 5, 7, 10, 15, 30, 60, 90];
 
-function correspondeFiltro(processo: ProcessoAdmin, filtro: FiltroAdmin): boolean {
+function filtrosVisiveis() {
+  const extras = listaCodigos("administrativo")
+    .filter((codigo) => !RESERVADOS.has(codigo) && codigo !== "encerrado" && codigo !== "cancelado")
+    .map((codigo) => ({ id: codigo, label: statusAdminLabel(codigo) }));
+  const indice = FILTROS.findIndex((item) => item.id === "atencao");
+  return [...FILTROS.slice(0, indice), ...extras, ...FILTROS.slice(indice)];
+}
+
+function correspondeFiltro(processo: ProcessoAdmin, filtro: string): boolean {
   if (filtro === "todos") return true;
-  if (filtro === "andamento") return processo.status !== "encerrado" && processo.status !== "cancelado";
-  if (filtro === "proposta") return processo.status === "proposta";
-  if (filtro === "pareceres") return processo.status === "pareceres";
-  if (filtro === "assinatura") return processo.status === "assinatura";
-  if (filtro === "execucao") return processo.status === "execucao";
-  if (filtro === "encerrados") return processo.status === "encerrado";
+  if (filtro === "andamento") return !encerraStatus("administrativo", processo.status);
+  if (filtro === "encerrados") return encerraStatus("administrativo", processo.status) && processo.status !== "cancelado";
   if (filtro === "cancelados") return processo.status === "cancelado";
-  return precisaAvisoAdmin(processo);
+  if (filtro === "atencao") return precisaAvisoAdmin(processo);
+  return processo.status === filtro;
 }
 
 const TOM: Record<UrgenciaAdmin, { badge: string; bar: string }> = {
@@ -584,7 +591,7 @@ export function AdminPainel({
   const atencao = lista.filter((p) => precisaAvisoAdmin(p));
   const tiposVisiveis = [...MODALIDADES, ...abasExtra];
   const tiposComLancamento = tiposVisiveis.filter((tipo) => lista.some((item) => item.tipo === tipo));
-  const filtrosComLancamento = FILTROS.filter((item) => {
+  const filtrosComLancamento = filtrosVisiveis().filter((item) => {
     if (item.id === "todos") return true;
     return lista.some((processo) => correspondeFiltro(processo, item.id));
   });
@@ -597,7 +604,7 @@ export function AdminPainel({
     rotulo: tipo,
     valor: lista.filter((p) => p.tipo === tipo).length,
   })).filter((item) => item.valor > 0);
-  const porStatus = STATUS_ADMIN.map((status) => ({
+  const porStatus = listaCodigos("administrativo").map((status) => ({
     rotulo: statusAdminLabel(status),
     valor: lista.filter((p) => p.status === status).length,
   })).filter((item) => item.valor > 0);
@@ -981,7 +988,7 @@ export function AdminPainel({
                     className={inputCls}
                   >
                     <option value="todos">Todos</option>
-                    {STATUS_ADMIN.map((status) => (
+                    {listaCodigos("administrativo").map((status) => (
                       <option key={status} value={status}>
                         {statusAdminLabel(status)}
                       </option>
@@ -1260,7 +1267,7 @@ export function AdminPainel({
                     onChange={(e) => setForm({ ...form, status: e.target.value as StatusAdmin })}
                     className={inputCls}
                   >
-                    {STATUS_ADMIN.map((status) => (
+                    {listaCodigos("administrativo").map((status) => (
                       <option key={status} value={status}>
                         {statusAdminLabel(status).toUpperCase()}
                       </option>
@@ -1564,7 +1571,7 @@ export function AdminPainel({
                   onChange={(e) => setStatusAndamento(e.target.value as StatusAdmin)}
                   className={inputCls}
                 >
-                  {STATUS_ADMIN.map((status) => (
+                  {listaCodigos("administrativo").map((status) => (
                     <option key={status} value={status}>{statusAdminLabel(status)}</option>
                   ))}
                 </select>

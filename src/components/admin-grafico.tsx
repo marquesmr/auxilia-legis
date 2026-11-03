@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { formatarReais, MODALIDADES, rotuloNumero, STATUS_ADMIN, statusAdminLabel, type ProcessoAdmin } from "@/lib/admin";
+import { formatarReais, MODALIDADES, rotuloNumero, statusAdminLabel, type ProcessoAdmin } from "@/lib/admin";
+import { listaCodigos } from "@/lib/status-catalogo";
 
 type Vista = "situacao" | "tipo" | "anual" | "mensal" | "valorTipo";
 type Fatia = { label: string; valor: number; cor: string; texto: string };
@@ -71,7 +72,7 @@ export function GraficoAdmin({ processos }: { processos: ProcessoAdmin[] }) {
 }
 
 function VistaSituacao({ processos }: { processos: ProcessoAdmin[] }) {
-  const cores: Record<(typeof STATUS_ADMIN)[number], string> = {
+  const cores: Record<string, string> = {
     proposta: "var(--color-pine)",
     pareceres: "var(--color-brass)",
     assinatura: "color-mix(in srgb, var(--color-pine) 55%, var(--color-ink))",
@@ -79,9 +80,10 @@ function VistaSituacao({ processos }: { processos: ProcessoAdmin[] }) {
     encerrado: "var(--color-muted)",
     cancelado: "color-mix(in srgb, var(--color-muted) 45%, var(--color-line))",
   };
-  const fatias = STATUS_ADMIN.map((status) => {
+  const extras = ["var(--color-pine)", "var(--color-brass)", "var(--color-ink)", "var(--color-seal)"];
+  const fatias = listaCodigos("administrativo").map((status, indice) => {
     const n = processos.filter((p) => p.status === status).length;
-    return { label: statusAdminLabel(status), valor: n, texto: String(n), cor: cores[status] };
+    return { label: statusAdminLabel(status), valor: n, texto: String(n), cor: cores[status] ?? extras[indice % extras.length] };
   }).filter((item) => item.valor > 0);
   return <Rosca fatias={fatias} centro={String(processos.length)} legenda="processos" />;
 }

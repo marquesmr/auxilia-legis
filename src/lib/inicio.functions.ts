@@ -14,18 +14,19 @@ export const carregarInicio = createServerFn({ method: "POST" })
     const { equipesDaConta } = await import("./equipes.functions");
     const { processosDaConta } = await import("./processos.functions");
     const { adminDaConta } = await import("./admin.functions");
-    const { abasAtivas, lerEstado, lerExclusao } = await import("./gestao.server");
+    const { abasAtivas, lerEstado, lerExclusao, listarStatusCatalogo } = await import("./gestao.server");
     const { situacaoDoNavegador } = await import("./auth/autenticador.functions");
     const userId = context.userId;
     const equipes = await equipesDaConta(userId);
     const equipeId = data.equipeId && equipes.some((equipe) => equipe.id === data.equipeId) ? data.equipeId : null;
-    const [processos, administrativos, abas, estado, exclusao, navegador] = await Promise.all([
+    const [processos, administrativos, abas, estado, exclusao, navegador, status] = await Promise.all([
       processosDaConta(userId, equipeId),
       adminDaConta(userId, equipeId),
       abasAtivas(),
       lerEstado(userId),
       lerExclusao({ userId }),
       situacaoDoNavegador(userId, data.token),
+      listarStatusCatalogo(),
     ]);
-    return { equipes, equipeId, processos, administrativos, abas, estado, exclusao, navegador };
+    return { equipes, equipeId, processos, administrativos, abas, estado, exclusao, navegador, status };
   });

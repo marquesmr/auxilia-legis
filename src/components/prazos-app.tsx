@@ -52,6 +52,7 @@ import { UserButton } from "@/lib/auth/gates";
 import { authClient } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { apagarProcesso, listarProcessos, moverProcesso, salvarProcesso } from "@/lib/processos.functions";
+import { listarAdmin } from "@/lib/admin.functions";
 import { SoltarProcessoContext } from "@/components/soltar-processo";
 import { adicionarNaEquipe, criarEquipe, listarEquipes, removerDaEquipe, renomearEquipe, type Equipe } from "@/lib/equipes.functions";
 import { TelaConta } from "@/components/tela-conta";
@@ -66,6 +67,7 @@ import { AjudaFlutuante } from "@/components/ajuda-flutuante";
 import { CampoMes } from "@/components/campo-mes";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { marcarPresenca, estadoSistema, consultarExclusao, abrirGestaoPelaConta } from "@/lib/gestao.functions";
+import { definirStatus, encerraStatus, nomeStatus, statusDaArea } from "@/lib/status-catalogo";
 import { carregarInicio } from "@/lib/inicio.functions";
 import { AvisoContaExcluida } from "@/components/aviso-exclusao";
 import { signOut } from "@/lib/auth/client";
@@ -217,6 +219,7 @@ export function PrazosApp() {
   const [erros, setErros] = useState<string[]>([]);
   const [andamentoId, setAndamentoId] = useState<string | null>(null);
   const [notaAndamento, setNotaAndamento] = useState("");
+  const [statusAndamento, setStatusAndamento] = useState("andamento");
   const [novoPrazo, setNovoPrazo] = useState("");
   const [retorno, setRetorno] = useState<"" | RetornoLegislativo>("");
   const [vetoAlcance, setVetoAlcance] = useState<"" | AlcanceVeto>("");
@@ -363,6 +366,7 @@ export function PrazosApp() {
         setCargaId((valor) => valor + 1);
         if (pacote.abas.legislativo.length) setAbasLeg(pacote.abas.legislativo);
         setAbasAdm(pacote.abas.administrativo);
+        definirStatus(pacote.status);
         definirSemExpediente(pacote.estado.datas);
         setSouGestor(Boolean(pacote.estado.administrador));
         if (pacote.estado.bloqueado) setTrava("Seu acesso está bloqueado.");
@@ -396,6 +400,9 @@ export function PrazosApp() {
     const id = window.setInterval(() => {
       void listarProcessos({ data: equipeAtual })
         .then((lista) => setProcessos(garantirAno(lista)))
+        .catch(() => undefined);
+      void listarAdmin({ data: equipeAtual })
+        .then((lista) => setAdminLista(lista))
         .catch(() => undefined);
       void listarEquipes()
         .then((minhas) => setEquipes(minhas))
@@ -484,11 +491,11 @@ export function PrazosApp() {
       const u = urgencia(p);
       const passaFiltro =
         filtro === "todos" ||
-        (filtro === "abertos" && p.status === "andamento") ||
+        (filtro === "abertos" && !encerraStatus("legislativo", p.status)) ||
         (filtro === "atencao" && precisaAviso(p)) ||
         (filtro === "vencidos" && u === "vencido") ||
         (filtro === "prazo" && u === "ok") ||
-        (filtro === "concluidos" && p.status === "concluido");
+        (filtro === "concluidos" && encerraStatus("legislativo", p.status));
       const passaTipo = tipoAba === "todos" || p.tipo === tipoAba;
       if (!passaFiltro || !passaTipo) return false;
       if (!q) return true;
@@ -513,7 +520,7 @@ export function PrazosApp() {
     let abertos = 0;
     for (const p of processos) {
       const u = urgencia(p);
-      if (p.status === "andamento") abertos += 1;
+      if (!encerraStatus("legislativo", p.status)) abertos += 1;
       if (u === "vencido") vencidos += 1;
       if (u === "hoje") hoje += 1;
       if (u === "proximo") proximos += 1;
@@ -625,7 +632,7 @@ export function PrazosApp() {
     const texto = notaAndamento.trim();
     const atual = processos.find((p) => p.id === andamentoId);
     if (!atual) return;
-    if (!texto && !retorno) return;
+    if (!texto && !retorno && statusAndamento === atual.status) return;
     const numero = Number(leiNumero);
     if (retorno === "veto") {
       if (vetoAlcance !== "integral" && vetoAlcance !== "parcial") {
@@ -644,13 +651,16 @@ export function PrazosApp() {
       }
     }
     const peca = retorno ? `${String(numero).padStart(2, "0")}/${leiAno}` : "";
-    const resumo = !retorno
+    const mudouStatus = statusAndamento !== atual.status;
+    const resumoBase = !retorno
       ? texto
       : retorno === "sancionada"
         ? `Retornou como sancionada · ${leiTipo} ${peca}${texto ? `. ${texto}` : ""}`
         : `Retornou como veto ${vetoAlcance} · ${peca}. Apreciação até ${formatDate(apreciacao)}${texto ? `. ${texto}` : ""}`;
+    const resumo = [mudouStatus ? `Status alterado para ${nomeStatus("legislativo", statusAndamento)}.` : "", resumoBase].filter(Boolean).join(" ");
     const atualizado: Processo = {
       ...atual,
+      status: statusAndamento,
       prazo: retorno === "veto" ? apreciacao : novoPrazo || atual.prazo,
       retorno: retorno || null,
       vetoAlcance: retorno === "veto" ? (vetoAlcance as AlcanceVeto) : null,
@@ -669,6 +679,7 @@ export function PrazosApp() {
     if (!ok) return;
     setAndamentoId(null);
     setNotaAndamento("");
+    setStatusAndamento("andamento");
     setNovoPrazo("");
   }
 
@@ -1134,7 +1145,7 @@ export function PrazosApp() {
                     >
                       {item.id === "concluidos" && <Archive className="size-3.5" />}
                       {item.label}
-                      {item.id === "concluidos" ? ` (${processos.filter((p) => p.status === "concluido").length})` : ""}
+                      {item.id === "concluidos" ? ` (${processos.filter((p) => encerraStatus("legislativo", p.status)).length})` : ""}
                     </button>
                   ))}
                 </div>
@@ -1195,6 +1206,7 @@ export function PrazosApp() {
                   onEditar={() => abrirEdicao(p)}
                   onAndamento={() => {
                     setAndamentoId(p.id);
+                    setStatusAndamento(p.status);
                     setNotaAndamento("");
                     setNovoPrazo("");
                     setRetorno(p.retorno ?? "");
@@ -1414,6 +1426,13 @@ export function PrazosApp() {
                 registrarAndamento();
               }}
             >
+              <Campo label="Status">
+                <select value={statusAndamento} onChange={(e) => setStatusAndamento(e.target.value)} className={inputCls}>
+                  {statusDaArea("legislativo").map((status) => (
+                    <option key={status.codigo} value={status.codigo}>{status.nome}</option>
+                  ))}
+                </select>
+              </Campo>
               <Campo label="Andamento">
                 <textarea
                   value={notaAndamento}
@@ -1705,6 +1724,7 @@ function ProcessoCard({
           {numeroComAno(processo.numero, processo.dataLancamento)}
         </p>
         <p className="mt-1 text-sm font-semibold text-pine">{processo.tipo}</p>
+        <p className="text-xs text-muted">{nomeStatus("legislativo", processo.status)}</p>
         <h2 className="mt-2 text-base font-semibold text-ink">{processo.parte}</h2>
         <p className="text-sm text-muted">{processo.assunto}</p>
         {processo.retorno && (
@@ -1728,7 +1748,7 @@ function ProcessoCard({
               Prazo
             </p>
             <p className="font-medium text-ink">{formatDate(processo.prazo)}</p>
-            {processo.status === "andamento" && dias > 0 && (
+            {!encerraStatus("legislativo", processo.status) && dias > 0 && (
               <p className="text-xs text-muted">Aviso {processo.alertaDias} dias antes</p>
             )}
           </div>
@@ -1778,7 +1798,7 @@ function ProcessoCard({
           >
             Andamento
           </button>
-          {processo.status === "andamento" ? (
+          {!encerraStatus("legislativo", processo.status) ? (
             <button
               type="button"
               onClick={onConcluir}
@@ -2119,11 +2139,11 @@ function garantirAno(lista: Processo[]): Processo[] {
 function passaSituacao(item: Processo, situacao: "todos" | Filtro) {
   if (situacao === "todos") return true;
   const u = urgencia(item);
-  if (situacao === "abertos") return item.status === "andamento";
+  if (situacao === "abertos") return !encerraStatus("legislativo", item.status);
   if (situacao === "atencao") return precisaAviso(item);
   if (situacao === "vencidos") return u === "vencido";
   if (situacao === "prazo") return u === "ok";
-  if (situacao === "concluidos") return item.status === "concluido";
+  if (situacao === "concluidos") return encerraStatus("legislativo", item.status);
   return true;
 }
 

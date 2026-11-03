@@ -1,4 +1,5 @@
 import { classeResposta, rotuloRetorno, TIPOS_LEI, type Processo, urgencia } from "@/lib/prazos";
+import { encerraStatus } from "@/lib/status-catalogo";
 
 const ORDEM_TIPO = ["Requerimentos", "Indicações", "Projetos de Lei", "Outros"] as const;
 
@@ -24,7 +25,7 @@ export function PainelEstatisticas({ processos, className }: { processos: Proces
     { label: "Vencem hoje", n: processos.filter((p) => urgencia(p) === "hoje").length, cor: "var(--color-seal)" },
     { label: "Vencendo", n: processos.filter((p) => urgencia(p) === "proximo").length, cor: "var(--color-brass)" },
     { label: "No prazo", n: processos.filter((p) => urgencia(p) === "ok").length, cor: "var(--color-pine)" },
-    { label: "Arquivados", n: processos.filter((p) => p.status === "concluido").length, cor: "var(--color-muted)" },
+    { label: "Arquivados", n: processos.filter((p) => encerraStatus("legislativo", p.status)).length, cor: "var(--color-muted)" },
   ];
   const retornos = processos.filter((p) => p.retorno);
   const labelsRetorno = [
@@ -47,7 +48,7 @@ export function PainelEstatisticas({ processos, className }: { processos: Proces
     { label: "Ainda no prazo", id: "aguardando" as const, cor: "var(--color-brass)" },
   ].map((item) => ({ ...item, n: processos.filter((p) => classeResposta(p) === item.id).length }));
   const total = processos.length;
-  const abertos = processos.filter((p) => p.status === "andamento").length;
+  const abertos = processos.filter((p) => !encerraStatus("legislativo", p.status)).length;
 
   if (total === 0) {
     return (

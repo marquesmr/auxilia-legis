@@ -286,7 +286,7 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
 }
 
 let schemaPronto: { versao: number; pendente: Promise<void> } | null = null;
-const SCHEMA_ADMIN = 8;
+const SCHEMA_ADMIN = 9;
 
 /** Garante as colunas novas mesmo se a migração ainda não tiver rodado nesta instância. */
 async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
@@ -309,6 +309,7 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
         "alter table processos_admin add column if not exists link_retificacao text not null default ''",
         "alter table processos_admin add column if not exists link_cancelamento text not null default ''",
         "alter table processos_admin add column if not exists em_manutencao boolean not null default false",
+        "alter table processos_admin add column if not exists status_em date",
       ];
       for (const comando of comandos) await sql.query(comando);
     })().catch((err) => {
@@ -330,9 +331,71 @@ const SELECT_ADMIN = `
   coalesce(nullif(p.autor_nome, ''), u.name, '') as autor_nome
 `;
 
+function somarDias(iso: string, dias: number) {
+  const [ano, mes, dia] = iso.split("-").map(Number);
+  return todayIso(new Date(ano || 1970, (mes || 1) - 1, (dia || 1) + dias));
+}
+
+async function aplicarTramites(sql: Awaited<ReturnType<typeof getSql>>) {
+  const regras = await sql<{ codigo: string; dias: number; destino: string; destino_nome: string }>`
+    select s.codigo, s.tramite_dias as dias, s.tramite_codigo as destino, d.nome as destino_nome
+    from status_catalogo s
+    join status_catalogo d on d.area = s.area and d.codigo = s.tramite_codigo
+    where s.area = 'administrativo' and s.tramite_dias is not null and s.tramite_dias > 0
+  `;
+  if (!regras.length) return;
+  const porCodigo = new Map(regras.map((regra) => [regra.codigo, { ...regra, dias: Number(regra.dias) }]));
+  const processos = await sql<{ id: string; status: string; status_em: string | null; data_inicio: string; historico: string }>`
+    select id, status, status_em, data_inicio, historico from processos_admin
+  `;
+  const hoje = todayIso();
+  for (const item of processos) {
+    if (!item.status_em) {
+      await sql`update processos_admin set status_em = current_date where id = ${item.id} and status_em is null`;
+      continue;
+    }
+    let status = item.status;
+    let inicio = String(item.status_em).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio)) continue;
+    let historico = item.historico || "[]";
+    let mudou = false;
+    for (let volta = 0; volta < 16; volta += 1) {
+      const regra = porCodigo.get(status);
+      if (!regra) break;
+      const devido = somarDias(inicio, regra.dias);
+      if (devido > hoje) break;
+      let lista: { id: string; em: string; texto: string; autorNome: string }[] = [];
+      try {
+        const bruto = JSON.parse(historico);
+        if (Array.isArray(bruto)) lista = bruto;
+      } catch {
+        lista = [];
+      }
+      lista.push({
+        id: crypto.randomUUID(),
+        em: new Date().toISOString(),
+        texto: `Trâmite automático para ${regra.destino_nome}.`,
+        autorNome: "Sistema",
+      });
+      status = regra.destino;
+      inicio = devido;
+      historico = JSON.stringify(lista);
+      mudou = true;
+    }
+    if (mudou) {
+      await sql`
+        update processos_admin
+        set status = ${status}, status_em = ${inicio}::date, historico = ${historico}
+        where id = ${item.id} and status = ${item.status}
+      `;
+    }
+  }
+}
+
 export async function adminDaConta(userId: string, equipeId: string | null) {
   const sql = await getSql();
   await garantirColunas(sql);
+  await aplicarTramites(sql);
   if (!equipeId) {
     const linhas = await sql.query<Linha>(
       `select ${SELECT_ADMIN}
@@ -451,6 +514,7 @@ export const salvarAdmin = createServerFn({ method: "POST" })
             parecer_numero = ${data.parecerNumero},
             parecer_ano = ${data.parecerAno},
             status = ${data.status},
+            status_em = case when status is distinct from ${data.status} then current_date else coalesce(status_em, data_inicio) end,
             historico = ${historicoJson}
           where id = ${data.id}
             and (
@@ -465,14 +529,14 @@ export const salvarAdmin = createServerFn({ method: "POST" })
             alerta_dias, possui_contrato, vigencia_inicio, vigencia_fim, contratado, documento,
             valor_total_centavos, valor_mensal_centavos, valor_estimado_centavos, ci_numero, ci_ano, ci_origem,
             link_abertura, link_homologacao, link_pncp, link_retificacao, link_cancelamento,
-            parecer_numero, parecer_ano, status, historico, autor_id, autor_nome, em_manutencao
+            parecer_numero, parecer_ano, status, status_em, historico, autor_id, autor_nome, em_manutencao
           ) values (
             ${data.id}, ${context.userId}, ${data.equipeId}, ${data.numero}, ${data.numeroAno}, ${data.referencia},
             ${data.objeto}, ${data.tipo}, ${data.tipoNumero}, ${data.tipoAno}, ${data.dataInicio}, ${data.previsaoEtapa}, ${data.encerramento}, ${data.alertaDias},
             ${data.possuiContrato}, ${data.vigenciaInicio}, ${data.vigenciaFim}, ${data.contratado},
             ${data.documento}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos},
             ${data.ciNumero}, ${data.ciAno}, ${data.ciOrigem}, ${data.linkAbertura}, ${data.linkHomologacao}, ${data.linkPncp}, ${data.linkRetificacao}, ${data.linkCancelamento}, ${data.parecerNumero}, ${data.parecerAno},
-            ${data.status},
+            ${data.status}, current_date,
             ${historicoJson}, ${context.userId}, ${autorNome}, ${lancadoNaManutencao}
           )
           returning id

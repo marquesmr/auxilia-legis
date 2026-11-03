@@ -58,6 +58,43 @@ export const salvarAbaGestao = createServerFn({ method: "POST" })
     return criarAba(data.area, data.nome);
   });
 
+function statusEntrada(bruto: { nome?: unknown; encerra?: unknown; tramiteDias?: unknown; tramiteCodigo?: unknown }) {
+  const dias = bruto.tramiteDias == null || bruto.tramiteDias === "" ? null : Number(bruto.tramiteDias);
+  return {
+    nome: typeof bruto.nome === "string" ? bruto.nome : "",
+    encerra: Boolean(bruto.encerra),
+    tramiteDias: dias != null && Number.isFinite(dias) ? Math.floor(dias) : null,
+    tramiteCodigo: typeof bruto.tramiteCodigo === "string" && bruto.tramiteCodigo.trim() ? bruto.tramiteCodigo.trim().slice(0, 40) : null,
+  };
+}
+
+export const criarStatusGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; area?: unknown; nome?: unknown; encerra?: unknown; tramiteDias?: unknown; tramiteCodigo?: unknown };
+    return { token: tokenOk(bruto.token), area: areaOk(bruto.area), ...statusEntrada(bruto) };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, criarStatus } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return criarStatus(data);
+  });
+
+export const editarStatusGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; id?: unknown; nome?: unknown; encerra?: unknown; tramiteDias?: unknown; tramiteCodigo?: unknown };
+    if (typeof bruto.id !== "string" || !bruto.id.trim()) throw new Error("Dados inválidos");
+    return { token: tokenOk(bruto.token), id: bruto.id.trim().slice(0, 80), ...statusEntrada(bruto) };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, editarStatus } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return editarStatus(data);
+  });
+
 export const alternarAbaGestao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
