@@ -404,6 +404,17 @@ export const backupGestao = createServerFn({ method: "POST" })
     return fazerBackup();
   });
 
+export const clienteGoogleGestao = createServerFn({ method: "POST" })
+  .validator(tokenOk)
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao } = await import("./gestao.server");
+    await exigirGestao(data);
+    const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || "";
+    if (!clientId) throw new Error("O login do Google ainda não está configurado.");
+    return { clientId };
+  });
+
 export const backupsAutomaticosGestao = createServerFn({ method: "POST" })
   .validator(tokenOk)
   .handler(async ({ data }) => {

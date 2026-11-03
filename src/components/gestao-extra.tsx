@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   backupGestao,
   backupsAutomaticosGestao,
+  clienteGoogleGestao,
   apagarStatusGestao,
   bloquearUsuarioGestao,
   definirPapelGestao,
@@ -20,6 +22,7 @@ import {
 import type { painelGestao } from "@/lib/gestao.functions";
 import { MOTIVOS_EXCLUSAO } from "@/lib/motivos-exclusao";
 import { CampoSenha } from "@/components/campo-senha";
+import { carregarGoogle, enviarBackupDrive, nomeBackupManual, pedirAcessoDrive } from "@/lib/google-drive-backup";
 
 type Painel = Awaited<ReturnType<typeof painelGestao>>;
 
@@ -285,6 +288,46 @@ export function SecaoSistema({
   const [listaAberta, setListaAberta] = useState(false);
   const [carregandoPontos, setCarregandoPontos] = useState(false);
   const [restaurando, setRestaurando] = useState(false);
+  const [escolhaBackup, setEscolhaBackup] = useState(false);
+  const [googleId, setGoogleId] = useState("");
+
+  function abrirEscolhaBackup() {
+    setEscolhaBackup(true);
+    void carregarGoogle().catch(() => undefined);
+    if (!googleId) {
+      void clienteGoogleGestao({ data: token })
+        .then((dados) => setGoogleId(dados.clientId))
+        .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível preparar o Google Drive."));
+    }
+  }
+
+  function backupNoComputador() {
+    setEscolhaBackup(false);
+    void backupGestao({ data: token })
+      .then((arquivo) => {
+        baixar(arquivo.nome, arquivo.conteudo);
+        onAviso("Backup baixado.");
+        onMudou();
+      })
+      .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível fazer o backup."));
+  }
+
+  function backupNoDrive() {
+    if (!googleId || !window.google?.accounts?.oauth2) {
+      onErro("O Google ainda está abrindo. Tenta de novo.");
+      return;
+    }
+    setEscolhaBackup(false);
+    void pedirAcessoDrive(googleId)
+      .then(async (acesso) => {
+        const arquivo = await backupGestao({ data: token });
+        const nome = nomeBackupManual();
+        await enviarBackupDrive(acesso, nome, arquivo.conteudo);
+        onAviso(`Backup no Google Drive, na pasta Auxilia Legis: ${nome}`);
+        onMudou();
+      })
+      .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível enviar o backup ao Google Drive."));
+  }
 
   function abrirBackups() {
     if (listaAberta) {
@@ -445,15 +488,7 @@ export function SecaoSistema({
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() =>
-              void backupGestao({ data: token })
-                .then((arquivo) => {
-                  baixar(arquivo.nome, arquivo.conteudo);
-                  onAviso("Backup baixado.");
-                  onMudou();
-                })
-                .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível fazer o backup."))
-            }
+            onClick={abrirEscolhaBackup}
             className="inline-flex h-11 items-center rounded-xl bg-pine px-4 text-sm font-medium text-sheet"
           >
             Fazer backup agora
@@ -488,6 +523,29 @@ export function SecaoSistema({
             Restaurar backup
           </button>
         </div>
+        {escolhaBackup &&
+          createPortal(
+            <div className="fixed inset-0 z-[90] grid place-items-center bg-ink/40 p-4" role="dialog" aria-modal="true" aria-labelledby="titulo-backup">
+              <div className="w-full max-w-md rounded-2xl border border-line bg-sheet p-5 shadow-lg">
+                <h3 id="titulo-backup" className="font-display text-2xl text-ink">Backup manual</h3>
+                <p className="mt-2 text-sm text-muted">
+                  Guarda neste computador ou no Google Drive. No Drive, a pasta é Auxilia Legis e o arquivo se chama {nomeBackupManual()}.
+                </p>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <button type="button" onClick={backupNoComputador} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line px-4 text-sm font-medium text-ink">
+                    Neste computador
+                  </button>
+                  <button type="button" onClick={backupNoDrive} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine px-4 text-sm font-medium text-sheet">
+                    Google Drive
+                  </button>
+                </div>
+                <button type="button" onClick={() => setEscolhaBackup(false)} className="mt-3 text-sm text-muted">
+                  Cancelar
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )}
         {listaAberta && (
           <div className="mt-4 border-t border-line pt-4">
             <p className="text-sm text-muted">
