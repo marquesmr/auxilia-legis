@@ -918,15 +918,6 @@ async function guardarBackup(sql: Sql, automatico: boolean) {
   `;
   if (automatico) await sql`update gestao_config set backup_auto_em = now() where id = 'principal'`;
   else await sql`update gestao_config set backup_em = now() where id = 'principal'`;
-  await sql`
-    delete from gestao_backups
-    where id in (
-      select id from gestao_backups
-      where automatico = false
-      order by criado_em desc
-      offset 8
-    )
-  `;
   return conteudo;
 }
 

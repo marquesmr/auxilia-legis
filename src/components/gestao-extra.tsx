@@ -258,21 +258,25 @@ export function SecaoSistema({
   const [fim, setFim] = useState("");
   const [pontos, setPontos] = useState<Awaited<ReturnType<typeof backupsAutomaticosGestao>>>([]);
   const [pontoId, setPontoId] = useState("");
+  const [listaAberta, setListaAberta] = useState(false);
+  const [carregandoPontos, setCarregandoPontos] = useState(false);
   const [restaurando, setRestaurando] = useState(false);
 
-  useEffect(() => {
-    let vivo = true;
+  function abrirBackups() {
+    if (listaAberta) {
+      setListaAberta(false);
+      return;
+    }
+    setListaAberta(true);
+    setCarregandoPontos(true);
     void backupsAutomaticosGestao({ data: token })
       .then((lista) => {
-        if (!vivo) return;
         setPontos(lista);
         setPontoId((atual) => (lista.some((item) => item.id === atual) ? atual : (lista[0]?.id ?? "")));
       })
-      .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível ler os backups."));
-    return () => {
-      vivo = false;
-    };
-  }, [token, painel.config.backupAutoEm, onErro]);
+      .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível ler os backups."))
+      .finally(() => setCarregandoPontos(false));
+  }
 
   useEffect(() => {
     let vivo = true;
@@ -403,7 +407,7 @@ export function SecaoSistema({
       <section className="rounded-2xl border border-line bg-sheet p-4">
         <h2 className="text-sm font-medium text-ink">Backup</h2>
         <p className="mt-1 text-sm text-muted">
-          Último manual: {hora(painel.config.backupEm)}. Último automático: {hora(painel.config.backupAutoEm)}. O automático ocorre a cada novo lançamento. O arquivo inclui as contas.
+          Último manual: {hora(painel.config.backupEm)}. Último automático: {hora(painel.config.backupAutoEm)}. O automático ocorre a cada novo lançamento e nenhum ponto é apagado.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
@@ -443,59 +447,69 @@ export function SecaoSistema({
               }}
             />
           </label>
-        </div>
-        <div className="mt-4 border-t border-line pt-4">
-          <h3 className="text-sm font-medium text-ink">Restaurar backup automático</h3>
-          <p className="mt-1 text-sm text-muted">
-            Cada lançamento guarda um ponto. Escolha em qual voltar. Contas, senhas e processos daquele momento passam a valer.
-          </p>
-          {pontos.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">Nenhum backup automático ainda.</p>
-          ) : (
-            <ul className="mt-3 flex max-h-80 flex-col gap-2 overflow-y-auto">
-              {pontos.map((ponto) => (
-                <li key={ponto.id}>
-                  <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-line px-3 py-2 text-sm">
-                    <input
-                      type="radio"
-                      name="backup-automatico"
-                      className="mt-1"
-                      checked={pontoId === ponto.id}
-                      onChange={() => setPontoId(ponto.id)}
-                    />
-                    <span>
-                      <span className="font-medium text-ink">{horaCheia(ponto.em)}</span>
-                      <span className="text-muted">
-                        {" "}
-                        · {ponto.contas} contas · {ponto.processos} legislativos · {ponto.administrativos} administrativos
-                      </span>
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          )}
           <button
             type="button"
-            disabled={!pontoId || restaurando}
-            onClick={() => {
-              const escolhido = pontos.find((item) => item.id === pontoId);
-              if (!escolhido) return;
-              if (!window.confirm(`Voltar o sistema para o backup de ${horaCheia(escolhido.em)}? Contas, senhas e processos passam a ser os daquele momento.`)) return;
-              setRestaurando(true);
-              void restaurarAutomaticoGestao({ data: { token, id: escolhido.id } })
-                .then((resultado) => {
-                  onAviso(`Sistema voltou para ${horaCheia(escolhido.em)}. ${resultado.contas} contas, ${resultado.processos} legislativos e ${resultado.administrativos} administrativos.`);
-                  onMudou();
-                })
-                .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível restaurar."))
-                .finally(() => setRestaurando(false));
-            }}
-            className="mt-3 inline-flex h-11 items-center rounded-xl bg-pine px-4 text-sm font-medium text-sheet disabled:opacity-60"
+            onClick={abrirBackups}
+            className="inline-flex h-11 items-center rounded-xl border border-line px-4 text-sm font-medium text-ink"
           >
-            {restaurando ? "Restaurando…" : "Restaurar este ponto"}
+            Restaurar backup
           </button>
         </div>
+        {listaAberta && (
+          <div className="mt-4 border-t border-line pt-4">
+            <p className="text-sm text-muted">
+              Escolha o ponto. Contas, senhas e processos daquele momento passam a valer.
+            </p>
+            {carregandoPontos ? (
+              <p className="mt-3 text-sm text-muted">Carregando os backups…</p>
+            ) : pontos.length === 0 ? (
+              <p className="mt-3 text-sm text-muted">Nenhum backup automático ainda.</p>
+            ) : (
+              <ul className="mt-3 flex max-h-80 flex-col gap-2 overflow-y-auto">
+                {pontos.map((ponto) => (
+                  <li key={ponto.id}>
+                    <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-line px-3 py-2 text-sm">
+                      <input
+                        type="radio"
+                        name="backup-automatico"
+                        className="mt-1"
+                        checked={pontoId === ponto.id}
+                        onChange={() => setPontoId(ponto.id)}
+                      />
+                      <span>
+                        <span className="font-medium text-ink">{horaCheia(ponto.em)}</span>
+                        <span className="text-muted">
+                          {" "}
+                          · {ponto.contas} contas · {ponto.processos} legislativos · {ponto.administrativos} administrativos
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button
+              type="button"
+              disabled={!pontoId || restaurando || carregandoPontos}
+              onClick={() => {
+                const escolhido = pontos.find((item) => item.id === pontoId);
+                if (!escolhido) return;
+                if (!window.confirm(`Voltar o sistema para o backup de ${horaCheia(escolhido.em)}? Contas, senhas e processos passam a ser os daquele momento.`)) return;
+                setRestaurando(true);
+                void restaurarAutomaticoGestao({ data: { token, id: escolhido.id } })
+                  .then((resultado) => {
+                    onAviso(`Sistema voltou para ${horaCheia(escolhido.em)}. ${resultado.contas} contas, ${resultado.processos} legislativos e ${resultado.administrativos} administrativos.`);
+                    onMudou();
+                  })
+                  .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível restaurar."))
+                  .finally(() => setRestaurando(false));
+              }}
+              className="mt-3 inline-flex h-11 items-center rounded-xl bg-pine px-4 text-sm font-medium text-sheet disabled:opacity-60"
+            >
+              {restaurando ? "Restaurando…" : "Restaurar este ponto"}
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-line bg-sheet p-4">
