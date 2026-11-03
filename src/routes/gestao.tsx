@@ -1,19 +1,20 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   alternarAbaGestao,
   apagarAbaGestao,
   entrarGestao,
-  moverAbaGestao,
   painelGestao,
   renomearAbaGestao,
   sairGestao,
   salvarAbaGestao,
   trocarAcessoGestao,
   abrirSistemaGestao,
+  ordenarAbasGestao,
+  ordenarStatusGestao,
 } from "@/lib/gestao.functions";
-import { SecaoSistema, SecaoStatus, SecaoUsuarios } from "@/components/gestao-extra";
+import { SecaoSistema, SecaoStatus, SecaoUsuarios, novaOrdem } from "@/components/gestao-extra";
 import { CampoSenha } from "@/components/campo-senha";
 import { useConfirmarExclusao } from "@/components/confirmar-exclusao";
 
@@ -125,6 +126,7 @@ function Gestao() {
   const [pronto, setPronto] = useState(false);
   const [painel, setPainel] = useState<Painel | null>(null);
   const [erro, setErro] = useState("");
+  const ordemMarca = useRef(0);
 
   useEffect(() => {
     const guardado = sessionStorage.getItem(CHAVE);
@@ -136,9 +138,10 @@ function Gestao() {
     if (!token) return;
     let vivo = true;
     async function ler() {
+      const marca = ordemMarca.current;
       try {
         const dados = await painelGestao({ data: token as string });
-        if (vivo) {
+        if (vivo && ordemMarca.current === marca) {
           setPainel(dados);
           setErro("");
         }
@@ -158,6 +161,34 @@ function Gestao() {
     };
   }, [token]);
 
+  async function guardarOrdem(tipo: "status" | "abas", ids: string[]) {
+    if (!token) return;
+    const marca = ++ordemMarca.current;
+    setPainel((atual) => {
+      if (!atual) return atual;
+      const grupo = new Set(ids);
+      const lista = tipo === "status" ? atual.status : atual.abas;
+      const porId = new Map(lista.filter((item) => grupo.has(item.id)).map((item) => [item.id, item]));
+      const fila = ids.flatMap((id) => {
+        const item = porId.get(id);
+        return item ? [item] : [];
+      });
+      let indice = 0;
+      const nova = lista.map((item) => (grupo.has(item.id) ? fila[indice++] ?? item : item));
+      return tipo === "status" ? { ...atual, status: nova as typeof atual.status } : { ...atual, abas: nova as typeof atual.abas };
+    });
+    try {
+      if (tipo === "status") await ordenarStatusGestao({ data: { token, ids } });
+      else await ordenarAbasGestao({ data: { token, ids } });
+    } catch (err) {
+      if (ordemMarca.current === marca) {
+        const dados = await painelGestao({ data: token }).catch(() => null);
+        if (dados) setPainel(dados);
+      }
+      throw err;
+    }
+  }
+
   if (!pronto) return null;
   if (!token) return <Entrada erroInicial={erro} onEntrou={setToken} />;
   if (!painel) {
@@ -168,7 +199,21 @@ function Gestao() {
       </main>
     );
   }
-  return <PainelVivo token={token} painel={painel} onSair={() => { sessionStorage.removeItem(CHAVE); setToken(null); setPainel(null); }} onMudou={() => void painelGestao({ data: token }).then(setPainel)} />;
+  return (
+    <PainelVivo
+      token={token}
+      painel={painel}
+      onSair={() => { sessionStorage.removeItem(CHAVE); setToken(null); setPainel(null); }}
+      onMudou={() => {
+        const marca = ordemMarca.current;
+        void painelGestao({ data: token }).then((dados) => {
+          if (ordemMarca.current === marca) setPainel(dados);
+        });
+      }}
+      onOrdemStatus={(ids) => guardarOrdem("status", ids)}
+      onOrdemAbas={(ids) => guardarOrdem("abas", ids)}
+    />
+  );
 }
 
 function Entrada({ erroInicial, onEntrou }: { erroInicial: string; onEntrou: (token: string) => void }) {
@@ -220,11 +265,15 @@ function PainelVivo({
   painel,
   onSair,
   onMudou,
+  onOrdemStatus,
+  onOrdemAbas,
 }: {
   token: string;
   painel: Painel;
   onSair: () => void;
   onMudou: () => void;
+  onOrdemStatus: (ids: string[]) => Promise<void>;
+  onOrdemAbas: (ids: string[]) => Promise<void>;
 }) {
   const [area, setArea] = useState<"legislativo" | "administrativo">("legislativo");
   const [nomeAba, setNomeAba] = useState("");
@@ -238,6 +287,7 @@ function PainelVivo({
   const [guia, setGuia] = useState<"geral" | "usuarios" | "tipos" | "sistema">("geral");
   const [editandoAba, setEditandoAba] = useState<string | null>(null);
   const [nomeEdicao, setNomeEdicao] = useState("");
+  const [sobreAba, setSobreAba] = useState<string | null>(null);
   const exclusao = useConfirmarExclusao();
 
   function avisar(texto: string) {
@@ -489,7 +539,7 @@ function PainelVivo({
         <>
       <section className="mt-5 rounded-2xl border border-line bg-sheet p-4">
         <h2 className="text-sm font-medium text-ink">Abas e tipos</h2>
-        <p className="mt-1 text-sm text-muted">Uma aba nova passa a aparecer no lançamento, sem alterar o programa.</p>
+        <p className="mt-1 text-sm text-muted">Uma aba nova passa a aparecer no lançamento. Arraste para mudar a ordem dentro da mesma área.</p>
         <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={(evento) => void criarAba(evento)}>
           <select value={area} onChange={(evento) => setArea(evento.target.value as "legislativo" | "administrativo")} className="h-11 rounded-xl border border-line bg-paper px-3 text-sm text-ink">
             <option value="legislativo">Processos legislativos</option>
@@ -500,7 +550,29 @@ function PainelVivo({
         </form>
         <ul className="mt-4 flex flex-col gap-2">
           {painel.abas.map((aba) => (
-            <li key={aba.id} className="flex flex-col gap-2 rounded-xl border border-line px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <li
+              key={aba.id}
+              onDragOver={(evento) => {
+                evento.preventDefault();
+                setSobreAba(aba.id);
+              }}
+              onDragLeave={() => setSobreAba((valor) => (valor === aba.id ? null : valor))}
+              onDrop={(evento) => {
+                evento.preventDefault();
+                setSobreAba(null);
+                const origemId = evento.dataTransfer.getData("text/plain");
+                const origem = painel.abas.find((item) => item.id === origemId);
+                if (!origem || origem.area !== aba.area) return;
+                const ids = novaOrdem(
+                  painel.abas.filter((item) => item.area === aba.area).map((item) => item.id),
+                  origemId,
+                  aba.id,
+                );
+                if (!ids) return;
+                void onOrdemAbas(ids).catch((err: unknown) => falhar(err instanceof Error ? err.message : "Não foi possível reordenar."));
+              }}
+              className={"flex flex-col gap-2 rounded-xl border px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between " + (sobreAba === aba.id ? "border-pine bg-pine-soft" : "border-line")}
+            >
               <span className="min-w-0">
                 {editandoAba === aba.id ? (
                   <input value={nomeEdicao} onChange={(evento) => setNomeEdicao(evento.target.value)} className="h-9 w-full rounded-lg border border-line bg-paper px-2" spellCheck lang="pt-BR" />
@@ -512,9 +584,45 @@ function PainelVivo({
                   {aba.ativa ? "" : " · arquivada"} · {aba.uso} {aba.uso === 1 ? "processo" : "processos"}
                 </span>
               </span>
-              <span className="flex shrink-0 flex-wrap gap-3">
-                <button type="button" onClick={() => void moverAbaGestao({ data: { token, id: aba.id, direcao: -1 } }).then(onMudou)} className="font-medium text-pine">Subir</button>
-                <button type="button" onClick={() => void moverAbaGestao({ data: { token, id: aba.id, direcao: 1 } }).then(onMudou)} className="font-medium text-pine">Descer</button>
+              <span className="flex shrink-0 flex-wrap items-center gap-3">
+                <span
+                  draggable
+                  onDragStart={(evento) => {
+                    evento.dataTransfer.setData("text/plain", aba.id);
+                    evento.dataTransfer.effectAllowed = "move";
+                  }}
+                  className="cursor-grab select-none text-muted"
+                  aria-label={`Arrastar ${aba.nome}`}
+                  title="Arrastar"
+                >
+                  ⋮⋮
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const idsArea = painel.abas.filter((item) => item.area === aba.area).map((item) => item.id);
+                    const indice = idsArea.indexOf(aba.id);
+                    const ids = novaOrdem(idsArea, aba.id, idsArea[indice - 1] ?? "");
+                    if (!ids) return;
+                    void onOrdemAbas(ids).catch((err: unknown) => falhar(err instanceof Error ? err.message : "Não foi possível reordenar."));
+                  }}
+                  className="font-medium text-pine"
+                >
+                  Subir
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const idsArea = painel.abas.filter((item) => item.area === aba.area).map((item) => item.id);
+                    const indice = idsArea.indexOf(aba.id);
+                    const ids = novaOrdem(idsArea, aba.id, idsArea[indice + 1] ?? "");
+                    if (!ids) return;
+                    void onOrdemAbas(ids).catch((err: unknown) => falhar(err instanceof Error ? err.message : "Não foi possível reordenar."));
+                  }}
+                  className="font-medium text-pine"
+                >
+                  Descer
+                </button>
                 {!aba.fixa && editandoAba === aba.id && (
                   <button
                     type="button"
@@ -566,7 +674,7 @@ function PainelVivo({
           ))}
         </ul>
       </section>
-      <SecaoStatus token={token} status={painel.status} onMudou={onMudou} onErro={falhar} onAviso={avisar} onConfirmar={pedirConfirmacao} />
+      <SecaoStatus token={token} status={painel.status} onMudou={onMudou} onErro={falhar} onAviso={avisar} onConfirmar={pedirConfirmacao} onOrdem={onOrdemStatus} />
         </>
       )}
 

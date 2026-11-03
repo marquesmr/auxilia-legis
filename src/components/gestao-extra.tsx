@@ -12,7 +12,6 @@ import {
   feriadoGestao,
   logsGestao,
   manutencaoGestao,
-  moverStatusGestao,
   restaurarAutomaticoGestao,
   restaurarGestao,
   salvarSenhaCaixaGestao,
@@ -23,6 +22,17 @@ import { MOTIVOS_EXCLUSAO } from "@/lib/motivos-exclusao";
 import { CampoSenha } from "@/components/campo-senha";
 
 type Painel = Awaited<ReturnType<typeof painelGestao>>;
+
+export function novaOrdem(ids: string[], origem: string, destino: string) {
+  if (!origem || origem === destino) return null;
+  const lista = [...ids];
+  const de = lista.indexOf(origem);
+  const para = lista.indexOf(destino);
+  if (de < 0 || para < 0) return null;
+  lista.splice(de, 1);
+  lista.splice(para, 0, origem);
+  return lista;
+}
 
 const PAPEIS = [
   ["operador", "Operador"],
@@ -585,6 +595,7 @@ export function SecaoStatus({
   onErro,
   onAviso,
   onConfirmar,
+  onOrdem,
 }: {
   token: string;
   status: StatusPainel[];
@@ -592,6 +603,7 @@ export function SecaoStatus({
   onErro: (texto: string) => void;
   onAviso: (texto: string) => void;
   onConfirmar: (texto: string, agir: () => void) => void;
+  onOrdem: (ids: string[]) => Promise<void>;
 }) {
   const [area, setArea] = useState<"legislativo" | "administrativo">("legislativo");
   const [nome, setNome] = useState("");
@@ -601,7 +613,14 @@ export function SecaoStatus({
   const [destino, setDestino] = useState("");
   const [editando, setEditando] = useState<string | null>(null);
   const [rascunho, setRascunho] = useState({ nome: "", encerra: false, auto: false, dias: "30", destino: "" });
+  const [sobre, setSobre] = useState<string | null>(null);
   const daArea = status.filter((item) => item.area === area);
+
+  function mudarOrdem(origem: string, destino: string) {
+    const ids = novaOrdem(daArea.map((item) => item.id), origem, destino);
+    if (!ids) return;
+    void onOrdem(ids).catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível reordenar."));
+  }
 
   async function criar(evento: FormEvent) {
     evento.preventDefault();
@@ -663,7 +682,7 @@ export function SecaoStatus({
     <section className="mt-5 rounded-2xl border border-line bg-sheet p-4">
       <h2 className="text-sm font-medium text-ink">Status</h2>
       <p className="mt-1 text-sm text-muted">
-        Crie status novos e edite o nome dos que já existem. No administrativo, um status pode passar sozinho para outro depois de alguns dias corridos.
+        Crie status novos e edite o nome dos que já existem. Arraste para mudar a hierarquia. No administrativo, um status pode passar sozinho para outro depois de alguns dias corridos.
       </p>
       <div className="mt-3 flex gap-2">
         {(["legislativo", "administrativo"] as const).map((opcao) => (
@@ -709,7 +728,20 @@ export function SecaoStatus({
       </form>
       <ul className="mt-4 flex flex-col gap-2">
         {daArea.map((item) => (
-          <li key={item.id} className="rounded-xl border border-line px-3 py-2 text-sm">
+          <li
+            key={item.id}
+            onDragOver={(evento) => {
+              evento.preventDefault();
+              setSobre(item.id);
+            }}
+            onDragLeave={() => setSobre((valor) => (valor === item.id ? null : valor))}
+            onDrop={(evento) => {
+              evento.preventDefault();
+              setSobre(null);
+              mudarOrdem(evento.dataTransfer.getData("text/plain"), item.id);
+            }}
+            className={"rounded-xl border px-3 py-2 text-sm " + (sobre === item.id ? "border-pine bg-pine-soft" : "border-line")}
+          >
             {editando === item.id ? (
               <div className="flex flex-col gap-2">
                 <input value={rascunho.nome} onChange={(evento) => setRascunho({ ...rascunho, nome: evento.target.value })} className="h-10 rounded-lg border border-line bg-paper px-2" spellCheck lang="pt-BR" />
@@ -755,9 +787,21 @@ export function SecaoStatus({
                       : ""}
                   </span>
                 </span>
-                <span className="flex shrink-0 gap-3">
-                  <button type="button" onClick={() => void moverStatusGestao({ data: { token, id: item.id, direcao: -1 } }).then(() => onMudou()).catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível subir."))} className="font-medium text-pine">Subir</button>
-                  <button type="button" onClick={() => void moverStatusGestao({ data: { token, id: item.id, direcao: 1 } }).then(() => onMudou()).catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível descer."))} className="font-medium text-pine">Descer</button>
+                <span className="flex shrink-0 items-center gap-3">
+                  <span
+                    draggable
+                    onDragStart={(evento) => {
+                      evento.dataTransfer.setData("text/plain", item.id);
+                      evento.dataTransfer.effectAllowed = "move";
+                    }}
+                    className="cursor-grab select-none text-muted"
+                    aria-label={`Arrastar ${item.nome}`}
+                    title="Arrastar"
+                  >
+                    ⋮⋮
+                  </span>
+                  <button type="button" onClick={() => mudarOrdem(item.id, daArea[daArea.findIndex((atual) => atual.id === item.id) - 1]?.id ?? "")} className="font-medium text-pine">Subir</button>
+                  <button type="button" onClick={() => mudarOrdem(item.id, daArea[daArea.findIndex((atual) => atual.id === item.id) + 1]?.id ?? "")} className="font-medium text-pine">Descer</button>
                   <button type="button" onClick={() => abrirEdicao(item)} className="font-medium text-pine">Editar</button>
                   {!item.fixo && (
                     <button

@@ -315,6 +315,40 @@ export const moverAbaGestao = createServerFn({ method: "POST" })
     return moverAba(data.id, data.direcao);
   });
 
+function idsDaOrdem(valor: unknown) {
+  if (!Array.isArray(valor) || valor.length < 1 || valor.length > 80) throw new Error("Dados inválidos");
+  return valor.map((id) => {
+    if (typeof id !== "string" || !id.trim()) throw new Error("Dados inválidos");
+    return id.trim().slice(0, 80);
+  });
+}
+
+export const ordenarStatusGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; ids?: unknown };
+    return { token: tokenOk(bruto.token), ids: idsDaOrdem(bruto.ids) };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, ordenarStatus } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return ordenarStatus(data.ids);
+  });
+
+export const ordenarAbasGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; ids?: unknown };
+    return { token: tokenOk(bruto.token), ids: idsDaOrdem(bruto.ids) };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, ordenarAbas } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return ordenarAbas(data.ids);
+  });
+
 export const apagarAbaGestao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
@@ -326,20 +360,6 @@ export const apagarAbaGestao = createServerFn({ method: "POST" })
     const { exigirGestao, apagarAba } = await import("./gestao.server");
     await exigirGestao(data.token);
     return apagarAba(data.id);
-  });
-
-export const moverStatusGestao = createServerFn({ method: "POST" })
-  .validator((input: unknown) => {
-    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
-    const bruto = input as { token?: unknown; id?: unknown; direcao?: unknown };
-    if (bruto.direcao !== -1 && bruto.direcao !== 1) throw new Error("Dados inválidos");
-    return { token: tokenOk(bruto.token), id: idOk(bruto.id), direcao: bruto.direcao as -1 | 1 };
-  })
-  .handler(async ({ data }) => {
-    await mesmoLugar();
-    const { exigirGestao, moverStatus } = await import("./gestao.server");
-    await exigirGestao(data.token);
-    return moverStatus(data.id, data.direcao);
   });
 
 export const apagarStatusGestao = createServerFn({ method: "POST" })

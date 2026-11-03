@@ -454,6 +454,11 @@ export async function semPersistencia<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+export async function puxarNuvem() {
+  if (dbSource !== "pglite") return;
+  await exclusivo(() => alinharComNuvem(true));
+}
+
 export async function copiarBancoAgora() {
   if (dbSource !== "pglite") return;
   const estado = estadoBanco();

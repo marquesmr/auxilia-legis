@@ -2,7 +2,7 @@ import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { readFileSync, statfsSync } from "node:fs";
 import { cpus, freemem, totalmem } from "node:os";
 import { promisify } from "node:util";
-import { copiarBancoAgora, getSql, lerTrafego, semPersistencia, type Sql } from "@/lib/db";
+import { copiarBancoAgora, getSql, lerTrafego, puxarNuvem, semPersistencia, type Sql } from "@/lib/db";
 import { motivoExclusao } from "@/lib/motivos-exclusao";
 
 const scrypt = promisify(scryptCb);
@@ -296,6 +296,7 @@ export async function abasAtivas() {
 }
 
 export async function lerPainel() {
+  await puxarNuvem();
   const sql = await getSql();
   await garantirGestao(sql);
   await garantirConfig(sql);
@@ -979,19 +980,31 @@ export async function apagarAba(id: string) {
   return { ok: true };
 }
 
-export async function moverStatus(id: string, direcao: -1 | 1) {
-  const sql = await getSql();
-  const atual = await sql<{ area: string }>`select area from status_catalogo where id = ${id}`;
-  if (!atual[0]) throw new Error("Status não encontrado.");
-  const lista = await sql<{ id: string }>`
-    select id from status_catalogo where area = ${atual[0].area} order by ordem asc, nome asc
-  `;
-  const indice = lista.findIndex((item) => item.id === id);
-  const vizinho = lista[indice + direcao];
-  if (indice < 0 || !vizinho) return { ok: true };
-  await sql`update status_catalogo set ordem = ${indice + 1 + direcao} where id = ${id}`;
-  await sql`update status_catalogo set ordem = ${indice + 1} where id = ${vizinho.id}`;
+export async function ordenarStatus(ids: string[]) {
+  await gravarOrdem("status_catalogo", ids);
   return { ok: true };
+}
+
+export async function ordenarAbas(ids: string[]) {
+  await gravarOrdem("abas_catalogo", ids);
+  return { ok: true };
+}
+
+async function gravarOrdem(tabela: "status_catalogo" | "abas_catalogo", ids: string[]) {
+  if (ids.length < 1 || ids.length > 80) throw new Error("Dados inválidos");
+  if (new Set(ids).size !== ids.length) throw new Error("A ordem tem item repetido.");
+  const sql = await getSql();
+  const linhas = await sql.query<{ id: string; area: string }>(`select id, area from ${tabela}`);
+  const mapa = new Map(linhas.map((linha) => [linha.id, linha.area]));
+  if (ids.some((id) => !mapa.has(id))) throw new Error("Item não encontrado.");
+  const area = mapa.get(ids[0]);
+  if (ids.some((id) => mapa.get(id) !== area)) throw new Error("A ordem vale dentro da mesma área.");
+  const daArea = linhas.filter((linha) => linha.area === area).map((linha) => linha.id);
+  if (daArea.length !== ids.length || ids.some((id) => !daArea.includes(id))) {
+    throw new Error("A ordem precisa incluir todos os itens da área.");
+  }
+  const valores = ids.map((_, indice) => `($${indice + 1}::text, ${indice + 1}::int)`).join(", ");
+  await sql.query(`update ${tabela} as item set ordem = novo.ordem from (values ${valores}) as novo(id, ordem) where item.id = novo.id`, ids);
 }
 
 export async function apagarStatus(id: string) {
