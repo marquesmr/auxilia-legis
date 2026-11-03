@@ -317,7 +317,7 @@ export function TelaConta() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f3eee6] lg:grid lg:grid-cols-3">
+    <main className="min-h-screen bg-[#f3eee6] lg:grid lg:grid-cols-4">
       {reverSenha && email && (
         <AvisoSenha
           email={email}
@@ -347,7 +347,7 @@ export function TelaConta() {
           }}
         />
       )}
-      <aside className="hidden min-h-screen flex-col bg-[#1a4033] px-8 py-8 text-[#f4efe4] lg:flex xl:px-10">
+      <aside className="hidden min-h-screen flex-col bg-[#1a4033] px-10 py-8 text-[#f4efe4] lg:col-span-2 lg:flex xl:px-14">
         <div className="flex items-center gap-3">
           <div className="grid size-12 place-items-center rounded-2xl bg-[#f4efe4] text-[#1a4033]" aria-hidden>
             <Scale className="size-6" strokeWidth={1.75} />
@@ -355,7 +355,7 @@ export function TelaConta() {
           <p className="font-painel text-2xl">Auxilia Legis</p>
         </div>
         <div className="flex flex-1 items-center">
-          <h1 className="font-painel text-[2.6rem] font-medium leading-[0.98] tracking-[-0.025em] text-[#f6f1e6] xl:text-[3.4rem]">
+          <h1 className="font-painel text-[3.15rem] font-medium leading-[0.98] tracking-[-0.025em] text-[#f6f1e6] xl:text-[4.25rem]">
             Assistente do
             <br />
             Poder Legislativo
