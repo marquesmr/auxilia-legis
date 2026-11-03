@@ -3,9 +3,17 @@ export function chaveCidade(valor: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("pt-BR")
+    .replace(/\b(municipio|municipio de|cidade|cidade de|de|do|da)\b/g, " ")
     .replace(/[^a-z0-9 ]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export function cidadesIguais(a: string, b: string) {
+  const esquerda = chaveCidade(a);
+  const direita = chaveCidade(b);
+  if (!esquerda || !direita) return false;
+  return esquerda === direita || esquerda.includes(direita) || direita.includes(esquerda);
 }
 
 export async function cidadeDaPosicao(latitude: number, longitude: number) {

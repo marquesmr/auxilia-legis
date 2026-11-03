@@ -4,7 +4,7 @@ import { cpus, freemem, totalmem } from "node:os";
 import { promisify } from "node:util";
 import { gravarLiberacaoTrava, listarTravasEmail, marcarTravaAnalise } from "@/lib/banco-nuvem";
 import { lerTextoCalendario } from "@/lib/calendario-leitura";
-import { chaveCidade, cidadeDaPosicao } from "@/lib/cidade";
+import { cidadesIguais, cidadeDaPosicao } from "@/lib/cidade";
 import { abrirBackup, cifrarBackup } from "@/lib/backup-cripto";
 import { copiarBancoAgora, getSql, lerTrafego, puxarNuvem, semPersistencia, type Sql } from "@/lib/db";
 import { botaoEmail, emailHtml, enviarEmail, urlDoSite } from "@/lib/email.server";
@@ -921,13 +921,15 @@ export async function lerEstado(userId: string | null) {
   await colunasFeriado(sql);
   const cidadeUsuario = userId ? await lerCidadeUsuario(userId) : { cidade: "", uf: "" };
   const feriados = await sql<{ inicio: string; fim: string; nome: string; tipo: string; ambito: string; municipio: string }>`
-    select inicio, fim, nome, tipo, ambito, municipio from feriados where coalesce(status, 'ativo') = 'ativo'
+    select inicio, fim, nome, tipo, ambito, coalesce(municipio, '') as municipio
+    from feriados where coalesce(status, 'ativo') = 'ativo'
   `;
-  const chaveUsuario = chaveCidade(cidadeUsuario.cidade);
   const visiveis = feriados.filter((item) => {
     if (item.ambito !== "municipal") return true;
-    if (!chaveUsuario) return false;
-    return chaveCidade(String(item.municipio ?? "")) === chaveUsuario;
+    const municipio = String(item.municipio ?? "").trim();
+    if (!municipio) return true;
+    if (!cidadeUsuario.cidade) return false;
+    return cidadesIguais(municipio, cidadeUsuario.cidade);
   });
   const dias = visiveis.flatMap((item) => {
     const tipo: "feriado" | "facultativo" | "recesso" =
