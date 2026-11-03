@@ -34,7 +34,7 @@ export function TrocaSenhaPerfil() {
       if (resposta.error) {
         const texto = (resposta.error.message ?? "").toLowerCase();
         if (texto.includes("invalid") || texto.includes("incorrect") || texto.includes("credential")) {
-          setErro("Senha atual incorreta. Se não lembrar, saia e use Esqueci minha senha com o aplicativo autenticador.");
+          setErro("Senha atual incorreta. Se não lembrar, saia e use Esqueci minha senha.");
         } else {
           setErro("Não foi possível trocar a senha.");
         }

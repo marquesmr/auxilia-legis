@@ -441,7 +441,7 @@ export function SecaoSistema({
                 void arquivo.text().then((conteudo) =>
                   restaurarGestao({ data: { token, conteudo } })
                     .then((resultado) => {
-                      onAviso(`Restauradas ${resultado.contas} contas, ${resultado.processos} legislativos e ${resultado.administrativos} administrativos. Essas contas entram sem o aplicativo autenticador.`);
+                      onAviso(`Restauradas ${resultado.contas} contas, ${resultado.processos} legislativos e ${resultado.administrativos} administrativos.`);
                       onMudou();
                     })
                     .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível restaurar.")),

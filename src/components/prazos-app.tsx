@@ -56,7 +56,6 @@ import { listarAdmin } from "@/lib/admin.functions";
 import { SoltarProcessoContext } from "@/components/soltar-processo";
 import { adicionarNaEquipe, criarEquipe, listarEquipes, removerDaEquipe, renomearEquipe, type Equipe } from "@/lib/equipes.functions";
 import { TelaConta } from "@/components/tela-conta";
-import { AutenticadorPerfil, CadastroAutenticador, CodigoNavegador, useExigirAutenticador } from "@/components/autenticador";
 import { TrocaSenhaPerfil } from "@/components/troca-senha";
 import { Timbrado, TimbradoRodape } from "@/components/timbrado";
 import { PainelEstatisticas } from "@/components/estatisticas";
@@ -205,8 +204,6 @@ function PranchetaGrafico({ className }: { className?: string }) {
 
 export function PrazosApp() {
   const { user, isPending } = useCurrentUserState();
-  const [navegador, setNavegador] = useState<{ confiado: boolean; ativo: boolean; expiraEm: string | null } | null>(null);
-  const autenticador = useExigirAutenticador(Boolean(user), navegador);
   const irPara = useNavigate();
   const [ready, setReady] = useState(false);
   const [contaId, setContaId] = useState<string | null>(null);
@@ -342,12 +339,10 @@ export function PrazosApp() {
     const equipeId = equipeAtual;
     if (contaId !== usuarioId) {
       setReady(false);
-      setNavegador(null);
     }
-    const token = localStorage.getItem("prazos.navegador") ?? "";
     (async () => {
       try {
-        const pacote = await carregarInicio({ data: { equipeId, token } });
+        const pacote = await carregarInicio({ data: { equipeId } });
         if (cancelado) return;
         setEquipes(pacote.equipes);
         if (pacote.equipeId !== equipeId) setEquipeAtual(pacote.equipeId);
@@ -378,13 +373,11 @@ export function PrazosApp() {
           setMotivoExclusaoId(pacote.exclusao.motivo);
           setExcluida(true);
         }
-        setNavegador(pacote.navegador);
         setContaId(usuarioId);
         setReady(true);
       } catch {
         if (cancelado) return;
         setProcessos([]);
-        setNavegador({ confiado: false, ativo: false, expiraEm: null });
         setContaId(usuarioId);
         setToast("Não foi possível carregar seus processos.");
         setReady(true);
@@ -872,10 +865,7 @@ export function PrazosApp() {
     return <AvisoSenha email={user.primaryEmail} onPronto={() => setPedirSenha(false)} />;
   }
 
-  if (autenticador.gate === "exigir") return <CadastroAutenticador onPronto={autenticador.concluir} />;
-  if (autenticador.gate === "codigo") return <CodigoNavegador onPronto={autenticador.concluir} />;
-
-  if (!ready || contaId !== user.id || autenticador.gate !== "ok") return <CarregandoTemis />;
+  if (!ready || contaId !== user.id) return <CarregandoTemis />;
 
   return (
     <div className="mx-auto min-h-screen max-w-6xl px-4 py-6 md:px-8 md:py-8">
@@ -1578,7 +1568,6 @@ export function PrazosApp() {
               </div>
             </form>
             <TrocaSenhaPerfil />
-            <AutenticadorPerfil />
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
