@@ -68,7 +68,7 @@ function Privacidade() {
 
         <Titulo>5. Backups cifrados</Titulo>
         <p className="text-justify">
-          Todo backup, automático ou manual, é cifrado pelo sistema antes de ser gravado, baixado ou enviado. O conteúdo vira uma sequência ilegível. O método se chama AES-256-GCM: é um cadeado digital. Ele embaralha o arquivo e só o sistema, com a chave, consegue abrir na restauração. A chave fica somente no sistema e não acompanha o arquivo. O arquivo não mostra contas, processos, senhas nem documentos.
+          Todo backup, automático ou manual, é cifrado pelo sistema antes de ser gravado, baixado ou enviado. A cifra é AES-256-GCM. A chave fica somente no sistema e não acompanha o arquivo. O arquivo não mostra contas, processos, senhas nem documentos.
         </p>
         <p className="text-justify">
           Nem o controlador, nem quem guarda o arquivo no computador, nem a conta Google que recebe a cópia no Drive conseguem ler as informações. Não há tela, exportação nem consulta que revele o conteúdo do arquivo. A decifragem existe apenas como etapa interna da restauração, feita pelo sistema, para repor os dados. O controlador não usa o backup para conhecer o que está nas contas.
