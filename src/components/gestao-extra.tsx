@@ -769,10 +769,10 @@ export function SecaoSistema({
             Registrar
           </button>
         </form>
-        <ul className="mt-3 flex flex-col gap-2">
+        <ul className="mt-3 overflow-hidden rounded-xl">
           {painel.feriados.filter((item) => item.status !== "pendente").length === 0 && <li className="text-sm text-muted">Nenhum dia fora do expediente.</li>}
-          {painel.feriados.filter((item) => item.status !== "pendente").map((item) => (
-            <li key={item.id} className="text-sm">
+          {painel.feriados.filter((item) => item.status !== "pendente").map((item, indice) => (
+            <li key={item.id} className={"px-3 py-2 text-sm " + (indice % 2 === 0 ? "bg-pine/10" : "")}>
               {editandoId === item.id ? (
                 blocoEdicao()
               ) : (
