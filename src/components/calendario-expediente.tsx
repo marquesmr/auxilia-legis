@@ -36,7 +36,7 @@ export function CalendarioExpediente({ dias }: { dias: DiaMarcado[] }) {
   return (
     <section className="rounded-2xl border border-line bg-sheet p-4 xl:sticky xl:top-6">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-display text-xl capitalize text-ink">{titulo}</h2>
+        <h2 className="font-display text-lg capitalize leading-none text-ink">{titulo}</h2>
         <div className="flex gap-1">
           <button type="button" aria-label="Mês anterior" onClick={() => setCursor(new Date(ano, mes - 1, 1))} className="grid size-8 place-items-center rounded-lg text-ink">
             <ChevronLeft className="size-4" />
