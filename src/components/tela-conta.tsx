@@ -352,13 +352,15 @@ export function TelaConta() {
           <div className="grid size-12 place-items-center rounded-2xl bg-[#f4efe4] text-[#1a4033]" aria-hidden>
             <Scale className="size-6" strokeWidth={1.75} />
           </div>
-          <p className="font-display text-2xl">Auxilia Legis</p>
+          <p className="font-painel text-2xl">Auxilia Legis</p>
         </div>
-        <h1 className="mt-auto max-w-xl font-display text-5xl leading-[1.05] tracking-tight xl:text-6xl">
-          Assistente do
-          <br />
-          Poder Legislativo
-        </h1>
+        <div className="flex flex-1 items-center">
+          <h1 className="font-painel text-[3.35rem] font-medium leading-[0.98] tracking-[-0.025em] text-[#f6f1e6] xl:text-[4.6rem]">
+            Assistente do
+            <br />
+            Poder Legislativo
+          </h1>
+        </div>
         <div className="mt-16">
           <p className="text-center text-sm">
             <Link to="/privacidade" className="hover:underline">
