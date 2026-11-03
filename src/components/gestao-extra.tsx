@@ -14,6 +14,7 @@ import {
   feriadoGestao,
   liberarRestricaoGestao,
   logsGestao,
+  manterBloqueioGestao,
   manutencaoGestao,
   restaurarAutomaticoGestao,
   restaurarGestao,
@@ -76,6 +77,8 @@ export function SecaoUsuarios({
   const [userId, setUserId] = useState(painel.pessoas[0]?.id ?? "");
   const [alvoExclusao, setAlvoExclusao] = useState<string | null>(null);
   const [motivoExclusaoId, setMotivoExclusaoId] = useState("");
+  const [liberando, setLiberando] = useState<string | null>(null);
+  const [dataLiberacao, setDataLiberacao] = useState("");
 
   async function agir(tarefa: Promise<unknown>, ok: string) {
     onErro("");
@@ -96,25 +99,84 @@ export function SecaoUsuarios({
           Consulta só lê. Administrador, depois de atribuído, entra na área restrita com o e-mail e a senha da própria conta. O acesso do gestor que já existe continua valendo.
         </p>
         <h3 className="mt-4 text-sm font-medium text-ink">E-mails restritos</h3>
-        <p className="mt-1 text-sm text-muted">Menor de 18 anos. O e-mail fica 7 dias sem criar conta, salvo contato em auxilialegis@marquestecnologies.com.</p>
+        <p className="mt-1 text-sm text-muted">Menor de 18 anos. Dá para liberar com a data confirmada por e-mail ou manter o bloqueio para análise.</p>
         <ul className="mt-3 flex flex-col gap-2">
           {painel.restritos.length === 0 && <li className="text-sm text-muted">Nenhum e-mail restrito.</li>}
           {painel.restritos.map((item) => (
-            <li key={item.email} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm">
-              <span className="text-ink">
-                {item.email} <span className="text-muted">· menor de 18 · até {horaCheia(item.ate)}</span>
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  onConfirmar(`Liberar ${item.email}? Só depois do contato em auxilialegis@marquestecnologies.com.`, () => {
-                    void agir(liberarRestricaoGestao({ data: { token, email: item.email } }), "E-mail liberado.");
-                  }, "Liberar")
-                }
-                className="h-9 rounded-lg border border-line px-3 text-ink"
-              >
-                Liberar
-              </button>
+            <li key={item.email} className="rounded-xl border border-line px-3 py-2 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-ink">
+                  {item.email}{" "}
+                  <span className="text-muted">
+                    · {item.analise ? "bloqueado para análise" : `menor de 18 · até ${horaCheia(item.ate)}`}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLiberando(liberando === item.email ? null : item.email);
+                    setDataLiberacao("");
+                  }}
+                  className="h-9 rounded-lg border border-line px-3 text-ink"
+                >
+                  Liberar
+                </button>
+              </div>
+              {liberando === item.email && (
+                <div className="mt-3 flex flex-col gap-2">
+                  <label className="flex flex-col gap-1 text-sm text-ink">
+                    Data confirmada por e-mail
+                    <input
+                      type="date"
+                      value={dataLiberacao}
+                      onChange={(evento) => setDataLiberacao(evento.target.value)}
+                      className="h-10 rounded-lg border border-line bg-paper px-2 text-sm text-ink"
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void (async () => {
+                          onErro("");
+                          try {
+                            await liberarRestricaoGestao({ data: { token, email: item.email, nascimento: dataLiberacao } });
+                            onAviso("E-mail de liberação enviado.");
+                            onMudou();
+                            setLiberando(null);
+                          } catch (err) {
+                            onErro(err instanceof Error ? err.message : "Não foi possível concluir.");
+                          }
+                        })()
+                      }
+                      className="h-9 rounded-lg bg-ink px-3 text-sheet"
+                    >
+                      Enviar liberação
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onConfirmar(`Manter ${item.email} bloqueado por tempo indeterminado?`, () => {
+                          void (async () => {
+                            onErro("");
+                            try {
+                              await manterBloqueioGestao({ data: { token, email: item.email } });
+                              onAviso("E-mail bloqueado para análise.");
+                              onMudou();
+                              setLiberando(null);
+                            } catch (err) {
+                              onErro(err instanceof Error ? err.message : "Não foi possível concluir.");
+                            }
+                          })();
+                        }, "Bloquear")
+                      }
+                      className="h-9 rounded-lg border border-line px-3 text-ink"
+                    >
+                      Manter bloqueado
+                    </button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
         </ul>

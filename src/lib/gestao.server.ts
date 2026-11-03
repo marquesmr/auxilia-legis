@@ -1,11 +1,14 @@
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { readFileSync, statfsSync } from "node:fs";
 import { cpus, freemem, totalmem } from "node:os";
 import { promisify } from "node:util";
-import { apagarTravaEmail, listarTravasEmail } from "@/lib/banco-nuvem";
+import { gravarLiberacaoTrava, listarTravasEmail, marcarTravaAnalise } from "@/lib/banco-nuvem";
 import { abrirBackup, cifrarBackup } from "@/lib/backup-cripto";
 import { copiarBancoAgora, getSql, lerTrafego, puxarNuvem, semPersistencia, type Sql } from "@/lib/db";
+import { botaoEmail, emailHtml, enviarEmail, urlDoSite } from "@/lib/email.server";
+import { idadeEm } from "@/lib/idade";
 import { motivoExclusao } from "@/lib/motivos-exclusao";
+import { senhaDaCaixa } from "@/lib/senha-email.server";
 
 const scrypt = promisify(scryptCb);
 const EMAIL_INICIAL = "gestor@auxilialegis.app";
@@ -460,19 +463,21 @@ export async function lerPainel() {
       criado_em timestamptz not null default now()
     )
   `;
-  const restritosSql = await sql<{ email: string; nascimento: string | null; restrito_ate: string }>`
-    select email, nascimento::text as nascimento, restrito_ate
+  await sql`alter table email_restrito add column if not exists analise boolean not null default false`;
+  const restritosSql = await sql<{ email: string; nascimento: string | null; restrito_ate: string; analise: boolean }>`
+    select email, nascimento::text as nascimento, restrito_ate, analise
     from email_restrito
-    where restrito_ate > now()
+    where analise or restrito_ate > now()
     order by restrito_ate asc
   `;
   const restritosNuvem = await listarTravasEmail().catch(() => []);
-  const restritosMapa = new Map<string, { email: string; nascimento: string; ate: string }>();
+  const restritosMapa = new Map<string, { email: string; nascimento: string; ate: string; analise: boolean }>();
   for (const item of restritosSql) {
     restritosMapa.set(item.email.toLowerCase(), {
       email: item.email,
       nascimento: item.nascimento ? String(item.nascimento).slice(0, 10) : "",
       ate: String(item.restrito_ate),
+      analise: Boolean(item.analise),
     });
   }
   for (const item of restritosNuvem) {
@@ -480,6 +485,7 @@ export async function lerPainel() {
       email: item.email,
       nascimento: item.nascimento.slice(0, 10),
       ate: item.ate,
+      analise: item.analise,
     });
   }
   const restritos = [...restritosMapa.values()];
@@ -535,16 +541,54 @@ export async function lerPainel() {
       email: item.email,
       nascimento: item.nascimento,
       ate: item.ate,
+      analise: Boolean(item.analise),
     })),
     status: await listarStatusCatalogo(),
   };
 }
 
-export async function liberarEmailRestrito(email: string) {
+export async function liberarEmailRestrito(email: string, nascimento: string) {
+  const normal = email.trim().toLowerCase();
+  const idade = idadeEm(nascimento);
+  if (idade == null || idade < 18 || idade > 120) {
+    throw new Error("A data confirmada ainda é de menor de 18 anos. Mantenha o bloqueio.");
+  }
+  const token = randomBytes(32).toString("hex");
+  const hash = createHmac("sha256", "liberacao-idade").update(token).digest("hex");
+  const expira = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  await gravarLiberacaoTrava(normal, nascimento, hash, expira);
+  const senhaCaixa = await senhaDaCaixa();
+  if (!senhaCaixa) throw new Error("A caixa auxilialegis@marquestecnologies.com ainda não tem senha.");
+  const origem = await urlDoSite();
+  const link = `${origem || ""}/?liberacao=${token}`;
+  const quando = new Date(`${nascimento}T12:00:00`).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const nome = normal.split("@")[0] || "você";
+  await enviarEmail(
+    normal,
+    "Seu cadastro no Auxilia Legis foi liberado",
+    emailHtml(
+      nome,
+      `<p>A data de nascimento confirmada é <strong>${quando}</strong>.</p>
+<p>Use o botão abaixo para criar a conta. Essa data já vem preenchida e não pode ser alterada.</p>
+${botaoEmail(link, "Criar conta")}`,
+      origem,
+    ),
+    senhaCaixa,
+  );
+  return { email: normal };
+}
+
+export async function manterBloqueioEmail(email: string) {
   const normal = email.trim().toLowerCase();
   const sql = await getSql();
-  await apagarTravaEmail(normal);
-  await sql`delete from email_restrito where lower(email) = ${normal}`;
+  await marcarTravaAnalise(normal);
+  await sql`alter table email_restrito add column if not exists analise boolean not null default false`;
+  await sql`
+    insert into email_restrito (email, restrito_ate, analise)
+    values (${normal}, '9999-12-31T23:59:59.999Z', true)
+    on conflict (email) do update
+    set restrito_ate = '9999-12-31T23:59:59.999Z', analise = true
+  `;
   await copiarBancoAgora();
   return { email: normal };
 }

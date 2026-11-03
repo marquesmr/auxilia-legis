@@ -223,6 +223,23 @@ function idOk(valor: unknown) {
 export const liberarRestricaoGestao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; email?: unknown; nascimento?: unknown };
+    const email = typeof bruto.email === "string" ? bruto.email.trim().toLowerCase() : "";
+    const nascimento = typeof bruto.nascimento === "string" ? bruto.nascimento : "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("E-mail inválido.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nascimento)) throw new Error("Informe a data confirmada por e-mail.");
+    return { token: tokenOk(bruto.token), email, nascimento };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, liberarEmailRestrito } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return liberarEmailRestrito(data.email, data.nascimento);
+  });
+
+export const manterBloqueioGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
     const bruto = input as { token?: unknown; email?: unknown };
     const email = typeof bruto.email === "string" ? bruto.email.trim().toLowerCase() : "";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("E-mail inválido.");
@@ -230,9 +247,9 @@ export const liberarRestricaoGestao = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     await mesmoLugar();
-    const { exigirGestao, liberarEmailRestrito } = await import("./gestao.server");
+    const { exigirGestao, manterBloqueioEmail } = await import("./gestao.server");
     await exigirGestao(data.token);
-    return liberarEmailRestrito(data.email);
+    return manterBloqueioEmail(data.email);
   });
 
 export const definirPapelGestao = createServerFn({ method: "POST" })

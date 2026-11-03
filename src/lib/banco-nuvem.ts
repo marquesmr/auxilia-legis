@@ -125,9 +125,45 @@ export async function gravarCopia(arquivo: Blob, etag: string | null): Promise<s
 
 const CAMINHO_TRAVAS = `auxilia-legis/${PASTA}/emails-restritos.json`;
 
-export type TravaEmail = { email: string; nascimento: string; ate: string };
+export type TravaEmail = {
+  email: string;
+  nascimento: string;
+  ate: string;
+  analise: boolean;
+  liberacaoNascimento: string;
+  liberacaoHash: string;
+  liberacaoExpira: string;
+};
 
-type MapaTravas = Record<string, { nascimento: string; ate: string }>;
+type ItemTrava = {
+  nascimento?: string;
+  ate?: string;
+  analise?: boolean;
+  liberacaoNascimento?: string;
+  liberacaoHash?: string;
+  liberacaoExpira?: string;
+};
+
+type MapaTravas = Record<string, ItemTrava>;
+
+function montarTrava(email: string, item: ItemTrava): TravaEmail {
+  return {
+    email,
+    nascimento: item.nascimento ?? "",
+    ate: item.ate ?? "",
+    analise: Boolean(item.analise),
+    liberacaoNascimento: item.liberacaoNascimento ?? "",
+    liberacaoHash: item.liberacaoHash ?? "",
+    liberacaoExpira: item.liberacaoExpira ?? "",
+  };
+}
+
+function travaVigente(item: ItemTrava | undefined) {
+  if (!item) return false;
+  if (item.analise) return true;
+  if (!item.ate) return false;
+  return new Date(item.ate).getTime() > Date.now();
+}
 
 async function lerMapaTravas(): Promise<MapaTravas> {
   const chave = token();
@@ -159,17 +195,57 @@ async function gravarMapaTravas(mapa: MapaTravas) {
 export async function lerTravaEmail(email: string): Promise<TravaEmail | null> {
   const normal = email.trim().toLowerCase();
   const item = (await lerMapaTravas())[normal];
-  if (!item?.ate || new Date(item.ate).getTime() <= Date.now()) return null;
-  return { email: normal, nascimento: item.nascimento ?? "", ate: item.ate };
+  if (!travaVigente(item)) return null;
+  return montarTrava(normal, item);
 }
 
 export async function gravarTravaEmail(email: string, nascimento: string, ate: string) {
   const normal = email.trim().toLowerCase();
   const mapa = await lerMapaTravas();
-  const atual = mapa[normal]?.ate;
-  const ateFinal = atual && new Date(atual).getTime() > new Date(ate).getTime() ? atual : ate;
-  mapa[normal] = { nascimento, ate: ateFinal };
+  const anterior = mapa[normal] ?? {};
+  const ateFinal = anterior.ate && new Date(anterior.ate).getTime() > new Date(ate).getTime() ? anterior.ate : ate;
+  mapa[normal] = { ...anterior, nascimento, ate: ateFinal, analise: Boolean(anterior.analise) };
   await gravarMapaTravas(mapa);
+}
+
+export async function marcarTravaAnalise(email: string) {
+  const normal = email.trim().toLowerCase();
+  const mapa = await lerMapaTravas();
+  const anterior = mapa[normal] ?? {};
+  mapa[normal] = {
+    ...anterior,
+    ate: "9999-12-31T23:59:59.999Z",
+    analise: true,
+    liberacaoNascimento: "",
+    liberacaoHash: "",
+    liberacaoExpira: "",
+  };
+  await gravarMapaTravas(mapa);
+}
+
+export async function gravarLiberacaoTrava(email: string, nascimento: string, hash: string, expira: string) {
+  const normal = email.trim().toLowerCase();
+  const mapa = await lerMapaTravas();
+  const anterior = mapa[normal] ?? {};
+  mapa[normal] = {
+    ...anterior,
+    nascimento: anterior.nascimento || nascimento,
+    ate: anterior.ate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    liberacaoNascimento: nascimento,
+    liberacaoHash: hash,
+    liberacaoExpira: expira,
+  };
+  await gravarMapaTravas(mapa);
+}
+
+export async function lerTravaPeloHash(hash: string): Promise<TravaEmail | null> {
+  const mapa = await lerMapaTravas();
+  for (const [email, item] of Object.entries(mapa)) {
+    if (!item?.liberacaoHash || item.liberacaoHash !== hash) continue;
+    if (!item.liberacaoExpira || new Date(item.liberacaoExpira).getTime() <= Date.now()) return null;
+    return montarTrava(email, item);
+  }
+  return null;
 }
 
 export async function apagarTravaEmail(email: string) {
@@ -183,6 +259,6 @@ export async function apagarTravaEmail(email: string) {
 export async function listarTravasEmail(): Promise<TravaEmail[]> {
   const mapa = await lerMapaTravas();
   return Object.entries(mapa)
-    .filter(([, item]) => item?.ate && new Date(item.ate).getTime() > Date.now())
-    .map(([email, item]) => ({ email, nascimento: item.nascimento ?? "", ate: item.ate }));
+    .filter(([, item]) => travaVigente(item))
+    .map(([email, item]) => montarTrava(email, item));
 }

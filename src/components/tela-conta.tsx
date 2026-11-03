@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { Scale } from "lucide-react";
 import { authClient, GROK_PROVIDERS, signIn } from "@/lib/auth/client";
-import { criarContaComCodigo, entrarPeloLink, pedirCodigoCadastro, pedirCodigoSenha, redefinirComCodigo } from "@/lib/auth/senha-email.functions";
+import { criarContaComCodigo, entrarPeloLink, lerLiberacaoCadastro, pedirCodigoCadastro, pedirCodigoSenha, redefinirComCodigo } from "@/lib/auth/senha-email.functions";
 import { consultarExclusao, limparAvisoExclusao } from "@/lib/gestao.functions";
 import { AvisoContaExcluida } from "@/components/aviso-exclusao";
 import { TermosCadastro } from "@/components/termos-cadastro";
@@ -100,6 +100,7 @@ export function TelaConta() {
   const [motivoAviso, setMotivoAviso] = useState(() => sessionStorage.getItem(MOTIVO_EXCLUSAO) ?? "");
   const [enviando, setEnviando] = useState(false);
   const [termos, setTermos] = useState(false);
+  const [liberacao, setLiberacao] = useState("");
   const [confirmando, setConfirmando] = useState(Boolean(rascunho));
   const [codigoCadastro, setCodigoCadastro] = useState(rascunho?.codigo ?? "");
   const [codigoLink, setCodigoLink] = useState("");
@@ -132,6 +133,26 @@ export function TelaConta() {
   useEffect(() => {
     soltarTemaDaConta();
     const params = new URLSearchParams(window.location.search);
+    const liberacaoQ = params.get("liberacao") ?? "";
+    if (/^[a-f0-9]{64}$/.test(liberacaoQ)) {
+      setEnviando(true);
+      void lerLiberacaoCadastro({ data: { token: liberacaoQ } })
+        .then((dados) => {
+          const mapa = travasLocais();
+          delete mapa[dados.email];
+          localStorage.setItem(TRAVA_LOCAL, JSON.stringify(mapa));
+          limparRascunhoCadastro();
+          setModo("criar");
+          setConfirmando(false);
+          setEmail(dados.email);
+          setNascimento(dados.nascimento);
+          setLiberacao(liberacaoQ);
+          setErro("");
+        })
+        .catch((err) => setErro(err instanceof Error ? err.message : "Este link de liberação não é válido."))
+        .finally(() => setEnviando(false));
+      return;
+    }
     const acesso = params.get("acesso") ?? "";
     if (/^[a-f0-9]{64}$/.test(acesso)) {
       setEnviando(true);
@@ -225,7 +246,7 @@ export function TelaConta() {
     if (modo === "criar") {
       const anos = idadeEm(nascimento) ?? 0;
       const presa = travaLocalDe(email);
-      if (presa || anos < 18) {
+      if (!liberacao && (presa || anos < 18)) {
         if (anos < 18) marcarTravaLocal(email);
         setErro(textoTrava(presa ?? Date.now() + 7 * 24 * 60 * 60 * 1000));
         void pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim(), nascimento } }).catch((err) => {
@@ -250,7 +271,7 @@ export function TelaConta() {
       return;
     }
     try {
-      const resultado = await pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim(), nascimento } });
+      const resultado = await pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim(), nascimento, liberacao } });
       if (!resultado || typeof resultado !== "object" || !("enviado" in resultado) || !resultado.enviado) {
         const mensagem = resultado && typeof resultado === "object" && "mensagem" in resultado ? String(resultado.mensagem) : "";
         setErro(mensagem || "Não foi possível enviar o código.");
@@ -273,13 +294,13 @@ export function TelaConta() {
     setErro("");
     setEnviando(true);
     try {
-      if (travaLocalDe(email)) {
+      if (!liberacao && travaLocalDe(email)) {
         setErro(textoTrava(travaLocalDe(email) ?? Date.now()));
         setEnviando(false);
         return;
       }
       const resultado = await criarContaComCodigo({
-        data: { nome: nome.trim(), email: email.trim(), senha, codigo: codigoCadastro, nascimento },
+        data: { nome: nome.trim(), email: email.trim(), senha, codigo: codigoCadastro, nascimento, liberacao },
       });
       if (resultado && typeof resultado === "object" && "restrito" in resultado && resultado.restrito) {
         marcarTravaLocal(email);
@@ -431,7 +452,9 @@ export function TelaConta() {
               min={limitesNascimento().min}
               max={limitesNascimento().max}
               required
+              disabled={Boolean(liberacao)}
             />
+            {liberacao && <span className="text-xs font-normal text-muted">Data confirmada pelo Titular. Não pode ser alterada.</span>}
           </label>
           </>
         )}
@@ -444,6 +467,7 @@ export function TelaConta() {
             className={campo}
             autoComplete="email"
             required
+            disabled={Boolean(liberacao)}
           />
         </label>
         <label className="flex flex-col gap-1 text-sm font-medium text-ink">

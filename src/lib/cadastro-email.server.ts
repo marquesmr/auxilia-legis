@@ -2,7 +2,7 @@ import { createHmac, randomBytes, randomInt, scrypt as scryptCb, timingSafeEqual
 import { promisify } from "node:util";
 import { idadeEm } from "@/lib/idade";
 import { copiarBancoAgora, getSql, puxarNuvem } from "@/lib/db";
-import { gravarTravaEmail, lerTravaEmail } from "@/lib/banco-nuvem";
+import { gravarTravaEmail, lerTravaEmail, lerTravaPeloHash, apagarTravaEmail } from "@/lib/banco-nuvem";
 import { botaoEmail, codigoEmail, emailHtml, enviarEmail, urlDoSite } from "@/lib/email.server";
 import { senhaDaCaixa } from "@/lib/senha-email.server";
 
@@ -44,6 +44,7 @@ async function tabelaRestricao(sql: Awaited<ReturnType<typeof getSql>>) {
       criado_em timestamptz not null default now()
     )
   `;
+  await sql`alter table email_restrito add column if not exists analise boolean not null default false`;
 }
 
 function textoAte(ate: string) {
@@ -58,18 +59,43 @@ function textoAte(ate: string) {
   return `Este e-mail está restrito até ${quando}. Se errou a data, escreva para auxilialegis@marquestecnologies.com e envie um comprovante de que você tem 18 anos ou mais. A liberação antes do prazo só ocorre depois desse contato.`;
 }
 
-export async function barrarEmailRestrito(email: string, nascimento: string) {
+export const TEXTO_ANALISE =
+  "Por determinação do Titular, este e-mail foi bloqueado para análise. Ele só é desbloqueado após a confirmação dos dados enviados por e-mail.";
+
+function hashLiberacao(token: string) {
+  return createHmac("sha256", "liberacao-idade").update(token).digest("hex");
+}
+
+async function liberacaoPermite(email: string, nascimento: string, token: string) {
+  if (!/^[a-f0-9]{64}$/.test(token)) return false;
+  if ((idadeEm(nascimento) ?? 0) < 18) return false;
+  const trava = await lerTravaPeloHash(hashLiberacao(token));
+  if (!trava || trava.email !== email) return false;
+  return trava.liberacaoNascimento === nascimento;
+}
+
+export async function lerLiberacao(token: string) {
+  if (!/^[a-f0-9]{64}$/.test(token)) throw new Error("Este link de liberação não é válido.");
+  const trava = await lerTravaPeloHash(hashLiberacao(token));
+  if (!trava?.liberacaoNascimento) throw new Error("Este link de liberação não é válido.");
+  return { email: trava.email, nascimento: trava.liberacaoNascimento };
+}
+
+export async function barrarEmailRestrito(email: string, nascimento: string, liberacao = "") {
   const idade = idadeEm(nascimento);
   if (idade == null || idade > 120) throw new Error("Escolha a data de nascimento.");
   const normal = email.trim().toLowerCase();
+  if (await liberacaoPermite(normal, nascimento, liberacao)) return;
   const trava = await lerTravaEmail(normal);
+  if (trava?.analise) throw new Error(TEXTO_ANALISE);
   if (trava && new Date(trava.ate).getTime() > Date.now()) throw new Error(textoAte(trava.ate));
   const sql = await getSql();
   await puxarNuvem();
   await tabelaRestricao(sql);
-  const ativo = await sql<{ restrito_ate: string }>`
-    select restrito_ate from email_restrito where lower(email) = ${normal} and restrito_ate > now()
+  const ativo = await sql<{ restrito_ate: string; analise: boolean }>`
+    select restrito_ate, analise from email_restrito where lower(email) = ${normal} and (analise or restrito_ate > now())
   `;
+  if (ativo[0]?.analise) throw new Error(TEXTO_ANALISE);
   if (ativo[0]) {
     const ate = new Date(ativo[0].restrito_ate).toISOString();
     await gravarTravaEmail(normal, nascimento, ate);
@@ -79,23 +105,24 @@ export async function barrarEmailRestrito(email: string, nascimento: string) {
     const ate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     await gravarTravaEmail(normal, nascimento, ate);
     await sql`
-      insert into email_restrito (email, nascimento, restrito_ate)
-      values (${normal}, ${nascimento}, ${ate}::timestamptz)
+      insert into email_restrito (email, nascimento, restrito_ate, analise)
+      values (${normal}, ${nascimento}, ${ate}::timestamptz, false)
       on conflict (email) do update
       set nascimento = excluded.nascimento,
-          restrito_ate = greatest(email_restrito.restrito_ate, excluded.restrito_ate)
+          restrito_ate = greatest(email_restrito.restrito_ate, excluded.restrito_ate),
+          analise = email_restrito.analise
     `;
     await copiarBancoAgora();
     throw new Error(`Menor de 18 anos não cria conta. ${textoAte(ate)}`);
   }
 }
 
-export async function pedirCodigoCadastro(email: string, nome: string, nascimento: string) {
+export async function pedirCodigoCadastro(email: string, nome: string, nascimento: string, liberacao = "") {
   const sql = await getSql();
   await tabela(sql);
   const existente = await sql<{ id: string }>`select id from "user" where lower(email) = ${email}`;
   if (existente[0]) throw new Error("Já existe uma conta com este e-mail.");
-  await barrarEmailRestrito(email, nascimento);
+  await barrarEmailRestrito(email, nascimento, liberacao);
   const senhaCaixa = await senhaDaCaixa();
   if (!senhaCaixa) {
     throw new Error("A caixa auxilialegis@marquestecnologies.com ainda não tem senha. Guarde-a na área restrita.");
@@ -157,10 +184,10 @@ export async function abrirSessaoConta(userId: string) {
   });
 }
 
-export async function criarContaComCodigo(nome: string, email: string, senha: string, codigo: string, idade: number, nascimento: string) {
+export async function criarContaComCodigo(nome: string, email: string, senha: string, codigo: string, idade: number, nascimento: string, liberacao = "") {
   const sql = await getSql();
   await tabela(sql);
-  await barrarEmailRestrito(email, nascimento);
+  await barrarEmailRestrito(email, nascimento, liberacao);
   const linhas = await sql<{ codigo_hash: string; tentativas: number; valido: boolean }>`
     select codigo_hash, tentativas, expira_em > now() as valido
     from codigo_cadastro
@@ -201,6 +228,9 @@ export async function criarContaComCodigo(nome: string, email: string, senha: st
   `;
   await sql`delete from conta_excluida where lower(email) = ${email}`;
   await sql`delete from codigo_cadastro where email = ${email}`;
+  await sql`delete from email_restrito where lower(email) = ${email}`;
+  await apagarTravaEmail(email);
+  await copiarBancoAgora();
   await abrirSessaoConta(usuario.id);
   try {
     const senhaCaixa = await senhaDaCaixa();
