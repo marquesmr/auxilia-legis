@@ -62,7 +62,7 @@ export function parseDate(iso: string): Date {
 
 const semExpediente = new Set<string>();
 
-export type DiaMarcado = { data: string; nome: string; tipo: "feriado" | "facultativo" | "recesso" };
+export type DiaMarcado = { data: string; nome: string; tipo: "feriado" | "facultativo" | "recesso"; municipio?: string };
 
 /** Datas sem expediente (feriados e recesso), no formato AAAA-MM-DD. */
 export function definirSemExpediente(datas: string[]) {

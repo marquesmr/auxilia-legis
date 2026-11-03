@@ -468,22 +468,25 @@ export function SecaoSistema({
   const [editInicio, setEditInicio] = useState("");
   const [editFim, setEditFim] = useState("");
   const [editAmbito, setEditAmbito] = useState<"" | "nacional" | "municipal">("");
+  const [editMunicipio, setEditMunicipio] = useState("");
+  const [municipioPadrao, setMunicipioPadrao] = useState("");
   const filaDecisao = useRef(Promise.resolve());
 
-  function abrirEdicao(item: { id: string; nome: string; tipo: string; inicio: string; fim: string; ambito: string }) {
+  function abrirEdicao(item: { id: string; nome: string; tipo: string; inicio: string; fim: string; ambito: string; municipio?: string }) {
     setEditandoId(item.id);
     setEditNome(item.nome);
     setEditTipo(item.tipo === "recesso" || item.tipo === "facultativo" ? item.tipo : "feriado");
     setEditInicio(item.inicio);
     setEditFim(item.fim);
     setEditAmbito(item.ambito === "nacional" || item.ambito === "municipal" ? item.ambito : "");
+    setEditMunicipio(item.municipio ?? "");
   }
 
   function guardarEdicao() {
     const id = editandoId;
     if (!id) return;
     onErro("");
-    void editarFeriadoGestao({ data: { token, id, nome: editNome, tipo: editTipo, inicio: editInicio, fim: editFim || editInicio, ambito: editAmbito } })
+    void editarFeriadoGestao({ data: { token, id, nome: editNome, tipo: editTipo, inicio: editInicio, fim: editFim || editInicio, ambito: editAmbito, municipio: editMunicipio } })
       .then(() => {
         setEditandoId("");
         onAviso("Feriado atualizado.");
@@ -510,6 +513,9 @@ export function SecaoSistema({
           <input type="date" value={editInicio} onChange={(evento) => setEditInicio(evento.target.value)} className="h-11 rounded-xl border border-line bg-paper px-3 text-sm" />
           <input type="date" value={editFim} onChange={(evento) => setEditFim(evento.target.value)} className="h-11 rounded-xl border border-line bg-paper px-3 text-sm" />
         </div>
+        {editAmbito === "municipal" && (
+          <input value={editMunicipio} onChange={(evento) => setEditMunicipio(evento.target.value)} placeholder="Município" className="h-11 rounded-xl border border-line bg-paper px-3 text-sm" spellCheck lang="pt-BR" />
+        )}
         <div className="flex gap-2">
           <button type="button" onClick={guardarEdicao} className="h-9 rounded-lg bg-pine px-3 text-sm font-medium text-sheet">Guardar</button>
           <button type="button" onClick={() => setEditandoId("")} className="h-9 rounded-lg border border-line px-3 text-sm text-ink">Cancelar</button>
@@ -519,11 +525,16 @@ export function SecaoSistema({
   }
 
   function decidirDia(id: string, ambito: "nacional" | "municipal" | "descartar") {
+    const municipio = ambito === "municipal" ? municipioPadrao.trim() : "";
+    if (ambito === "municipal" && municipio.length < 2) {
+      onErro("Informe o município antes de marcar como municipal.");
+      return;
+    }
     onErro("");
     setOcultos((atual) => (atual.includes(id) ? atual : [...atual, id]));
     filaDecisao.current = filaDecisao.current
       .catch(() => undefined)
-      .then(() => decidirFeriadoGestao({ data: { token, id, ambito } }))
+      .then(() => decidirFeriadoGestao({ data: { token, id, ambito, municipio } }))
       .then(() => undefined)
       .catch((err: unknown) => {
         setOcultos((atual) => atual.filter((item) => item !== id));
@@ -712,6 +723,15 @@ export function SecaoSistema({
         </div>
         {imagemCalendario && <p className="mt-2 text-sm text-muted">Imagem pronta para leitura.</p>}
         {painel.feriados.some((item) => item.status === "pendente" && !ocultos.includes(item.id)) && (
+          <div className="mt-3">
+            <input
+              value={municipioPadrao}
+              onChange={(evento) => setMunicipioPadrao(evento.target.value)}
+              placeholder="Município, para marcar como municipal"
+              className="h-11 w-full rounded-xl border border-line bg-paper px-3 text-sm"
+              spellCheck
+              lang="pt-BR"
+            />
           <ul className="mt-3 flex flex-col gap-2">
             {painel.feriados.filter((item) => item.status === "pendente" && !ocultos.includes(item.id)).map((item) => (
               <li key={item.id} className="rounded-xl border border-line px-3 py-2 text-sm">
@@ -743,6 +763,7 @@ export function SecaoSistema({
               </li>
             ))}
           </ul>
+          </div>
         )}
         <form
           className="mt-3 grid gap-2 md:grid-cols-5"
@@ -778,7 +799,7 @@ export function SecaoSistema({
               ) : (
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-ink">
-                    {item.nome} <span className="text-muted">· {rotuloTipoFeriado(item.tipo)}{item.ambito === "nacional" ? " · nacional" : item.ambito === "municipal" ? " · municipal" : ""} · {item.inicio}{item.fim !== item.inicio ? ` a ${item.fim}` : ""}</span>
+                    {item.nome} <span className="text-muted">· {rotuloTipoFeriado(item.tipo)}{item.ambito === "nacional" ? " · nacional" : item.ambito === "municipal" ? ` · municipal${item.municipio ? ` · ${item.municipio}` : ""}` : ""} · {item.inicio}{item.fim !== item.inicio ? ` a ${item.fim}` : ""}</span>
                   </span>
                   <span className="flex shrink-0 gap-3">
                     <button type="button" onClick={() => abrirEdicao(item)} className="text-sm font-medium text-pine">

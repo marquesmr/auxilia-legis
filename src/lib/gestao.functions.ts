@@ -238,6 +238,22 @@ export const estadoSistema = createServerFn({ method: "POST" }).handler(async ()
   return lerEstado(userId);
 });
 
+export const definirCidadeConta = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { latitude?: unknown; longitude?: unknown };
+    const latitude = typeof bruto.latitude === "number" ? bruto.latitude : Number.NaN;
+    const longitude = typeof bruto.longitude === "number" ? bruto.longitude : Number.NaN;
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error("Localização inválida.");
+    return { latitude, longitude };
+  })
+  .handler(async ({ data, context }) => {
+    await mesmoLugar();
+    const { guardarCidadeUsuario } = await import("./gestao.server");
+    return guardarCidadeUsuario(context.userId, data.latitude, data.longitude);
+  });
+
 function idOk(valor: unknown) {
   if (typeof valor !== "string" || !valor.trim()) throw new Error("Dados inválidos");
   return valor.trim().slice(0, 80);
@@ -532,7 +548,7 @@ export const feriadoGestao = createServerFn({ method: "POST" })
 export const editarFeriadoGestao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
-    const bruto = input as { token?: unknown; id?: unknown; nome?: unknown; tipo?: unknown; inicio?: unknown; fim?: unknown; ambito?: unknown };
+    const bruto = input as { token?: unknown; id?: unknown; nome?: unknown; tipo?: unknown; inicio?: unknown; fim?: unknown; ambito?: unknown; municipio?: unknown };
     const id = typeof bruto.id === "string" ? bruto.id.slice(0, 80) : "";
     if (!id) throw new Error("Feriado inválido.");
     return {
@@ -543,6 +559,7 @@ export const editarFeriadoGestao = createServerFn({ method: "POST" })
       inicio: typeof bruto.inicio === "string" ? bruto.inicio.slice(0, 10) : "",
       fim: typeof bruto.fim === "string" ? bruto.fim.slice(0, 10) : "",
       ambito: bruto.ambito === "nacional" || bruto.ambito === "municipal" ? bruto.ambito : "",
+      municipio: typeof bruto.municipio === "string" ? bruto.municipio.slice(0, 80) : "",
     };
   })
   .handler(async ({ data }) => {
@@ -572,18 +589,19 @@ export const lerCalendarioGestao = createServerFn({ method: "POST" })
 export const decidirFeriadoGestao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
-    const bruto = input as { token?: unknown; id?: unknown; ambito?: unknown };
+    const bruto = input as { token?: unknown; id?: unknown; ambito?: unknown; municipio?: unknown };
     const ambito = bruto.ambito === "nacional" || bruto.ambito === "municipal" || bruto.ambito === "descartar" ? bruto.ambito : "";
     if (!ambito) throw new Error("Diga se o feriado é nacional ou municipal.");
     const id = typeof bruto.id === "string" ? bruto.id.slice(0, 80) : "";
     if (!id) throw new Error("Feriado inválido.");
-    return { token: tokenOk(bruto.token), id, ambito };
+    const municipio = typeof bruto.municipio === "string" ? bruto.municipio.slice(0, 80) : "";
+    return { token: tokenOk(bruto.token), id, ambito, municipio };
   })
   .handler(async ({ data }) => {
     await mesmoLugar();
     const { exigirGestao, decidirFeriado } = await import("./gestao.server");
     await exigirGestao(data.token);
-    return decidirFeriado(data.id, data.ambito as "nacional" | "municipal" | "descartar");
+    return decidirFeriado(data.id, data.ambito as "nacional" | "municipal" | "descartar", data.municipio);
   });
 
 export const manutencaoGestao = createServerFn({ method: "POST" })

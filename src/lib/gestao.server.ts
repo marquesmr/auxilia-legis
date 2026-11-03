@@ -4,6 +4,7 @@ import { cpus, freemem, totalmem } from "node:os";
 import { promisify } from "node:util";
 import { gravarLiberacaoTrava, listarTravasEmail, marcarTravaAnalise } from "@/lib/banco-nuvem";
 import { lerTextoCalendario } from "@/lib/calendario-leitura";
+import { chaveCidade, cidadeDaPosicao } from "@/lib/cidade";
 import { abrirBackup, cifrarBackup } from "@/lib/backup-cripto";
 import { copiarBancoAgora, getSql, lerTrafego, puxarNuvem, semPersistencia, type Sql } from "@/lib/db";
 import { botaoEmail, emailHtml, enviarEmail, urlDoSite } from "@/lib/email.server";
@@ -457,8 +458,8 @@ export async function lerPainel() {
   `;
   await colunasFeriado(sql);
   await separarFeriadosColados(sql);
-  const feriados = await sql<{ id: string; inicio: string; fim: string; nome: string; tipo: string; status: string; ambito: string }>`
-    select id, inicio, fim, nome, tipo, status, ambito from feriados order by inicio asc
+  const feriados = await sql<{ id: string; inicio: string; fim: string; nome: string; tipo: string; status: string; ambito: string; municipio: string }>`
+    select id, inicio, fim, nome, tipo, status, ambito, municipio from feriados order by inicio asc
   `;
   await sql`
     create table if not exists email_restrito (
@@ -547,6 +548,7 @@ export async function lerPainel() {
       fim: String(item.fim).slice(0, 10),
       status: item.status === "pendente" ? "pendente" : "ativo",
       ambito: item.ambito === "municipal" ? "municipal" : item.ambito === "nacional" ? "nacional" : "",
+      municipio: String(item.municipio ?? "").trim(),
     })),
     restritos: restritos.map((item) => ({
       email: item.email,
@@ -917,25 +919,36 @@ export async function lerEstado(userId: string | null) {
     administrador = perfil[0]?.papel === "administrador" && !bloqueado;
   }
   await colunasFeriado(sql);
-  const feriados = await sql<{ inicio: string; fim: string; nome: string; tipo: string }>`
-    select inicio, fim, nome, tipo from feriados where coalesce(status, 'ativo') = 'ativo'
+  const cidadeUsuario = userId ? await lerCidadeUsuario(userId) : { cidade: "", uf: "" };
+  const feriados = await sql<{ inicio: string; fim: string; nome: string; tipo: string; ambito: string; municipio: string }>`
+    select inicio, fim, nome, tipo, ambito, municipio from feriados where coalesce(status, 'ativo') = 'ativo'
   `;
-  const dias = feriados.flatMap((item) => {
+  const chaveUsuario = chaveCidade(cidadeUsuario.cidade);
+  const visiveis = feriados.filter((item) => {
+    if (item.ambito !== "municipal") return true;
+    if (!chaveUsuario) return false;
+    return chaveCidade(String(item.municipio ?? "")) === chaveUsuario;
+  });
+  const dias = visiveis.flatMap((item) => {
     const tipo: "feriado" | "facultativo" | "recesso" =
       item.tipo === "recesso" || item.tipo === "facultativo" ? item.tipo : "feriado";
+    const municipio = item.ambito === "municipal" ? String(item.municipio ?? "").trim() : "";
     return expandirPeriodo(String(item.inicio), String(item.fim)).map((data) => ({
       data,
       nome: item.nome,
       tipo,
+      municipio,
     }));
   });
-  const unicos = new Map<string, { data: string; nome: string; tipo: "feriado" | "facultativo" | "recesso" }>();
+  const unicos = new Map<string, { data: string; nome: string; tipo: "feriado" | "facultativo" | "recesso"; municipio: string }>();
   for (const dia of dias) if (!unicos.has(dia.data)) unicos.set(dia.data, dia);
   const lista = [...unicos.values()];
   return {
     manutencao: marcado(cfg[0]?.manutencao),
     bloqueado,
     administrador,
+    cidade: cidadeUsuario.cidade,
+    uf: cidadeUsuario.uf,
     datas: lista.map((item) => item.data),
     dias: lista,
   };
@@ -1544,6 +1557,7 @@ async function colunasFeriado(sql: Sql) {
   await semPersistencia(async () => {
     await sql`alter table feriados add column if not exists status text not null default 'ativo'`;
     await sql`alter table feriados add column if not exists ambito text not null default ''`;
+    await sql`alter table feriados add column if not exists municipio text not null default ''`;
   });
   feriadoPronto = true;
 }
@@ -1592,7 +1606,7 @@ export async function salvarFeriado(entrada: { nome: string; tipo: string; inici
   return { ok: true };
 }
 
-export async function editarFeriado(entrada: { id: string; nome: string; tipo: string; inicio: string; fim: string; ambito: string }) {
+export async function editarFeriado(entrada: { id: string; nome: string; tipo: string; inicio: string; fim: string; ambito: string; municipio?: string }) {
   const nome = entrada.nome.trim().replace(/\s+/g, " ").slice(0, 80);
   if (!entrada.id) throw new Error("Feriado inválido.");
   if (nome.length < 2) throw new Error("Dê um nome ao dia.");
@@ -1600,10 +1614,12 @@ export async function editarFeriado(entrada: { id: string; nome: string; tipo: s
   if (entrada.fim < entrada.inicio) throw new Error("O fim não pode ser antes do início.");
   const tipo = entrada.tipo === "recesso" ? "recesso" : entrada.tipo === "facultativo" ? "facultativo" : "feriado";
   const ambito = entrada.ambito === "nacional" || entrada.ambito === "municipal" ? entrada.ambito : "";
+  const municipio = ambito === "municipal" ? (entrada.municipio ?? "").trim().replace(/\s+/g, " ").slice(0, 80) : "";
+  if (ambito === "municipal" && municipio.length < 2) throw new Error("Informe o município deste feriado.");
   const sql = await getSql();
   await colunasFeriado(sql);
   const linhas = await sql<{ id: string }>`
-    update feriados set nome = ${nome}, tipo = ${tipo}, inicio = ${entrada.inicio}, fim = ${entrada.fim}, ambito = ${ambito}
+    update feriados set nome = ${nome}, tipo = ${tipo}, inicio = ${entrada.inicio}, fim = ${entrada.fim}, ambito = ${ambito}, municipio = ${municipio}
     where id = ${entrada.id} returning id
   `;
   if (!linhas[0]) throw new Error("Feriado não encontrado.");
@@ -1639,18 +1655,50 @@ export async function guardarFeriadosLidos(itens: { nome: string; inicio: string
   return { lidos: itens.length, novos };
 }
 
-export async function decidirFeriado(id: string, ambito: "nacional" | "municipal" | "descartar") {
+export async function decidirFeriado(id: string, ambito: "nacional" | "municipal" | "descartar", municipio = "") {
   const sql = await getSql();
   await colunasFeriado(sql);
   if (ambito === "descartar") {
     await sql`delete from feriados where id = ${id} and status = 'pendente'`;
     return { ok: true };
   }
+  const cidade = ambito === "municipal" ? municipio.trim().replace(/\s+/g, " ").slice(0, 80) : "";
+  if (ambito === "municipal" && cidade.length < 2) throw new Error("Informe o município deste feriado.");
   const linhas = await sql<{ id: string }>`
-    update feriados set status = 'ativo', ambito = ${ambito} where id = ${id} and status = 'pendente' returning id
+    update feriados set status = 'ativo', ambito = ${ambito}, municipio = ${cidade}
+    where id = ${id} and status = 'pendente' returning id
   `;
   if (!linhas[0]) throw new Error("Esse feriado já foi decidido.");
   return { ok: true };
+}
+
+async function garantirLocal(sql: Sql) {
+  await sql`
+    create table if not exists usuario_local (
+      user_id text primary key,
+      cidade text not null,
+      uf text not null default ''
+    )
+  `;
+}
+
+export async function lerCidadeUsuario(userId: string) {
+  const sql = await getSql();
+  await garantirLocal(sql);
+  const linhas = await sql<{ cidade: string; uf: string }>`select cidade, uf from usuario_local where user_id = ${userId}`;
+  return { cidade: linhas[0]?.cidade?.trim() ?? "", uf: linhas[0]?.uf?.trim() ?? "" };
+}
+
+export async function guardarCidadeUsuario(userId: string, latitude: number, longitude: number) {
+  const local = await cidadeDaPosicao(latitude, longitude);
+  const sql = await getSql();
+  await garantirLocal(sql);
+  await sql`
+    insert into usuario_local (user_id, cidade, uf)
+    values (${userId}, ${local.cidade}, ${local.uf})
+    on conflict (user_id) do update set cidade = ${local.cidade}, uf = ${local.uf}
+  `;
+  return local;
 }
 
 export async function definirManutencao(ligado: boolean) {

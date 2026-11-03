@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { DiaMarcado } from "@/lib/prazos";
 
-const SEMANA = ["S", "T", "Q", "Q", "S", "S", "D"];
+const SEMANA = ["D", "S", "T", "Q", "Q", "S", "S"];
 
 function isoDo(ano: number, mes: number, dia: number) {
   return `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
@@ -24,7 +24,7 @@ export function CalendarioExpediente({ dias }: { dias: DiaMarcado[] }) {
   const mes = cursor.getMonth();
   const titulo = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(cursor);
   const primeiro = new Date(ano, mes, 1);
-  const inicio = (primeiro.getDay() + 6) % 7;
+  const inicio = primeiro.getDay();
   const quantidade = new Date(ano, mes + 1, 0).getDate();
   const hoje = new Date();
   const hojeIso = isoDo(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
@@ -87,6 +87,7 @@ export function CalendarioExpediente({ dias }: { dias: DiaMarcado[] }) {
       {aberto && (
         <p className="mt-3 text-justify text-sm leading-relaxed text-ink">
           {aberto.nome} · {aberto.tipo === "feriado" ? "Feriado" : aberto.tipo === "facultativo" ? "Ponto facultativo" : "Recesso"}
+          {aberto.municipio ? ` · ${aberto.municipio}` : ""}
         </p>
       )}
       {doMes.length > 0 && (

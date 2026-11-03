@@ -63,7 +63,7 @@ import { intervaloPeriodo, type PeriodoRelatorio } from "@/lib/admin";
 import type { ProcessoAdmin } from "@/lib/admin";
 import { AjudaFlutuante } from "@/components/ajuda-flutuante";
 import { CampoMes } from "@/components/campo-mes";
-import { marcarPresenca, estadoSistema, consultarExclusao, abrirGestaoPelaConta, pedirExclusaoConta, registrarAcessoConta } from "@/lib/gestao.functions";
+import { marcarPresenca, estadoSistema, consultarExclusao, abrirGestaoPelaConta, pedirExclusaoConta, registrarAcessoConta, definirCidadeConta } from "@/lib/gestao.functions";
 import { definirStatus, encerraStatus, nomeStatus, statusDaArea } from "@/lib/status-catalogo";
 import { carregarInicio } from "@/lib/inicio.functions";
 import { AvisoContaExcluida } from "@/components/aviso-exclusao";
@@ -262,6 +262,10 @@ export function PrazosApp() {
   const [souGestor, setSouGestor] = useState(false);
   const [excluida, setExcluida] = useState(false);
   const [diasMarcados, setDiasMarcados] = useState<DiaMarcado[]>([]);
+  const [cidadeConta, setCidadeConta] = useState("");
+  const [ufConta, setUfConta] = useState("");
+  const [avisoCidade, setAvisoCidade] = useState(false);
+  const [lendoCidade, setLendoCidade] = useState(false);
   const [motivoExclusaoId, setMotivoExclusaoId] = useState("");
   const exclusaoVista = useRef(false);
   const tresColunas = useGradeTresColunas();
@@ -311,6 +315,8 @@ export function PrazosApp() {
           if (!vivo) return;
           definirSemExpediente(estado.datas);
           setDiasMarcados(estado.dias ?? []);
+          setCidadeConta(estado.cidade ?? "");
+          setUfConta(estado.uf ?? "");
           setSouGestor(Boolean(estado.administrador));
           if (estado.bloqueado) setTrava("Seu acesso está bloqueado.");
           else if (estado.manutencao && !estado.administrador) setTrava("O sistema está em manutenção. Tente de novo mais tarde.");
@@ -393,6 +399,8 @@ export function PrazosApp() {
         definirStatus(pacote.status);
         definirSemExpediente(pacote.estado.datas);
         setDiasMarcados(pacote.estado.dias ?? []);
+        setCidadeConta(pacote.estado.cidade ?? "");
+        setUfConta(pacote.estado.uf ?? "");
         setSouGestor(Boolean(pacote.estado.administrador));
         if (pacote.estado.bloqueado) setTrava("Seu acesso está bloqueado.");
         else if (pacote.estado.manutencao && !pacote.estado.administrador) setTrava("O sistema está em manutenção. Tente de novo mais tarde.");
@@ -846,6 +854,34 @@ export function PrazosApp() {
     } finally {
       setSalvandoPerfil(false);
     }
+  }
+
+  function pedirCidade() {
+    if (!navigator.geolocation) {
+      setAvisoCidade(true);
+      return;
+    }
+    setLendoCidade(true);
+    navigator.geolocation.getCurrentPosition(
+      (posicao) => {
+        void definirCidadeConta({ data: { latitude: posicao.coords.latitude, longitude: posicao.coords.longitude } })
+          .then(async (local) => {
+            setCidadeConta(local.cidade);
+            setUfConta(local.uf);
+            const estado = await estadoSistema();
+            definirSemExpediente(estado.datas);
+            setDiasMarcados(estado.dias ?? []);
+            setToast(`Cidade definida: ${local.cidade}${local.uf ? `/${local.uf}` : ""}.`);
+          })
+          .catch((err: unknown) => setToast(err instanceof Error ? err.message : "Não foi possível definir a cidade."))
+          .finally(() => setLendoCidade(false));
+      },
+      () => {
+        setLendoCidade(false);
+        setAvisoCidade(true);
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+    );
   }
 
   async function ativarAvisos() {
@@ -1605,6 +1641,21 @@ export function PrazosApp() {
                 </button>
               </div>
             </form>
+            <div className="mt-4 rounded-xl border border-line px-3 py-3">
+              <p className="text-sm font-medium text-ink">Cidade</p>
+              <p className="mt-1 text-justify text-sm leading-relaxed text-muted">
+                {cidadeConta ? `Sua cidade é ${cidadeConta}${ufConta ? `/${ufConta}` : ""}. ` : "A cidade ainda não foi definida. "}
+                O pedido usa a localização do aparelho só para identificar o município. Guardamos a cidade, não o ponto no mapa. Feriado e ponto facultativo municipais aparecem conforme essa cidade.
+              </p>
+              <button
+                type="button"
+                disabled={lendoCidade}
+                onClick={pedirCidade}
+                className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-xl border border-line text-sm font-medium text-ink disabled:opacity-60"
+              >
+                {lendoCidade ? "Lendo a cidade…" : "Definir cidade"}
+              </button>
+            </div>
             <TrocaSenhaPerfil />
             <button
               type="button"
@@ -1613,6 +1664,21 @@ export function PrazosApp() {
             >
               Excluir conta
             </button>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root open={avisoCidade} onOpenChange={setAvisoCidade}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-20 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Cidade não definida</Dialog.Title>
+            <p className="mt-2 text-justify text-sm leading-relaxed text-ink">
+              A localização foi recusada. Sem a cidade, você pode não receber os feriados e pontos facultativos municipais.
+            </p>
+            <Dialog.Close type="button" className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">
+              Entendi
+            </Dialog.Close>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
