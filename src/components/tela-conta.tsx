@@ -428,9 +428,12 @@ export function TelaConta() {
           </button>
         ))}
       </div>
+      <Link to="/privacidade" className="mt-6 text-center text-sm font-medium text-pine">
+        Política de Privacidade
+      </Link>
       <Link
         to="/gestao"
-        className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-xl border border-line bg-sheet text-sm font-medium text-ink"
+        className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-xl border border-line bg-sheet text-sm font-medium text-ink"
       >
         Área restrita
       </Link>
