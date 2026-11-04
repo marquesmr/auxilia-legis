@@ -233,12 +233,12 @@ function EscolhaModulo({ nome, onEscolher }: { nome: string; onEscolher: (area: 
         <button
           type="button"
           onClick={() => onEscolher("legislativo")}
-          className="flex flex-col items-start rounded-3xl border border-line bg-sheet p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-pine"
+          className="flex flex-col items-start rounded-3xl bg-pine p-6 text-left text-sheet shadow-sm transition hover:-translate-y-0.5"
         >
-          <span className="grid size-14 place-items-center rounded-2xl bg-pine-soft text-pine">
+          <span className="grid size-14 place-items-center rounded-2xl bg-sheet/15">
             <IconeLegislativo className="size-7" />
           </span>
-          <span className="mt-5 font-display text-2xl leading-tight text-ink">Processos Legislativos</span>
+          <span className="mt-5 font-display text-2xl leading-tight">Processos Legislativos</span>
         </button>
         <button
           type="button"
@@ -253,7 +253,7 @@ function EscolhaModulo({ nome, onEscolher }: { nome: string; onEscolher: (area: 
         <button
           type="button"
           onClick={() => onEscolher("frotas")}
-          className="flex flex-col items-start rounded-3xl bg-ink p-6 text-left text-sheet shadow-sm transition hover:-translate-y-0.5"
+          className="flex flex-col items-start rounded-3xl bg-pine p-6 text-left text-sheet shadow-sm transition hover:-translate-y-0.5"
         >
           <span className="grid size-14 place-items-center rounded-2xl bg-sheet/15">
             <IconeFrota className="size-7" />
