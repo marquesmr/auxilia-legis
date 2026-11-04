@@ -39,7 +39,7 @@ function ListaCampanha({ faixas, mes, painel, clara = false }: { faixas: FaixaCa
         <li key={faixa.nome} className="flex items-start gap-2 text-sm leading-snug">
           <Fita cor={faixa.cor} fundo={fundo} />
           <span>
-            <strong className="font-medium uppercase">
+            <strong className="font-medium">
               {mes} {faixa.nome}
             </strong>
             <span className={`block text-[0.8rem] uppercase ${clara ? "text-ink/75" : "opacity-90"}`}>{textoDaCampanha(faixa.tema)}</span>
