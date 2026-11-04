@@ -11,8 +11,46 @@ import { AvisoSenha } from "@/components/aviso-senha";
 import { idadeEm, limitesNascimento } from "@/lib/idade";
 import { soltarTemaDaConta } from "@/lib/preferencias";
 import { concluirAcessoForcado, esquecerLembranca, guardarLembranca, lerLembranca } from "@/lib/lembrar-acesso";
+import { campanhaDoMes, corClara, corNoDegrade, corTexto, degradeCampanha, type FaixaCampanha } from "@/lib/campanha-mes";
 
 type Modo = "entrar" | "criar" | "esqueci";
+
+function Fita({ cor }: { cor: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className="mt-0.5 size-5 shrink-0" aria-hidden>
+      <path
+        fill={cor}
+        stroke={corClara(cor) ? "#1c1915" : "rgba(255,255,255,.7)"}
+        strokeWidth="1.2"
+        d="M12 2.4c.3 1.8.9 3.2 1.8 4.4 1 1.3 1.4 2.4 1.4 3.6 0 1.3-.9 2.3-2.1 2.4v7.6L12 18.6 10.9 20.4v-7.6c-1.2-.1-2.1-1.1-2.1-2.4 0-1.2.4-2.3 1.4-3.6C11.1 5.6 11.7 4.2 12 2.4z"
+      />
+      <path
+        fill={cor}
+        stroke={corClara(cor) ? "#1c1915" : "rgba(255,255,255,.7)"}
+        strokeWidth="1.2"
+        d="M8.6 12.2 4.2 21.2l4.4-2.2 1.5-5.2zm6.8 0 4.4 9-4.4-2.2-1.5-5.2z"
+      />
+    </svg>
+  );
+}
+
+function ListaCampanha({ faixas, mes, clara = false }: { faixas: FaixaCampanha[]; mes: string; clara?: boolean }) {
+  return (
+    <ul className="mt-5 flex flex-col gap-2.5">
+      {faixas.map((faixa) => (
+        <li key={faixa.nome} className="flex items-start gap-2 text-sm leading-snug">
+          <Fita cor={faixa.cor} />
+          <span>
+            <strong className="font-medium">
+              {mes} {faixa.nome}
+            </strong>
+            <span className={`block text-[0.8rem] ${clara ? "text-ink/75" : "opacity-90"}`}>{faixa.tema}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 const AVISO_EXCLUSAO = "prazos.conta-excluida";
 const MOTIVO_EXCLUSAO = "prazos.exclusao-motivo";
 const VISTA_EXCLUSAO = "prazos.exclusao-vista";
@@ -316,6 +354,15 @@ export function TelaConta() {
     }
   }
 
+  const campanha = campanhaDoMes();
+  const fundoTopo = corNoDegrade(campanha.faixas, 0.08);
+  const fundoMeio = corNoDegrade(campanha.faixas, 0.46);
+  const fundoBase = corNoDegrade(campanha.faixas, 0.92);
+  const textoTopo = corTexto(fundoTopo);
+  const textoMeio = corTexto(fundoMeio);
+  const textoBase = corTexto(fundoBase);
+  const painel = degradeCampanha(campanha.faixas);
+
   return (
     <main className="min-h-screen bg-[#f3eee6] lg:grid lg:grid-cols-5">
       {reverSenha && email && (
@@ -347,21 +394,31 @@ export function TelaConta() {
           }}
         />
       )}
-      <aside className="hidden min-h-screen flex-col bg-[#1a4033] px-8 py-8 text-[#f4efe4] lg:col-span-2 lg:flex xl:px-12">
+      <aside
+        className="hidden min-h-screen flex-col px-8 py-8 lg:col-span-2 lg:flex xl:px-12"
+        style={{ background: painel, color: textoTopo }}
+      >
         <div className="flex items-center gap-3">
-          <div className="grid size-12 place-items-center rounded-2xl bg-[#f4efe4] text-[#1a4033]" aria-hidden>
+          <div
+            className="grid size-12 place-items-center rounded-2xl"
+            style={{ background: corClara(fundoTopo) ? "#1c1915" : "#f4efe4", color: corClara(fundoTopo) ? "#f6f1e6" : "#1c1915" }}
+            aria-hidden
+          >
             <Scale className="size-6" strokeWidth={1.75} />
           </div>
           <p className="font-painel text-2xl">Auxilia Legis</p>
         </div>
-        <div className="flex flex-1 items-center">
-          <h1 className="font-painel text-[2.85rem] font-medium leading-[0.98] tracking-[-0.025em] text-[#f6f1e6] xl:text-[3.7rem]">
-            Assistente do
-            <br />
-            Poder Legislativo
-          </h1>
+        <div className="flex flex-1 items-center" style={{ color: textoMeio }}>
+          <div>
+            <h1 className="font-painel text-[2.85rem] font-medium leading-[0.98] tracking-[-0.025em] xl:text-[3.7rem]">
+              Assistente do
+              <br />
+              Poder Legislativo
+            </h1>
+            <ListaCampanha faixas={campanha.faixas} mes={campanha.nome} />
+          </div>
         </div>
-        <div className="mt-16">
+        <div className="mt-8" style={{ color: textoBase }}>
           <p className="text-center text-sm">
             <Link to="/privacidade" className="hover:underline">
               Política de Privacidade
@@ -373,7 +430,8 @@ export function TelaConta() {
           </p>
           <Link
             to="/gestao"
-            className="mt-4 inline-flex h-12 w-full items-center justify-center rounded-2xl border border-[#f4efe4]/45 text-sm font-medium"
+            className="mt-4 inline-flex h-12 w-full items-center justify-center rounded-2xl border text-sm font-medium"
+            style={{ borderColor: "color-mix(in srgb, currentColor 45%, transparent)" }}
           >
             Área restrita
           </Link>
@@ -381,11 +439,17 @@ export function TelaConta() {
       </aside>
       <section className="flex min-h-screen items-center justify-center px-4 py-8 lg:col-span-3">
         <div className="w-full max-w-[440px]">
-          <div className="mb-6 flex items-center gap-3 text-[#1a4033] lg:hidden">
-            <div className="grid size-11 place-items-center rounded-2xl bg-[#1a4033] text-[#f4efe4]" aria-hidden>
-              <Scale className="size-5" strokeWidth={1.75} />
+          <div className="mb-6 text-ink lg:hidden">
+            <div className="flex items-center gap-3">
+              <div className="grid size-11 shrink-0 place-items-center rounded-2xl" style={{ background: painel, color: textoMeio }} aria-hidden>
+                <Scale className="size-5" strokeWidth={1.75} />
+              </div>
+              <div>
+                <p className="font-display text-xl">Auxilia Legis</p>
+                <p className="font-painel text-sm leading-tight">Assistente do Poder Legislativo</p>
+              </div>
             </div>
-            <p className="font-display text-xl">Auxilia Legis</p>
+            <ListaCampanha faixas={campanha.faixas} mes={campanha.nome} clara />
           </div>
           <div className="rounded-[28px] bg-[#fffdf8] px-6 py-7 shadow-[0_18px_50px_rgba(28,25,21,0.06)] sm:px-8">
         {confirmando ? (
