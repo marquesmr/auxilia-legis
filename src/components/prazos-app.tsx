@@ -196,6 +196,57 @@ const TOM: Record<Urgencia, { badge: string; bar: string; label: string }> = {
   concluido: { badge: "bg-line text-muted", bar: "bg-line", label: "Arquivado" },
 };
 
+function IconeLegislativo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 3 3 8h18L12 3z" />
+      <path d="M5 8v9" />
+      <path d="M9.5 8v9" />
+      <path d="M14.5 8v9" />
+      <path d="M19 8v9" />
+      <path d="M3 17h18" />
+      <path d="M2 20h20" />
+    </svg>
+  );
+}
+
+function EscolhaModulo({ nome, onEscolher }: { nome: string; onEscolher: (area: Area) => void }) {
+  const primeiro = nome.trim().split(/\s+/)[0] || "você";
+  return (
+    <main className="mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-4 py-12">
+      <p className="text-sm font-medium text-muted">Auxilia Legis</p>
+      <h1 className="mt-2 font-display text-3xl text-ink sm:text-4xl">Olá, {primeiro}</h1>
+      <p className="mt-2 max-w-xl text-sm text-muted">Escolha o módulo em que você quer entrar.</p>
+      <div className="mt-8 grid gap-4 md:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => onEscolher("legislativo")}
+          className="flex flex-col items-start rounded-3xl border border-line bg-sheet p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-pine"
+        >
+          <span className="grid size-14 place-items-center rounded-2xl bg-pine-soft text-pine">
+            <IconeLegislativo className="size-7" />
+          </span>
+          <span className="mt-5 font-display text-2xl leading-tight text-ink">Processos Legislativos</span>
+          <span className="mt-2 text-sm leading-relaxed text-muted">Requerimentos, indicações, projetos de lei e o andamento de cada matéria.</span>
+          <span className="mt-6 text-sm font-medium text-pine">Entrar</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onEscolher("administrativo")}
+          className="flex flex-col items-start rounded-3xl bg-pine p-6 text-left text-sheet shadow-sm transition hover:-translate-y-0.5"
+        >
+          <span className="grid size-14 place-items-center rounded-2xl bg-sheet/15">
+            <PranchetaGrafico className="size-7" />
+          </span>
+          <span className="mt-5 font-display text-2xl leading-tight">Controle e Estatística de Processos Administrativo</span>
+          <span className="mt-2 text-sm leading-relaxed text-sheet/80">Licitações, contratos, execução e os números do administrativo.</span>
+          <span className="mt-6 text-sm font-medium">Entrar</span>
+        </button>
+      </div>
+    </main>
+  );
+}
+
 function PranchetaGrafico({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -259,6 +310,8 @@ export function PrazosApp() {
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   const [parte, setParte] = useState(0);
   const [area, setArea] = useState<Area>("legislativo");
+  const [modulo, setModulo] = useState<Area | null>(null);
+  const [moduloLido, setModuloLido] = useState(false);
   const [trava, setTrava] = useState<string | null>(null);
   const [souGestor, setSouGestor] = useState(false);
   const [excluida, setExcluida] = useState(false);
@@ -273,6 +326,21 @@ export function PrazosApp() {
   const meuNome = user?.displayName?.trim() || "Sem nome";
   const aberturaAplicada = useRef(false);
   const [pedirSenha, setPedirSenha] = useState(false);
+
+  useEffect(() => {
+    const guardado = sessionStorage.getItem("prazos.modulo");
+    if (guardado === "legislativo" || guardado === "administrativo") {
+      setModulo(guardado);
+      setArea(guardado);
+    }
+    setModuloLido(true);
+  }, []);
+
+  useEffect(() => {
+    if (isPending || user?.id) return;
+    sessionStorage.removeItem("prazos.modulo");
+    setModulo(null);
+  }, [isPending, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -881,6 +949,17 @@ export function PrazosApp() {
     );
   }
 
+  function entrarModulo(escolha: Area) {
+    sessionStorage.setItem("prazos.modulo", escolha);
+    setArea(escolha);
+    setModulo(escolha);
+  }
+
+  function voltarModulos() {
+    sessionStorage.removeItem("prazos.modulo");
+    setModulo(null);
+  }
+
   async function ativarAvisos() {
     if (typeof Notification === "undefined") {
       setPerm("unsupported");
@@ -930,14 +1009,27 @@ export function PrazosApp() {
 
   if (!ready || contaId !== user.id) return <CarregandoTemis />;
 
+  if (!moduloLido) return <CarregandoTemis />;
+
+  if (!modulo) return <EscolhaModulo nome={meuNome} onEscolher={entrarModulo} />;
+
   return (
     <div className="mx-auto min-h-screen max-w-[100rem] px-4 py-6 md:px-8 md:py-8 xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-x-6">
       <header className="flex flex-col gap-4 border-b border-line pb-6 md:flex-row md:items-center md:justify-between xl:col-start-1">
-        <h1 className="font-display text-2xl leading-tight text-ink sm:text-3xl">Assistente do Poder Legislativo</h1>
+        <h1 className="font-display text-2xl leading-tight text-ink sm:text-3xl">
+          {area === "administrativo" ? "Controle e Estatística de Processos Administrativo" : "Processos Legislativos"}
+        </h1>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <UserButton />
           <div className="flex items-center gap-2">
             <BotaoConfiguracoes equipes={equipes} userId={user.id} />
+            <button
+              type="button"
+              onClick={voltarModulos}
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line bg-sheet px-4 text-sm font-medium text-ink sm:flex-none"
+            >
+              Módulos
+            </button>
             {souGestor && (
             <button
               type="button"
@@ -977,34 +1069,7 @@ export function PrazosApp() {
       </header>
 
       <div className="mt-6 min-w-0 xl:col-start-1">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="tablist" aria-label="Área">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={area === "legislativo"}
-          onClick={() => setArea("legislativo")}
-          className={
-            "inline-flex min-h-12 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium " +
-            (area === "legislativo" ? "bg-pine text-sheet" : "border border-line bg-sheet text-ink")
-          }
-        >
-          Processos Legislativos
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={area === "administrativo"}
-          onClick={() => setArea("administrativo")}
-          className={
-            "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium " +
-            (area === "administrativo" ? "bg-pine text-sheet" : "border border-line bg-sheet text-ink")
-          }
-        >
-          <PranchetaGrafico className="size-5 shrink-0" />
-          Controle e Estatística de Processos Administrativo
-        </button>
-      </div>
-      <div className="mt-4 xl:hidden">
+      <div className="xl:hidden">
         <CalendarioExpediente dias={diasMarcados} />
       </div>
 
