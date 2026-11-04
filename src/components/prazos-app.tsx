@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, lazy, Suspense, type DragEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Archive,
@@ -2280,57 +2281,59 @@ function PainelEquipe({
               Adicionar pessoa
             </button>
           )}
-          {conviteAberto && (
-            <div className="fixed inset-0 z-[80] flex items-end justify-center bg-ink/50 p-4 sm:items-center">
-              <form
-                className="w-full max-w-md rounded-2xl border border-line bg-sheet p-5 shadow-xl"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (ocupado || nomePessoa.trim().length < 2 || !email.trim()) return;
-                  const nomeConvite = nomePessoa.trim();
-                  const emailConvite = email.trim();
-                  setConviteAberto(false);
-                  setNomePessoa("");
-                  setEmail("");
-                  void onAdicionar(emailConvite, nomeConvite);
-                }}
-              >
-                <h2 className="font-display text-2xl text-ink">Adicionar pessoa</h2>
-                <p className="mt-1 text-sm text-muted">Informe o nome e o e-mail de quem vai entrar na equipe.</p>
-                <label className="mt-4 flex flex-col gap-1 text-sm font-medium text-ink">
-                  Nome da pessoa
-                  <input
-                    value={nomePessoa}
-                    onChange={(event) => setNomePessoa(event.target.value)}
-                    placeholder="Nome completo"
-                    autoComplete="off"
-                    className="h-11 rounded-xl border border-line bg-paper px-3 text-sm font-normal"
-                    required
-                  />
-                </label>
-                <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
-                  E-mail
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="pessoa@email.com"
-                    autoComplete="off"
-                    className="h-11 rounded-xl border border-line bg-paper px-3 text-sm font-normal"
-                    required
-                  />
-                </label>
-                <div className="mt-4 flex gap-2">
-                  <button type="button" onClick={() => setConviteAberto(false)} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink">
-                    Cancelar
-                  </button>
-                  <button type="submit" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">
-                    Adicionar
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
+          {conviteAberto &&
+            createPortal(
+              <div className="fixed inset-0 z-[100] grid place-items-center bg-ink/50 p-4" role="dialog" aria-modal="true" aria-labelledby="titulo-convite">
+                <form
+                  className="w-full max-w-md rounded-2xl border border-line bg-sheet p-5 shadow-xl"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (ocupado || nomePessoa.trim().length < 2 || !email.trim()) return;
+                    const nomeConvite = nomePessoa.trim();
+                    const emailConvite = email.trim();
+                    setConviteAberto(false);
+                    setNomePessoa("");
+                    setEmail("");
+                    void onAdicionar(emailConvite, nomeConvite);
+                  }}
+                >
+                  <h2 id="titulo-convite" className="font-display text-2xl text-ink">Adicionar pessoa</h2>
+                  <p className="mt-1 text-sm text-muted">Informe o nome e o e-mail de quem vai entrar na equipe.</p>
+                  <label className="mt-4 flex flex-col gap-1 text-sm font-medium text-ink">
+                    Nome da pessoa
+                    <input
+                      value={nomePessoa}
+                      onChange={(event) => setNomePessoa(event.target.value)}
+                      placeholder="Nome completo"
+                      autoComplete="off"
+                      className="h-11 rounded-xl border border-line bg-paper px-3 text-sm font-normal"
+                      required
+                    />
+                  </label>
+                  <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
+                    E-mail
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="pessoa@email.com"
+                      autoComplete="off"
+                      className="h-11 rounded-xl border border-line bg-paper px-3 text-sm font-normal"
+                      required
+                    />
+                  </label>
+                  <div className="mt-4 flex gap-2">
+                    <button type="button" onClick={() => setConviteAberto(false)} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink">
+                      Cancelar
+                    </button>
+                    <button type="submit" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">
+                      Adicionar
+                    </button>
+                  </div>
+                </form>
+              </div>,
+              document.body,
+            )}
         </div>
       )}
     </div>
