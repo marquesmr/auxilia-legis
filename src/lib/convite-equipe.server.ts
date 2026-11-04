@@ -1,5 +1,5 @@
 import { createHmac, randomBytes } from "node:crypto";
-import { getSql } from "@/lib/db";
+import { getSql, copiarBancoAgora, puxarNuvem } from "@/lib/db";
 import { botaoEmail, emailHtml, enviarEmail, urlDoSite } from "@/lib/email.server";
 import { senhaDaCaixa } from "@/lib/senha-email.server";
 
@@ -47,8 +47,9 @@ export async function enviarConviteEquipe(dados: { equipeId: string; email: stri
   await sql`delete from convite_link where equipe_id = ${dados.equipeId} and lower(email) = ${dados.email}`;
   await sql`
     insert into convite_link (token_hash, equipe_id, email, nome, expira_em)
-    values (${tokenHash}, ${dados.equipeId}, ${dados.email}, ${dados.nome}, now() + interval '14 days')
+    values (${tokenHash}, ${dados.equipeId}, ${dados.email}, ${dados.nome}, now() + interval '24 hours')
   `;
+  await copiarBancoAgora();
   const origem = origemPublica(await urlDoSite());
   const link = `${origem}/convite?token=${token}`;
   const convidou = escapar(dados.convidou.trim() || "um responsável da equipe");
@@ -63,6 +64,7 @@ export async function enviarConviteEquipe(dados: { equipeId: string; email: stri
 <p>Para ativar seu acesso e entrar no painel da equipe, clique no botão abaixo:</p>
 ${botaoEmail(link, "Acessar Minha Equipe")}
 <p>Se o botão não funcionar, copie e cole este link no seu navegador:<br><a href="${escapar(link)}">${escapar(link)}</a></p>
+<p>Este convite é válido por <strong>24 horas</strong>. Depois desse prazo, peça um novo à sua equipe.</p>
 <p>Primeira vez no Auxilia Legis? Se você ainda não tem uma senha cadastrada, o link acima permitirá que você crie seus dados de acesso em menos de um minuto.</p>
 <p>Caso tenha dúvidas ou não reconheça este convite, basta responder a este e-mail ou falar diretamente com o administrador da sua equipe.</p>`;
   await enviarEmail(
@@ -76,6 +78,7 @@ ${botaoEmail(link, "Acessar Minha Equipe")}
 
 export async function abrirConvite(token: string) {
   if (!/^[a-f0-9]{64}$/.test(token)) throw new Error("Este convite não é válido.");
+  await puxarNuvem();
   const sql = await garantirTabela();
   const linhas = await sql<{ equipe_id: string; email: string; nome: string }>`
     select equipe_id, email, nome from convite_link
