@@ -22,8 +22,8 @@ function textoDaCampanha(tema: string) {
   return `Mês de prevenção ao ${assunto}`.toLocaleUpperCase("pt-BR");
 }
 
-function Fita({ cor, fundo }: { cor: string; fundo: string }) {
-  const some = corClara(cor) === corClara(fundo);
+function Fita({ cor, fundo, propria }: { cor: string; fundo: string; propria: boolean }) {
+  const some = !propria && corClara(cor) === corClara(fundo);
   return (
     <svg viewBox="0 0 100 195.71" className="mt-0.5 h-9 w-[1.15rem] shrink-0" aria-hidden>
       <path fill={cor} stroke={some ? corTexto(fundo) : "none"} strokeWidth={some ? 6 : 0} strokeLinejoin="round" d="M78.46 195.71C78.46 195.71 78.46 195.71 78.46 195.71C78.03 195.7 77.63 195.47 77.41 195.1C75.07 191.02 19.87 95.07 17.03 89.57C12.69 81.15 9.55 73.12 7.69 65.7C5.95 58.74 5.28 52.07 5.69 45.87C6.42 35.04 10.4 25.22 17.88 15.85C18.19 15.46 18.71 15.3 19.18 15.45C19.66 15.59 19.99 16.02 20.03 16.51C20.04 16.57 20.49 22.09 23.76 28.13C24.52 29.52 99.03 158.37 99.78 159.67C100 160.05 100 160.51 99.77 160.89L79.5 195.11C79.29 195.48 78.89 195.71 78.46 195.71ZM73.47 24.29C73.29 24.29 73.11 24.25 72.94 24.17C66.13 20.84 58.42 19.16 50 19.16C41.58 19.16 33.87 20.84 27.06 24.17C26.75 24.32 26.39 24.33 26.07 24.2C25.75 24.07 25.5 23.8 25.39 23.48C23.57 18.21 23.71 13.81 23.86 12.16C23.88 11.87 24.01 11.61 24.21 11.4C31.76 3.94 40.68 0 50 0C59.32 0 68.24 3.94 75.79 11.4C75.99 11.61 76.12 11.87 76.14 12.16C76.29 13.81 76.43 18.21 74.61 23.48C74.5 23.8 74.25 24.07 73.93 24.2C73.78 24.26 73.63 24.29 73.47 24.29ZM73.1 105.82C72.66 105.82 72.26 105.59 72.05 105.21C65.22 93.41 58.41 81.63 52.23 70.93C52.01 70.55 52.01 70.09 52.23 69.71C67.24 43.74 75.99 28.59 76.24 28.13C79.51 22.08 79.96 16.57 79.97 16.51C80.01 16.02 80.34 15.59 80.82 15.45C81.29 15.3 81.81 15.46 82.12 15.85C89.6 25.22 93.58 35.04 94.31 45.87C94.72 52.07 94.05 58.74 92.31 65.7C90.45 73.12 87.31 81.15 82.97 89.57C82.97 89.57 82.97 89.57 82.97 89.57C82.36 90.74 79.39 96.01 74.15 105.21C73.93 105.58 73.53 105.82 73.1 105.82C73.1 105.82 73.1 105.82 73.1 105.82ZM21.54 195.71C21.11 195.71 20.71 195.48 20.5 195.11L0.23 160.89C0 160.51 0 160.05 0.22 159.67C0.22 159.67 11.75 139.73 25.83 115.38C26.04 115.01 26.44 114.78 26.88 114.78C27.31 114.78 27.71 115.01 27.92 115.39C33.51 125.16 40.38 137.15 47.78 150.05C47.99 150.42 47.99 150.88 47.78 151.25C34.67 174.1 22.7 194.89 22.59 195.1C22.37 195.47 21.97 195.71 21.54 195.71C21.54 195.71 21.54 195.71 21.54 195.71Z" />
@@ -35,14 +35,14 @@ function ListaCampanha({ faixas, mes, painel, clara = false }: { faixas: FaixaCa
   const fundo = clara ? "#f3eee6" : painel;
   return (
     <ul className="mt-5 flex flex-col gap-2.5">
-      {faixas.map((faixa) => (
+      {faixas.map((faixa, indice) => (
         <li key={faixa.nome} className="flex items-start gap-2 text-sm leading-snug">
-          <Fita cor={faixa.cor} fundo={fundo} />
+          <Fita cor={faixa.cor} fundo={fundo} propria={indice > 0} />
           <span>
             <strong className="font-medium">
               {mes} {faixa.nome}
             </strong>
-            <span className={`block text-[0.8rem] uppercase ${clara ? "text-ink/75" : "opacity-90"}`}>{textoDaCampanha(faixa.tema)}</span>
+            <span className={`block text-[0.68rem] leading-snug uppercase ${clara ? "text-ink/75" : "opacity-90"}`}>{textoDaCampanha(faixa.tema)}</span>
           </span>
         </li>
       ))}
