@@ -228,14 +228,14 @@ function IconeFrota({ className }: { className?: string }) {
   );
 }
 
-function EscolhaModulo({ nome, onEscolher }: { nome: string; onEscolher: (area: Area) => void }) {
+function EscolhaModulo({ nome, mostrarFrotas, onEscolher }: { nome: string; mostrarFrotas: boolean; onEscolher: (area: Area) => void }) {
   const primeiro = nome.trim().split(/\s+/)[0] || "você";
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4 py-12">
       <p className="text-sm font-medium text-muted">Auxilia Legis</p>
       <h1 className="mt-2 font-display text-3xl text-ink sm:text-4xl">Olá, {primeiro}</h1>
       <p className="mt-2 max-w-xl text-sm text-muted">Escolha o módulo em que você quer entrar.</p>
-      <div className="mt-8 grid gap-4 md:grid-cols-3">
+      <div className={"mt-8 grid gap-4 " + (mostrarFrotas ? "md:grid-cols-3" : "md:grid-cols-2")}>
         <button
           type="button"
           onClick={() => onEscolher("legislativo")}
@@ -256,6 +256,7 @@ function EscolhaModulo({ nome, onEscolher }: { nome: string; onEscolher: (area: 
           </span>
           <span className="mt-5 font-display text-2xl leading-tight">Processos Administrativo</span>
         </button>
+        {mostrarFrotas && (
         <button
           type="button"
           onClick={() => onEscolher("frotas")}
@@ -266,6 +267,7 @@ function EscolhaModulo({ nome, onEscolher }: { nome: string; onEscolher: (area: 
           </span>
           <span className="mt-5 font-display text-2xl leading-tight">Frotas</span>
         </button>
+        )}
       </div>
     </main>
   );
@@ -361,6 +363,13 @@ export function PrazosApp() {
     }
     setModuloLido(true);
   }, []);
+
+  useEffect(() => {
+    if (!ready || souGestor || modulo !== "frotas") return;
+    sessionStorage.removeItem("prazos.modulo");
+    setModulo(null);
+    setArea("legislativo");
+  }, [ready, souGestor, modulo]);
 
   useEffect(() => {
     if (isPending || user?.id) return;
@@ -987,6 +996,7 @@ export function PrazosApp() {
   }
 
   function entrarModulo(escolha: Area) {
+    if (escolha === "frotas" && !souGestor) return;
     sessionStorage.setItem("prazos.modulo", escolha);
     setArea(escolha);
     setModulo(escolha);
@@ -1048,7 +1058,7 @@ export function PrazosApp() {
 
   if (!moduloLido) return <CarregandoTemis />;
 
-  if (!modulo) return <EscolhaModulo nome={meuNome} onEscolher={entrarModulo} />;
+  if (!modulo || (modulo === "frotas" && !souGestor)) return <EscolhaModulo nome={meuNome} mostrarFrotas={souGestor} onEscolher={entrarModulo} />;
 
   return (
     <div className="mx-auto min-h-screen max-w-[100rem] px-4 py-6 md:px-8 md:py-8 xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-x-6">

@@ -105,6 +105,16 @@ async function garantirFrota() {
   return sql;
 }
 
+async function exigirAdminFrota(userId: string) {
+  const sql = await getSql();
+  const perfil = await sql<{ papel: string; bloqueado: boolean }>`
+    select papel, bloqueado from usuario_perfil where user_id = ${userId}
+  `;
+  if (perfil[0]?.papel !== "administrador" || perfil[0]?.bloqueado) {
+    throw new Error("O módulo Frotas ainda está só para o administrador.");
+  }
+}
+
 async function exigirEquipe(userId: string, equipeId: string | null) {
   if (!equipeId) return;
   const sql = await getSql();
@@ -128,6 +138,7 @@ export const listarFrotas = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: unknown) => equipeOk(input && typeof input === "object" ? (input as { equipeId?: unknown }).equipeId : input))
   .handler(async ({ context, data: equipeId }) => {
+    await exigirAdminFrota(context.userId);
     const sql = await garantirFrota();
     await exigirEquipe(context.userId, equipeId);
     const veiculos = equipeId
@@ -204,6 +215,7 @@ export const salvarVeiculo = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ context, data }) => {
+    await exigirAdminFrota(context.userId);
     const { exigirEscrita } = await import("./gestao.server");
     await exigirEscrita(context.userId);
     const sql = await garantirFrota();
@@ -249,6 +261,7 @@ export const excluirVeiculo = createServerFn({ method: "POST" })
     return { id, equipeId: equipeOk(bruto.equipeId) };
   })
   .handler(async ({ context, data }) => {
+    await exigirAdminFrota(context.userId);
     const { exigirEscrita } = await import("./gestao.server");
     await exigirEscrita(context.userId);
     const sql = await garantirFrota();
@@ -279,6 +292,7 @@ export const registrarSaida = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ context, data }) => {
+    await exigirAdminFrota(context.userId);
     const { exigirEscrita } = await import("./gestao.server");
     await exigirEscrita(context.userId);
     const sql = await garantirFrota();
@@ -315,6 +329,7 @@ export const registrarRetorno = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ context, data }) => {
+    await exigirAdminFrota(context.userId);
     const { exigirEscrita } = await import("./gestao.server");
     await exigirEscrita(context.userId);
     const sql = await garantirFrota();
