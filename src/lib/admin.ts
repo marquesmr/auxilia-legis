@@ -53,6 +53,10 @@ export function exigeLinks(tipo: string): boolean {
   return tipo !== "Pronto Pagamento" && tipo !== "Inexigibilidade de Licitação";
 }
 
+export function permitePublicacaoNa(tipo: string): boolean {
+  return tipo === "Pronto Pagamento" || tipo === "Inexigibilidade de Licitação";
+}
+
 export function normalizarLink(valor: string): string | null {
   const texto = valor.trim();
   if (!texto) return null;
@@ -128,6 +132,7 @@ export type ProcessoAdmin = {
   ciAno: number | null;
   ciOrigem: string;
   linkAbertura: string;
+  linkAberturaNa: boolean;
   linkHomologacao: string;
   linkPncp: string;
   linkRetificacao: string;

@@ -9,6 +9,7 @@ import {
   cruzaPeriodo,
   dataAlvo,
   exigeLinks,
+  permitePublicacaoNa,
   marcoAdmin,
   anosDePeca,
   formatarPeca,
@@ -77,6 +78,7 @@ type FormAdmin = {
   ciAno: number;
   ciOrigem: string;
   linkAbertura: string;
+  linkAberturaNa: boolean;
   linkHomologacao: string;
   linkPncp: string;
   houveRetificacao: boolean;
@@ -181,6 +183,7 @@ function vazio(): FormAdmin {
     ciAno: new Date().getFullYear(),
     ciOrigem: "",
     linkAbertura: "",
+    linkAberturaNa: false,
     linkHomologacao: "",
     linkPncp: "",
     houveRetificacao: false,
@@ -227,6 +230,7 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
     ciAno: p.ciAno ?? new Date().getFullYear(),
     ciOrigem: p.ciOrigem,
     linkAbertura: p.linkAbertura,
+    linkAberturaNa: p.linkAberturaNa,
     linkHomologacao: p.linkHomologacao,
     linkPncp: p.linkPncp,
     houveRetificacao: Boolean(p.linkRetificacao),
@@ -243,12 +247,12 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
 function errosDeLinks(form: FormAdmin): string[] {
   const erros: string[] = [];
   const campos = [
-    ["link de publicação", form.linkAbertura, exigeLinks(form.tipo)],
+    ["link de publicação", form.linkAbertura, exigeLinks(form.tipo) && !(permitePublicacaoNa(form.tipo) && form.linkAberturaNa)],
     ["link de homologação", form.linkHomologacao, false],
     ["link do PNCP", form.linkPncp, false],
   ] as const;
   for (const [nome, valor, obrigatorio] of campos) {
-    if (!valor.trim()) {
+    if (!valor.trim() || (nome === "link de publicação" && permitePublicacaoNa(form.tipo) && form.linkAberturaNa)) {
       if (obrigatorio) erros.push(`Informe o ${nome}.`);
       continue;
     }
@@ -327,7 +331,9 @@ function mudancas(antes: ProcessoAdmin, form: FormAdmin): string | null {
   const parecerNovo = form.parecerNa ? "N/A" : formatarPeca(numeroPeca(form.parecerNumero), form.parecerAno);
   if (formatarPeca(antes.ciNumero, antes.ciAno) !== ciNova) partes.push(`a comunicação interna para ${ciNova}`);
   if (antes.ciOrigem !== form.ciOrigem.trim()) partes.push("a origem da comunicação interna");
-  if ((antes.linkAbertura || "") !== (normalizarLink(form.linkAbertura) || "")) partes.push("o link de publicação");
+  const publicacaoNa = permitePublicacaoNa(form.tipo) && form.linkAberturaNa;
+  const aberturaNova = publicacaoNa ? "N/A" : normalizarLink(form.linkAbertura) || "";
+  if ((antes.linkAberturaNa ? "N/A" : antes.linkAbertura || "") !== aberturaNova) partes.push(publicacaoNa ? "a publicação para N/A" : "o link de publicação");
   if ((antes.linkHomologacao || "") !== (normalizarLink(form.linkHomologacao) || "")) partes.push("o link de homologação");
   if ((antes.linkPncp || "") !== (normalizarLink(form.linkPncp) || "")) partes.push("o link do PNCP");
   const retificacaoNova = form.houveRetificacao ? normalizarLink(form.linkRetificacao) || "" : "";
@@ -369,7 +375,8 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
       ciNumero: numeroPeca(form.ciNumero),
       ciAno: form.ciAno,
       ciOrigem: form.ciOrigem.trim(),
-      linkAbertura: normalizarLink(form.linkAbertura) || "",
+      linkAbertura: "",
+      linkAberturaNa: false,
       linkHomologacao: normalizarLink(form.linkHomologacao) || "",
       linkPncp: normalizarLink(form.linkPncp) || "",
       linkRetificacao: form.houveRetificacao ? normalizarLink(form.linkRetificacao) || "" : "",
@@ -419,7 +426,8 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     ciNumero: numeroPeca(form.ciNumero),
     ciAno: form.ciAno,
     ciOrigem: form.ciOrigem.trim(),
-    linkAbertura: normalizarLink(form.linkAbertura) || "",
+    linkAbertura: permitePublicacaoNa(form.tipo) && form.linkAberturaNa ? "" : normalizarLink(form.linkAbertura) || "",
+    linkAberturaNa: permitePublicacaoNa(form.tipo) && form.linkAberturaNa,
     linkHomologacao: normalizarLink(form.linkHomologacao) || "",
     linkPncp: normalizarLink(form.linkPncp) || "",
     linkRetificacao: form.houveRetificacao ? normalizarLink(form.linkRetificacao) || "" : "",
@@ -752,6 +760,7 @@ export function AdminPainel({
     const statusMudou = statusAndamento !== atual.status;
     const atualizado: ProcessoAdmin = { ...atual, status: statusAndamento };
     for (const item of aplicados) atualizado[item.campo] = item.url;
+    if (aplicados.some((item) => item.campo === "linkAbertura")) atualizado.linkAberturaNa = false;
     if (statusAndamento === "cancelado" && !atualizado.linkCancelamento) {
       onToast("Informe o link de cancelamento.");
       setLinksAndamento((previo) => ({ ...previo, cancelamento: previo.cancelamento ?? "" }));
@@ -1912,11 +1921,13 @@ function CardAdmin({
                 <Info rotulo="Equipe" valor={equipes.find((equipe) => equipe.id === processo.equipeId)?.nome ?? "Só meus"} />
               </dl>
               <div className="mt-4 flex flex-col gap-2">
-                {processo.linkAbertura && (
+                {processo.linkAberturaNa ? (
+                  <p className="inline-flex h-11 items-center rounded-xl border border-line bg-paper px-3 text-sm font-medium text-ink">Publicação: N/A</p>
+                ) : processo.linkAbertura ? (
                   <BotaoLink href={processo.linkAbertura} texto="Publicação">
                     <Megaphone className="size-4" />
                   </BotaoLink>
-                )}
+                ) : null}
                 {processo.linkRetificacao && (
                   <BotaoLink href={processo.linkRetificacao} texto="Retificação">
                     <FilePen className="size-4" />
@@ -2243,19 +2254,38 @@ function RelatorioPecas({
 
 function CamposLinks({ form, onChange }: { form: FormAdmin; onChange: (form: FormAdmin) => void }) {
   const obrigatorio = exigeLinks(form.tipo);
+  const podeNa = permitePublicacaoNa(form.tipo);
+  const na = podeNa && form.linkAberturaNa;
   return (
     <>
-      <Campo label="Link de publicação">
-        <input
-          type="url"
-          inputMode="url"
-          value={form.linkAbertura}
-          onChange={(e) => onChange({ ...form, linkAbertura: e.target.value })}
-          className={inputCls}
-          placeholder="https://"
-          required={obrigatorio}
-        />
-      </Campo>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-ink">Link de publicação</span>
+          {podeNa && (
+            <label className="flex items-center gap-2 text-sm font-medium text-ink">
+              <input
+                type="checkbox"
+                checked={form.linkAberturaNa}
+                onChange={(evento) => onChange({ ...form, linkAberturaNa: evento.target.checked, linkAbertura: evento.target.checked ? "" : form.linkAbertura })}
+              />
+              N/A
+            </label>
+          )}
+        </div>
+        {na ? (
+          <p className="text-xs text-muted">Fica como N/A.</p>
+        ) : (
+          <input
+            type="url"
+            inputMode="url"
+            value={form.linkAbertura}
+            onChange={(e) => onChange({ ...form, linkAbertura: e.target.value, linkAberturaNa: false })}
+            className={inputCls}
+            placeholder="https://"
+            required={obrigatorio}
+          />
+        )}
+      </div>
       <Campo label="Houve retificação?">
         <select
           value={form.houveRetificacao ? "sim" : "nao"}
