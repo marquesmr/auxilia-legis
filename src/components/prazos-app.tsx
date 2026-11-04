@@ -812,13 +812,11 @@ export function PrazosApp() {
       const resultado = await adicionarNaEquipe({ data: { equipeId: equipeAtual, email, nome } });
       setEquipes(await listarEquipes());
       setToast(
-        resultado.entrou
-          ? resultado.emailEnviado
+        resultado.emailEnviado
+          ? resultado.entrou
             ? `${resultado.nome} agora vê os processos desta equipe. O convite foi enviado por e-mail.`
-            : `${resultado.nome} entrou na equipe, mas o e-mail não foi enviado.`
-          : resultado.emailEnviado
-            ? `Convite de ${resultado.nome} enviado por e-mail.`
-            : `Convite de ${resultado.nome} guardado, mas o e-mail não foi enviado.`,
+            : `Convite de ${resultado.nome} enviado por e-mail.`
+          : resultado.avisoEmail || "O e-mail não foi enviado.",
       );
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Não foi possível adicionar.");

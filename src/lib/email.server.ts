@@ -92,8 +92,19 @@ export async function urlDoSite() {
 }
 
 function assuntoCodificado(assunto: string) {
-  if (/^[\x20-\x7E]*$/.test(assunto)) return assunto;
-  return `=?UTF-8?B?${Buffer.from(assunto, "utf8").toString("base64")}?=`;
+  const limpo = assunto.replace(/[\r\n]+/g, " ").trim();
+  if (/^[\x20-\x7E]*$/.test(limpo)) return limpo;
+  const bytes = Buffer.from(limpo, "utf8");
+  const partes: string[] = [];
+  let inicio = 0;
+  while (inicio < bytes.length) {
+    let fim = Math.min(bytes.length, inicio + 45);
+    while (fim > inicio && (bytes[fim] & 0xc0) === 0x80) fim -= 1;
+    if (fim === inicio) fim = Math.min(bytes.length, inicio + 1);
+    partes.push(`=?UTF-8?B?${bytes.subarray(inicio, fim).toString("base64")}?=`);
+    inicio = fim;
+  }
+  return partes.join("\r\n ");
 }
 
 function quebrar(base64: string) {
@@ -104,6 +115,7 @@ export function enviarEmail(destino: string, assunto: string, html: string, senh
   const corpo = [
     `From: Auxilia Legis <${EMAIL_ENVIO}>`,
     `To: ${destino}`,
+    `Date: ${new Date().toUTCString()}`,
     `Subject: ${assuntoCodificado(assunto)}`,
     "MIME-Version: 1.0",
     "Content-Type: text/html; charset=UTF-8",

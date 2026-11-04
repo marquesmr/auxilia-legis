@@ -191,17 +191,19 @@ export const adicionarNaEquipe = createServerFn({ method: "POST" })
     const quem = await sql<{ name: string | null }>`select name from "user" where id = ${context.userId}`;
     const convidou = quem[0]?.name?.trim() || "um responsável da equipe";
     let emailEnviado = false;
+    let avisoEmail = "";
     try {
       const { enviarConviteEquipe } = await import("./convite-equipe.server");
-      const envio = await enviarConviteEquipe({
+      await enviarConviteEquipe({
         equipeId: data.equipeId,
         email: data.email,
         nome: data.nome,
         convidou,
       });
-      emailEnviado = envio.enviado;
-    } catch {
-      emailEnviado = false;
+      emailEnviado = true;
+    } catch (err) {
+      avisoEmail = err instanceof Error ? err.message : "Não foi possível enviar o e-mail.";
+      console.error("[convite] e-mail não enviado", avisoEmail);
     }
     if (alvo.length) {
       const nomeConta = alvo[0].name?.trim() ?? "";
@@ -217,14 +219,14 @@ export const adicionarNaEquipe = createServerFn({ method: "POST" })
         delete from equipe_convites
         where equipe_id = ${data.equipeId} and lower(email) = ${data.email}
       `;
-      return { entrou: true, nome: nomeConta.length < 2 ? data.nome : nomeConta, emailEnviado };
+      return { entrou: true, nome: nomeConta.length < 2 ? data.nome : nomeConta, emailEnviado, avisoEmail };
     }
     await sql`
       insert into equipe_convites (equipe_id, email, nome)
       values (${data.equipeId}, ${data.email}, ${data.nome})
       on conflict (equipe_id, email) do update set nome = excluded.nome
     `;
-    return { entrou: false, nome: data.nome, emailEnviado };
+    return { entrou: false, nome: data.nome, emailEnviado, avisoEmail };
   });
 
 export const removerDaEquipe = createServerFn({ method: "POST" })

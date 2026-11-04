@@ -39,7 +39,9 @@ export async function enviarConviteEquipe(dados: { equipeId: string; email: stri
   const equipe = await sql<{ nome: string }>`select nome from equipes where id = ${dados.equipeId}`;
   const nomeEquipe = equipe[0]?.nome?.trim() || "sua equipe";
   const senhaCaixa = await senhaDaCaixa();
-  if (!senhaCaixa) return { enviado: false as const };
+  if (!senhaCaixa) {
+    throw new Error("A caixa auxilialegis@marquestecnologies.com ainda não tem senha. Guarde-a na área restrita.");
+  }
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashToken(token);
   await sql`delete from convite_link where equipe_id = ${dados.equipeId} and lower(email) = ${dados.email}`;
