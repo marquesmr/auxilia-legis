@@ -213,11 +213,17 @@ function IconeLegislativo({ className }: { className?: string }) {
 
 function IconeFrota({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M3 14h18l-1.5-5.2A2 2 0 0 0 17.6 7H6.4a2 2 0 0 0-1.9 1.8L3 14z" />
-      <path d="M5 14v2.5a1 1 0 0 0 1 1h1.2a1 1 0 0 0 1-1V16h7.6v.5a1 1 0 0 0 1 1H18a1 1 0 0 0 1-1V14" />
-      <circle cx="7.5" cy="16.5" r="1.4" />
-      <circle cx="16.5" cy="16.5" r="1.4" />
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3.4 14.6V13c0-.7.5-1.3 1.2-1.5l1.8-3.6A2 2 0 0 1 8.2 6.8h2.4l1.7-2.4c.3-.5.9-.8 1.5-.8h2.2c.6 0 1.2.3 1.5.8l1.8 3.2c.8.2 1.7.9 1.7 1.9v2.1" />
+      <path d="M3.4 14.6h2.7" />
+      <path d="M10.2 14.6h3.6" />
+      <path d="M17.9 14.6h2.7" />
+      <path d="M11.5 6.9 13.1 4.8h3.1l1.5 2.7H11.9z" fill="currentColor" fillOpacity="0.22" />
+      <path d="M18.8 10.6h1.4" />
+      <circle cx="8.1" cy="16.2" r="1.9" />
+      <circle cx="8.1" cy="16.2" r="0.65" fill="currentColor" />
+      <circle cx="16.1" cy="16.2" r="1.9" />
+      <circle cx="16.1" cy="16.2" r="0.65" fill="currentColor" />
     </svg>
   );
 }
@@ -256,7 +262,7 @@ function EscolhaModulo({ nome, onEscolher }: { nome: string; onEscolher: (area: 
           className="flex flex-col items-start rounded-3xl bg-pine p-6 text-left text-sheet shadow-sm transition hover:-translate-y-0.5"
         >
           <span className="grid size-14 place-items-center rounded-2xl bg-sheet/15">
-            <IconeFrota className="size-7" />
+            <IconeFrota className="size-8" />
           </span>
           <span className="mt-5 font-display text-2xl leading-tight">Frotas</span>
         </button>
