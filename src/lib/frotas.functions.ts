@@ -102,6 +102,20 @@ export type MultaFrota = {
   pontos: number;
 };
 
+export type AgendamentoFrota = {
+  id: string;
+  veiculoId: string;
+  userId: string;
+  nome: string;
+  dia: string;
+  horaInicio: string;
+  horaFim: string;
+  horaSaida: string;
+  kmSaida: number | null;
+  horaRetorno: string;
+  kmRetorno: number | null;
+};
+
 export type SinistroFrota = {
   id: string;
   veiculoId: string;
@@ -289,6 +303,22 @@ async function garantirFrota() {
       avaria text not null,
       custo integer not null default 0,
       relato text not null default '',
+      created_at timestamptz not null default now()
+    )
+  `;
+  await sql`
+    create table if not exists frota_agendamentos (
+      id text primary key,
+      veiculo_id text not null references frota_veiculos (id) on delete cascade,
+      user_id text not null,
+      nome text not null,
+      dia date not null,
+      hora_inicio text not null,
+      hora_fim text not null,
+      hora_saida text not null default '',
+      km_saida integer,
+      hora_retorno text not null default '',
+      km_retorno integer,
       created_at timestamptz not null default now()
     )
   `;
@@ -504,6 +534,22 @@ function mapaSinistro(item: Record<string, unknown>): SinistroFrota {
   };
 }
 
+function mapaAgendamento(item: Record<string, unknown>): AgendamentoFrota {
+  return {
+    id: txt(item, "id"),
+    veiculoId: txt(item, "veiculo_id"),
+    userId: txt(item, "user_id"),
+    nome: txt(item, "nome"),
+    dia: dia(item.dia),
+    horaInicio: txt(item, "hora_inicio"),
+    horaFim: txt(item, "hora_fim"),
+    horaSaida: txt(item, "hora_saida"),
+    kmSaida: numOuNulo(item, "km_saida"),
+    horaRetorno: txt(item, "hora_retorno"),
+    kmRetorno: numOuNulo(item, "km_retorno"),
+  };
+}
+
 export const listarFrotas = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: unknown) => equipeOk(input && typeof input === "object" ? (input as { equipeId?: unknown }).equipeId : input))
@@ -534,11 +580,12 @@ export const listarFrotas = createServerFn({ method: "POST" })
       ? sql<Record<string, unknown>>`select id from frota_veiculos where team_id = ${equipeId}`
       : sql<Record<string, unknown>>`select id from frota_veiculos where user_id = ${context.userId} and team_id is null`;
     const donos = new Set((await filtroFilhos).map((item) => String(item.id)));
-    const [abastecimentos, manutencoes, multas, sinistros] = await Promise.all([
+    const [abastecimentos, manutencoes, multas, sinistros, agendamentos] = await Promise.all([
       sql<Record<string, unknown>>`select * from frota_abastecimentos order by data desc, created_at desc`,
       sql<Record<string, unknown>>`select * from frota_manutencoes order by data desc, created_at desc`,
       sql<Record<string, unknown>>`select * from frota_multas order by data desc, created_at desc`,
       sql<Record<string, unknown>>`select * from frota_sinistros order by data desc, created_at desc`,
+      sql<Record<string, unknown>>`select * from frota_agendamentos order by dia, hora_inicio`,
     ]);
     const doEscopo = (lista: Record<string, unknown>[]) => lista.filter((item) => donos.has(String(item.veiculo_id)));
     return {
@@ -549,6 +596,7 @@ export const listarFrotas = createServerFn({ method: "POST" })
       manutencoes: doEscopo(manutencoes).map(mapaManutencao),
       multas: doEscopo(multas).map(mapaMulta),
       sinistros: doEscopo(sinistros).map(mapaSinistro),
+      agendamentos: doEscopo(agendamentos).map(mapaAgendamento),
     };
   });
 
@@ -1092,6 +1140,137 @@ export const excluirSinistro = createServerFn({ method: "POST" })
     const sql = await preparar(context.userId, data.equipeId);
     await veiculoDoEscopo(sql, context.userId, data.equipeId, data.veiculoId);
     await sql`delete from frota_sinistros where id = ${data.id} and veiculo_id = ${data.veiculoId}`;
+    return { ok: true };
+  });
+
+function horaCheia(valor: unknown, nome: string) {
+  if (typeof valor !== "string" || !/^\d{2}:\d{2}$/.test(valor)) throw new Error(`${nome} inválido.`);
+  return valor;
+}
+
+function agoraSaoPaulo() {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const ler = (tipo: string) => partes.find((item) => item.type === tipo)?.value ?? "";
+  return { dia: `${ler("year")}-${ler("month")}-${ler("day")}`, hora: `${ler("hour")}:${ler("minute")}` };
+}
+
+export const salvarAgendamento = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as Record<string, unknown>;
+    const horaInicio = horaCheia(bruto.horaInicio, "A hora de início");
+    const horaFim = horaCheia(bruto.horaFim, "A hora de término");
+    if (horaFim <= horaInicio) throw new Error("O término precisa ser depois do início.");
+    return {
+      equipeId: equipeOk(bruto.equipeId),
+      veiculoId: idOk(bruto.veiculoId, "Veículo"),
+      nome: texto(bruto.nome, 80, "o seu nome"),
+      dia: dataOk(bruto.dia, "O dia"),
+      horaInicio,
+      horaFim,
+    };
+  })
+  .handler(async ({ context, data }) => {
+    const sql = await preparar(context.userId, data.equipeId);
+    await veiculoDoEscopo(sql, context.userId, data.equipeId, data.veiculoId);
+    const choque = await sql<{ id: string }>`
+      select id from frota_agendamentos
+      where veiculo_id = ${data.veiculoId} and dia = ${data.dia}
+        and hora_inicio < ${data.horaFim} and hora_fim > ${data.horaInicio}
+        and hora_retorno = ''
+    `;
+    if (choque.length) throw new Error("Esse veículo já está agendado nesse horário.");
+    const id = crypto.randomUUID();
+    await sql`
+      insert into frota_agendamentos (id, veiculo_id, user_id, nome, dia, hora_inicio, hora_fim)
+      values (${id}, ${data.veiculoId}, ${context.userId}, ${data.nome}, ${data.dia}, ${data.horaInicio}, ${data.horaFim})
+    `;
+    return { id };
+  });
+
+export const excluirAgendamento = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as Record<string, unknown>;
+    return { id: idOk(bruto.id, "Agendamento"), equipeId: equipeOk(bruto.equipeId), veiculoId: idOk(bruto.veiculoId, "Veículo") };
+  })
+  .handler(async ({ context, data }) => {
+    const sql = await preparar(context.userId, data.equipeId);
+    await veiculoDoEscopo(sql, context.userId, data.equipeId, data.veiculoId);
+    const atual = await sql<{ hora_saida: string }>`select hora_saida from frota_agendamentos where id = ${data.id} and veiculo_id = ${data.veiculoId}`;
+    if (!atual.length) throw new Error("Agendamento não encontrado.");
+    if (atual[0].hora_saida) throw new Error("Essa saída já foi lançada e não pode ser desmarcada.");
+    await sql`delete from frota_agendamentos where id = ${data.id}`;
+    return { ok: true };
+  });
+
+export const lancarSaidaAgendada = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as Record<string, unknown>;
+    return {
+      id: idOk(bruto.id, "Agendamento"),
+      equipeId: equipeOk(bruto.equipeId),
+      horaSaida: horaCheia(bruto.horaSaida, "A hora da saída"),
+      kmSaida: kmOk(bruto.kmSaida, "A quilometragem de saída"),
+    };
+  })
+  .handler(async ({ context, data }) => {
+    const sql = await preparar(context.userId, data.equipeId);
+    const item = await sql<{ veiculo_id: string; user_id: string; dia: string; hora_inicio: string; hora_fim: string; hora_saida: string }>`
+      select veiculo_id, user_id, dia, hora_inicio, hora_fim, hora_saida from frota_agendamentos where id = ${data.id}
+    `;
+    if (!item.length || item[0].user_id !== context.userId) throw new Error("Agendamento não encontrado.");
+    if (item[0].hora_saida) throw new Error("A saída já foi lançada.");
+    const agora = agoraSaoPaulo();
+    const diaAgora = dia(item[0].dia);
+    if (agora.dia !== diaAgora || agora.hora < item[0].hora_inicio || agora.hora > item[0].hora_fim) {
+      throw new Error("A saída só pode ser lançada dentro do horário agendado.");
+    }
+    await veiculoDoEscopo(sql, context.userId, data.equipeId, item[0].veiculo_id);
+    const veiculo = await sql<{ km: number; situacao: string }>`select km, situacao from frota_veiculos where id = ${item[0].veiculo_id}`;
+    if (veiculo[0]?.situacao === "em_uso") throw new Error("Este veículo já está em uma saída.");
+    if (data.kmSaida < Number(veiculo[0]?.km ?? 0)) throw new Error("A quilometragem de saída não pode ser menor que a atual.");
+    await sql`update frota_agendamentos set hora_saida = ${data.horaSaida}, km_saida = ${data.kmSaida} where id = ${data.id}`;
+    await sql`update frota_veiculos set situacao = 'em_uso', km = ${data.kmSaida} where id = ${item[0].veiculo_id}`;
+    return { ok: true };
+  });
+
+export const lancarRetornoAgendado = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as Record<string, unknown>;
+    return {
+      id: idOk(bruto.id, "Agendamento"),
+      equipeId: equipeOk(bruto.equipeId),
+      horaRetorno: horaCheia(bruto.horaRetorno, "A hora do retorno"),
+      kmRetorno: kmOk(bruto.kmRetorno, "A quilometragem de retorno"),
+    };
+  })
+  .handler(async ({ context, data }) => {
+    const sql = await preparar(context.userId, data.equipeId);
+    const item = await sql<{ veiculo_id: string; user_id: string; hora_saida: string; km_saida: number | null; hora_retorno: string }>`
+      select veiculo_id, user_id, hora_saida, km_saida, hora_retorno from frota_agendamentos where id = ${data.id}
+    `;
+    if (!item.length || item[0].user_id !== context.userId) throw new Error("Agendamento não encontrado.");
+    if (!item[0].hora_saida) throw new Error("Lance a saída antes do retorno.");
+    if (item[0].hora_retorno) throw new Error("O retorno já foi lançado.");
+    if (item[0].km_saida != null && data.kmRetorno < Number(item[0].km_saida)) throw new Error("A quilometragem de retorno não pode ser menor que a da saída.");
+    await veiculoDoEscopo(sql, context.userId, data.equipeId, item[0].veiculo_id);
+    await sql`update frota_agendamentos set hora_retorno = ${data.horaRetorno}, km_retorno = ${data.kmRetorno} where id = ${data.id}`;
+    await sql`update frota_veiculos set situacao = 'disponivel', km = ${data.kmRetorno} where id = ${item[0].veiculo_id}`;
     return { ok: true };
   });
 

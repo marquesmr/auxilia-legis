@@ -4,21 +4,24 @@ import { Plus } from "lucide-react";
 import { useConfirmarExclusao } from "@/components/confirmar-exclusao";
 import {
   excluirAbastecimento,
-  excluirCondutor,
+  excluirAgendamento,
   excluirManutencao,
   excluirMulta,
   excluirSinistro,
   excluirVeiculo,
+  lancarRetornoAgendado,
+  lancarSaidaAgendada,
   listarFrotas,
   registrarRetorno,
   registrarSaida,
   salvarAbastecimento,
-  salvarCondutor,
+  salvarAgendamento,
   salvarManutencao,
   salvarMulta,
   salvarSinistro,
   salvarVeiculo,
   type AbastecimentoFrota,
+  type AgendamentoFrota,
   type CondutorFrota,
   type ManutencaoFrota,
   type MultaFrota,
@@ -30,7 +33,6 @@ import {
 
 const TIPOS = ["Carro", "Moto", "Van", "Caminhão", "Ônibus", "Outro"];
 const COMBUSTIVEIS = ["Flex", "Gasolina", "Etanol", "Diesel", "GNV", "Elétrico"];
-const CATEGORIAS = ["A", "B", "C", "D", "E", "AB", "AC", "AD", "AE"];
 const FINALIDADES = ["Cliente", "Entrega", "Carga", "Ordem de serviço", "Outro"];
 const GRAVIDADES = ["Leve", "Média", "Grave", "Gravíssima"];
 const ITENS: Record<ManutencaoFrota["classe"], string[]> = {
@@ -138,7 +140,20 @@ const vazioVeiculo = {
   seguroVence: "",
 };
 
-export function FrotasPainel({ equipeId, onToast }: { equipeId: string | null; onToast: (texto: string) => void }) {
+function agoraLocal() {
+  const data = new Date();
+  const dois = (valor: number) => String(valor).padStart(2, "0");
+  return {
+    dia: `${data.getFullYear()}-${dois(data.getMonth() + 1)}-${dois(data.getDate())}`,
+    hora: `${dois(data.getHours())}:${dois(data.getMinutes())}`,
+  };
+}
+
+function noPeriodo(item: AgendamentoFrota, agora = agoraLocal()) {
+  return item.dia === agora.dia && agora.hora >= item.horaInicio && agora.hora <= item.horaFim;
+}
+
+export function FrotasPainel({ equipeId, usuarioId, usuarioNome, onToast }: { equipeId: string | null; usuarioId: string; usuarioNome: string; onToast: (texto: string) => void }) {
   const [aba, setAba] = useState<Aba>("cadastro");
   const [veiculos, setVeiculos] = useState<VeiculoFrota[]>([]);
   const [condutores, setCondutores] = useState<CondutorFrota[]>([]);
@@ -147,6 +162,9 @@ export function FrotasPainel({ equipeId, onToast }: { equipeId: string | null; o
   const [saidas, setSaidas] = useState<SaidaFrota[]>([]);
   const [multas, setMultas] = useState<MultaFrota[]>([]);
   const [sinistros, setSinistros] = useState<SinistroFrota[]>([]);
+  const [agendamentos, setAgendamentos] = useState<AgendamentoFrota[]>([]);
+  const [pagina, setPagina] = useState<"painel" | "agenda">("painel");
+  const [agora, setAgora] = useState(agoraLocal);
   const exclusao = useConfirmarExclusao();
 
   function carregar() {
@@ -159,6 +177,7 @@ export function FrotasPainel({ equipeId, onToast }: { equipeId: string | null; o
         setSaidas(pacote.saidas);
         setMultas(pacote.multas);
         setSinistros(pacote.sinistros);
+        setAgendamentos(pacote.agendamentos);
       })
       .catch((err: unknown) => onToast(err instanceof Error ? err.message : "Não foi possível carregar a frota."));
   }
@@ -166,6 +185,11 @@ export function FrotasPainel({ equipeId, onToast }: { equipeId: string | null; o
   useEffect(() => {
     carregar();
   }, [equipeId]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setAgora(agoraLocal()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   function falha(err: unknown, padrao: string) {
     onToast(err instanceof Error ? err.message : padrao);
@@ -201,6 +225,26 @@ export function FrotasPainel({ equipeId, onToast }: { equipeId: string | null; o
     return lista.slice(0, 6);
   }, [veiculos, condutores, manutencoes]);
 
+  const meus = agendamentos.filter((item) => item.userId === usuarioId && !item.horaRetorno && (Boolean(item.horaSaida) || noPeriodo(item, agora)));
+
+  if (pagina === "agenda") {
+    return (
+      <PaginaAgenda
+        equipeId={equipeId}
+        usuarioNome={usuarioNome}
+        veiculos={veiculos}
+        agendamentos={agendamentos}
+        agora={agora}
+        onVoltar={() => setPagina("painel")}
+        onToast={onToast}
+        falha={falha}
+        carregar={carregar}
+        pedir={exclusao.pedir}
+        dialogo={exclusao.dialogo}
+      />
+    );
+  }
+
   return (
     <div className="mt-4">
       {exclusao.dialogo}
@@ -211,6 +255,26 @@ export function FrotasPainel({ equipeId, onToast }: { equipeId: string | null; o
           ))}
         </ul>
       )}
+      {meus.map((item) => {
+        const veiculo = veiculos.find((atual) => atual.id === item.veiculoId);
+        return (
+          <CartaoUso
+            key={item.id}
+            item={item}
+            placa={veiculo?.placa ?? "Veículo"}
+            kmAtual={veiculo?.km ?? item.kmSaida ?? 0}
+            equipeId={equipeId}
+            onToast={onToast}
+            falha={falha}
+            carregar={carregar}
+          />
+        );
+      })}
+      <div className="mb-4">
+        <button type="button" onClick={() => setPagina("agenda")} className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-pine px-4 text-sm font-medium text-sheet sm:w-auto">
+          Agendamento
+        </button>
+      </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {ABAS.map(([id, nome]) => (
           <button
@@ -227,7 +291,6 @@ export function FrotasPainel({ equipeId, onToast }: { equipeId: string | null; o
         <AbaCadastro
           equipeId={equipeId}
           veiculos={veiculos}
-          condutores={condutores}
           onToast={onToast}
           falha={falha}
           carregar={carregar}
@@ -291,7 +354,6 @@ export function FrotasPainel({ equipeId, onToast }: { equipeId: string | null; o
 function AbaCadastro({
   equipeId,
   veiculos,
-  condutores,
   onToast,
   falha,
   carregar,
@@ -299,7 +361,6 @@ function AbaCadastro({
 }: {
   equipeId: string | null;
   veiculos: VeiculoFrota[];
-  condutores: CondutorFrota[];
   onToast: (texto: string) => void;
   falha: (err: unknown, padrao: string) => void;
   carregar: () => void;
@@ -307,15 +368,13 @@ function AbaCadastro({
 }) {
   const [busca, setBusca] = useState("");
   const [veiculo, setVeiculo] = useState<typeof vazioVeiculo | null>(null);
-  const [condutor, setCondutor] = useState<CondutorFrota | null>(null);
   const termo = busca.trim().toLowerCase();
   const lista = veiculos.filter((item) => !termo || [item.placa, item.descricao, item.marca, item.setor].join(" ").toLowerCase().includes(termo));
   return (
     <div>
-      <div className="mt-4 grid grid-cols-3 gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-2">
         <Resumo valor={veiculos.filter((item) => item.situacao === "disponivel").length} rotulo="Disponíveis" />
         <Resumo valor={veiculos.filter((item) => item.situacao === "em_uso").length} rotulo="Em uso" />
-        <Resumo valor={condutores.length} rotulo="Condutores" />
       </div>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <input value={busca} onChange={(evento) => setBusca(evento.target.value)} placeholder="Buscar placa, modelo ou setor" className="campo-busca h-12 w-full rounded-xl border border-line px-3 text-sm text-ink placeholder:text-muted" />
@@ -341,28 +400,6 @@ function AbaCadastro({
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" onClick={() => setVeiculo({ ...vazioVeiculo, ...item, ano: item.ano ? String(item.ano) : "", km: String(item.km) })} className="inline-flex h-10 items-center rounded-xl border border-line px-3 text-sm font-medium text-ink">Editar</button>
               <button type="button" onClick={() => pedir(`Excluir o veículo ${item.placa}? Saídas, abastecimentos e o histórico dele também saem.`, () => { void excluirVeiculo({ data: { id: item.id, equipeId } }).then(() => { onToast("Veículo excluído."); carregar(); }).catch((err: unknown) => falha(err, "Não foi possível excluir.")); })} className="inline-flex h-10 items-center text-sm font-medium text-seal">Excluir</button>
-            </div>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-8 flex items-center justify-between gap-3">
-        <h2 className="font-display text-2xl text-ink">Condutores</h2>
-        <button type="button" onClick={() => setCondutor({ id: "", nome: "", cnh: "", categoria: "B", validade: "", pontuacao: 0, historico: "", treinamentos: "", toxicologico: "", equipeId })} className="inline-flex h-10 items-center gap-2 rounded-xl bg-pine px-3 text-sm font-medium text-sheet"><Plus className="size-4" />Novo condutor</button>
-      </div>
-      <ul className="mt-3 flex flex-col gap-2">
-        {condutores.length === 0 && <li className="text-sm text-muted">Nenhum condutor cadastrado.</li>}
-        {condutores.map((item, indice) => (
-          <li key={item.id} className={"flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 " + (indice % 2 ? "bg-sheet" : "bg-pine-soft/40")}>
-            <div>
-              <p className="text-sm font-medium text-ink">{item.nome}</p>
-              <p className="text-sm text-muted">CNH {item.cnh} · {item.categoria}{item.validade ? ` · até ${dataTexto(item.validade)}` : ""}</p>
-              {item.treinamentos && <p className="text-sm text-muted">Treinamentos: {item.treinamentos}</p>}
-              {item.historico && <p className="text-sm text-muted">Histórico: {item.historico}</p>}
-              {item.toxicologico && <p className="text-sm text-muted">Toxicológico: {dataTexto(item.toxicologico)}</p>}
-            </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setCondutor(item)} className="text-sm font-medium text-ink">Editar</button>
-              <button type="button" onClick={() => pedir(`Excluir o condutor ${item.nome}?`, () => { void excluirCondutor({ data: { id: item.id, equipeId } }).then(() => { onToast("Condutor excluído."); carregar(); }).catch((err: unknown) => falha(err, "Não foi possível excluir.")); })} className="text-sm font-medium text-seal">Excluir</button>
             </div>
           </li>
         ))}
@@ -394,24 +431,6 @@ function AbaCadastro({
             <Campo nome="Apólice do seguro"><input value={veiculo.seguroApolice} onChange={(evento) => setVeiculo({ ...veiculo, seguroApolice: evento.target.value })} className={campo} autoComplete="off" /></Campo>
             <Campo nome="Cobertura"><input value={veiculo.seguroCobertura} onChange={(evento) => setVeiculo({ ...veiculo, seguroCobertura: evento.target.value })} className={campo} autoComplete="off" /></Campo>
             <Campo nome="Seguro vence"><input type="date" value={veiculo.seguroVence} onChange={(evento) => setVeiculo({ ...veiculo, seguroVence: evento.target.value })} className={campo} /></Campo>
-            <button type="submit" className="mt-1 inline-flex h-11 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">Salvar</button>
-          </form>
-        </Modal>
-      )}
-      {condutor && (
-        <Modal titulo={condutor.id ? "Editar condutor" : "Novo condutor"} onFechar={() => setCondutor(null)}>
-          <form className="flex flex-col gap-3" onSubmit={(evento) => { evento.preventDefault(); void salvarCondutor({ data: { ...condutor, equipeId } }).then(() => { setCondutor(null); onToast(condutor.id ? "Condutor atualizado." : "Condutor lançado."); carregar(); }).catch((err: unknown) => falha(err, "Não foi possível salvar o condutor.")); }}>
-            <Campo nome="Nome"><input value={condutor.nome} onChange={(evento) => setCondutor({ ...condutor, nome: evento.target.value })} className={campo} required autoComplete="off" /></Campo>
-            <div className="grid grid-cols-2 gap-3">
-              <Campo nome="CNH"><input value={condutor.cnh} onChange={(evento) => setCondutor({ ...condutor, cnh: evento.target.value })} className={campo} required autoComplete="off" /></Campo>
-              <Campo nome="Categoria"><select value={condutor.categoria} onChange={(evento) => setCondutor({ ...condutor, categoria: evento.target.value })} className={campo}>{CATEGORIAS.map((item) => <option key={item}>{item}</option>)}</select></Campo>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Campo nome="Validade"><input type="date" value={condutor.validade} onChange={(evento) => setCondutor({ ...condutor, validade: evento.target.value })} className={campo} /></Campo>
-              <Campo nome="Toxicológico"><input type="date" value={condutor.toxicologico} onChange={(evento) => setCondutor({ ...condutor, toxicologico: evento.target.value })} className={campo} /></Campo>
-            </div>
-            <Campo nome="Treinamentos"><input value={condutor.treinamentos} onChange={(evento) => setCondutor({ ...condutor, treinamentos: evento.target.value })} className={campo} autoComplete="off" /></Campo>
-            <Campo nome="Histórico de condução"><textarea value={condutor.historico} onChange={(evento) => setCondutor({ ...condutor, historico: evento.target.value })} className={campo + " h-20 py-2"} /></Campo>
             <button type="submit" className="mt-1 inline-flex h-11 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">Salvar</button>
           </form>
         </Modal>
@@ -677,6 +696,201 @@ function AbaOcorrencias({ equipeId, veiculos, condutores, multas, sinistros, pla
             <Campo nome="Custo do reparo (R$)"><input value={sinistro.custo} onChange={(evento) => setSinistro({ ...sinistro, custo: evento.target.value })} inputMode="decimal" className={campo} autoComplete="off" /></Campo>
             <Campo nome="Relato"><textarea value={sinistro.relato} onChange={(evento) => setSinistro({ ...sinistro, relato: evento.target.value })} className={campo + " h-20 py-2"} /></Campo>
             <button type="submit" className="mt-1 inline-flex h-11 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">Salvar</button>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function CartaoUso({
+  item,
+  placa,
+  kmAtual,
+  equipeId,
+  onToast,
+  falha,
+  carregar,
+}: {
+  item: AgendamentoFrota;
+  placa: string;
+  kmAtual: number;
+  equipeId: string | null;
+  onToast: (texto: string) => void;
+  falha: (err: unknown, padrao: string) => void;
+  carregar: () => void;
+}) {
+  const [aberto, setAberto] = useState<"saida" | "retorno" | null>(item.horaSaida ? "retorno" : "saida");
+  const [hora, setHora] = useState(agoraLocal().hora);
+  const [km, setKm] = useState(String(item.kmSaida ?? kmAtual));
+  return (
+    <article className="mb-4 rounded-2xl border border-line bg-sheet p-4">
+      <p className="text-sm font-medium text-pine">Seu horário agora</p>
+      <p className="mt-1 font-display text-2xl text-ink">{placa}</p>
+      <p className="text-sm text-muted">
+        {dataTexto(item.dia)} · {item.horaInicio} às {item.horaFim}
+        {item.horaSaida ? ` · saiu às ${item.horaSaida}` : ""}
+      </p>
+      {aberto && (
+        <form
+          className="mt-3 flex flex-col gap-3"
+          onSubmit={(evento) => {
+            evento.preventDefault();
+            const pedido = aberto === "saida"
+              ? lancarSaidaAgendada({ data: { id: item.id, equipeId, horaSaida: hora, kmSaida: Number(km) } })
+              : lancarRetornoAgendado({ data: { id: item.id, equipeId, horaRetorno: hora, kmRetorno: Number(km) } });
+            void pedido
+              .then(() => {
+                onToast(aberto === "saida" ? "Saída lançada." : "Retorno lançado.");
+                setAberto(null);
+                carregar();
+              })
+              .catch((err: unknown) => falha(err, "Não foi possível lançar."));
+          }}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <Campo nome={aberto === "saida" ? "Hora da saída" : "Hora do retorno"}>
+              <input type="time" value={hora} onChange={(evento) => setHora(evento.target.value)} className={campo} required />
+            </Campo>
+            <Campo nome="Quilometragem">
+              <input value={km} onChange={(evento) => setKm(evento.target.value)} inputMode="numeric" className={campo} required autoComplete="off" />
+            </Campo>
+          </div>
+          <button type="submit" className="inline-flex h-11 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">
+            {aberto === "saida" ? "Lançar saída" : "Lançar retorno"}
+          </button>
+        </form>
+      )}
+    </article>
+  );
+}
+
+function PaginaAgenda({
+  equipeId,
+  usuarioNome,
+  veiculos,
+  agendamentos,
+  agora,
+  onVoltar,
+  onToast,
+  falha,
+  carregar,
+  pedir,
+  dialogo,
+}: {
+  equipeId: string | null;
+  usuarioNome: string;
+  veiculos: VeiculoFrota[];
+  agendamentos: AgendamentoFrota[];
+  agora: { dia: string; hora: string };
+  onVoltar: () => void;
+  onToast: (texto: string) => void;
+  falha: (err: unknown, padrao: string) => void;
+  carregar: () => void;
+  pedir: (texto: string, aoConfirmar: () => void) => void;
+  dialogo: ReactNode;
+}) {
+  const [dia, setDia] = useState(agora.dia);
+  const [aberto, setAberto] = useState(false);
+  const [form, setForm] = useState({ veiculoId: veiculos[0]?.id ?? "", dia: agora.dia, horaInicio: "08:00", horaFim: "12:00" });
+  const doDia = agendamentos.filter((item) => item.dia === dia).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+  return (
+    <div className="mt-4">
+      {dialogo}
+      <button type="button" onClick={onVoltar} className="text-sm font-medium text-pine">
+        Voltar
+      </button>
+      <h2 className="mt-2 font-display text-3xl text-ink">Agendamento</h2>
+      <p className="mt-1 text-sm text-muted">Veja o dia e a hora de cada veículo e marque o seu uso.</p>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <input type="date" value={dia} onChange={(evento) => setDia(evento.target.value)} className={campo} />
+        <button
+          type="button"
+          onClick={() => {
+            setForm({ veiculoId: veiculos[0]?.id ?? "", dia, horaInicio: "08:00", horaFim: "12:00" });
+            setAberto(true);
+          }}
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-pine px-4 text-sm font-medium text-sheet"
+        >
+          <Plus className="size-4" />
+          Agendar
+        </button>
+      </div>
+      <ul className="mt-4 flex flex-col gap-2">
+        {doDia.length === 0 && <li className="text-sm text-muted">Nenhum veículo agendado neste dia.</li>}
+        {doDia.map((item, indice) => {
+          const placa = veiculos.find((veiculo) => veiculo.id === item.veiculoId)?.placa ?? "Veículo";
+          return (
+            <li key={item.id} className={"flex items-start justify-between gap-3 rounded-2xl px-4 py-3 " + (indice % 2 ? "bg-sheet" : "bg-pine-soft/40")}>
+              <div>
+                <p className="text-sm font-medium text-ink">{placa} · {item.horaInicio} às {item.horaFim}</p>
+                <p className="text-sm text-muted">
+                  {item.nome}
+                  {item.horaSaida ? ` · saiu ${item.horaSaida}` : ""}
+                  {item.kmSaida != null ? ` · ${kmTexto(item.kmSaida)}` : ""}
+                  {item.horaRetorno ? ` · voltou ${item.horaRetorno}` : ""}
+                  {item.kmRetorno != null ? ` · ${kmTexto(item.kmRetorno)}` : ""}
+                </p>
+              </div>
+              {!item.horaSaida && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    pedir(`Desmarcar ${placa} das ${item.horaInicio} às ${item.horaFim}?`, () => {
+                      void excluirAgendamento({ data: { id: item.id, veiculoId: item.veiculoId, equipeId } })
+                        .then(() => {
+                          onToast("Agendamento desmarcado.");
+                          carregar();
+                        })
+                        .catch((err: unknown) => falha(err, "Não foi possível desmarcar."));
+                    })
+                  }
+                  className="text-sm font-medium text-seal"
+                >
+                  Desmarcar
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {aberto && (
+        <Modal titulo="Novo agendamento" onFechar={() => setAberto(false)}>
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(evento) => {
+              evento.preventDefault();
+              void salvarAgendamento({ data: { ...form, equipeId, nome: usuarioNome } })
+                .then(() => {
+                  setAberto(false);
+                  setDia(form.dia);
+                  onToast("Horário agendado.");
+                  carregar();
+                })
+                .catch((err: unknown) => falha(err, "Não foi possível agendar."));
+            }}
+          >
+            <Campo nome="Veículo">
+              <select value={form.veiculoId} onChange={(evento) => setForm({ ...form, veiculoId: evento.target.value })} className={campo}>
+                {veiculos.map((item) => (
+                  <option key={item.id} value={item.id}>{item.placa}</option>
+                ))}
+              </select>
+            </Campo>
+            <Campo nome="Dia">
+              <input type="date" value={form.dia} onChange={(evento) => setForm({ ...form, dia: evento.target.value })} className={campo} required />
+            </Campo>
+            <div className="grid grid-cols-2 gap-3">
+              <Campo nome="Início">
+                <input type="time" value={form.horaInicio} onChange={(evento) => setForm({ ...form, horaInicio: evento.target.value })} className={campo} required />
+              </Campo>
+              <Campo nome="Término">
+                <input type="time" value={form.horaFim} onChange={(evento) => setForm({ ...form, horaFim: evento.target.value })} className={campo} required />
+              </Campo>
+            </div>
+            <button type="submit" className="mt-1 inline-flex h-11 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">
+              Agendar
+            </button>
           </form>
         </Modal>
       )}

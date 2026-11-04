@@ -1117,7 +1117,7 @@ export function PrazosApp() {
               onRenomear={mudarNomeEquipe}
             />
           </aside>
-          <FrotasPainel equipeId={equipeVisivel} onToast={setToast} />
+          <FrotasPainel equipeId={equipeVisivel} usuarioId={user.id} usuarioNome={meuNome} onToast={setToast} />
         </div>
       ) : area === "administrativo" ? (
         <Suspense fallback={<p className="mt-6 text-sm text-muted">Carregando…</p>}>
