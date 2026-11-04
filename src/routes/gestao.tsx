@@ -342,7 +342,7 @@ function SecaoEquipeModulo({ token, onErro }: { token: string; onErro: (texto: s
     carregar();
   }, [token]);
 
-  function alternar(id: string, modulo: "legislativo" | "administrativo" | "frotas") {
+  function alternar(id: string, modulo: "legislativo" | "administrativo") {
     const atual = lista.find((item) => item.id === id);
     if (!atual) return;
     const tem = atual.modulos.includes(modulo);
@@ -376,10 +376,6 @@ function SecaoEquipeModulo({ token, onErro }: { token: string; onErro: (texto: s
               <label className="inline-flex items-center gap-2 text-sm text-ink">
                 <input type="checkbox" checked={item.modulos.includes("administrativo")} onChange={() => alternar(item.id, "administrativo")} />
                 Processos Administrativo
-              </label>
-              <label className="inline-flex items-center gap-2 text-sm text-ink">
-                <input type="checkbox" checked={item.modulos.includes("frotas")} onChange={() => alternar(item.id, "frotas")} />
-                Frotas
               </label>
             </span>
           </li>

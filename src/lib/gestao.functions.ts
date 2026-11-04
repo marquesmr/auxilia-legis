@@ -660,7 +660,7 @@ export const definirModulosEquipeGestao = createServerFn({ method: "POST" })
     const bruto = input as { token?: unknown; equipeId?: unknown; modulos?: unknown };
     const equipeId = typeof bruto.equipeId === "string" ? bruto.equipeId.trim().slice(0, 80) : "";
     const recebidos = Array.isArray(bruto.modulos) ? bruto.modulos : [];
-    const modulos = recebidos.filter((item): item is "legislativo" | "administrativo" | "frotas" => item === "legislativo" || item === "administrativo" || item === "frotas");
+    const modulos = recebidos.filter((item): item is "legislativo" | "administrativo" => item === "legislativo" || item === "administrativo");
     if (!equipeId || !modulos.length) throw new Error("A equipe precisa ficar em pelo menos um módulo.");
     return { token: tokenOk(bruto.token), equipeId, modulos };
   })

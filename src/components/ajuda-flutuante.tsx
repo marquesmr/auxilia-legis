@@ -26,7 +26,7 @@ function TextoAjuda({ texto }: { texto: string }) {
   });
 }
 
-export function AjudaFlutuante({ nome, area }: { nome: string; area: "legislativo" | "administrativo" | "frotas" }) {
+export function AjudaFlutuante({ nome, area }: { nome: string; area: "legislativo" | "administrativo" }) {
   const pessoa = primeiroNome(nome);
   const [aberto, setAberto] = useState(false);
   const [texto, setTexto] = useState("");
