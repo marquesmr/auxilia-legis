@@ -7,6 +7,7 @@ export function AvisoSenha({ email, onPronto }: { email: string; onPronto: () =>
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [podeDigitar, setPodeDigitar] = useState(false);
 
   async function confirmar(event: FormEvent) {
     event.preventDefault();
@@ -35,7 +36,7 @@ export function AvisoSenha({ email, onPronto }: { email: string; onPronto: () =>
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center bg-ink/50 p-4 sm:items-center">
-      <form onSubmit={(event) => void confirmar(event)} className="w-full max-w-lg rounded-2xl border border-line bg-sheet p-5 shadow-xl">
+      <form autoComplete="off" onSubmit={(event) => void confirmar(event)} className="w-full max-w-lg rounded-2xl border border-line bg-sheet p-5 shadow-xl">
         <h2 className="font-display text-2xl text-ink">Digite sua senha para não esquecer</h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">
           A cada 5 acessos a senha precisa ser digitada. Quem deixa só o navegador lembrar, acaba esquecendo.
@@ -53,7 +54,23 @@ export function AvisoSenha({ email, onPronto }: { email: string; onPronto: () =>
         {erro && <p className="mt-3 rounded-xl bg-seal-soft px-3 py-2 text-sm text-seal">{erro}</p>}
         <label className="mt-4 flex flex-col gap-1 text-sm font-medium text-ink">
           Senha de {email}
-          <CampoSenha value={senha} onChange={(evento) => setSenha(evento.target.value)} className="h-11 w-full rounded-xl border border-line bg-paper px-3 text-sm font-normal text-ink" autoComplete="current-password" required />
+          <input type="text" name="usuario" autoComplete="username" tabIndex={-1} aria-hidden className="hidden" />
+          <input type="password" name="senha" autoComplete="current-password" tabIndex={-1} aria-hidden className="hidden" />
+          <CampoSenha
+            name="lembrete-manual"
+            value={senha}
+            onChange={(evento) => setSenha(evento.target.value)}
+            onFocus={() => setPodeDigitar(true)}
+            readOnly={!podeDigitar}
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            data-1p-ignore="true"
+            data-lpignore="true"
+            data-form-type="other"
+            className="h-11 w-full rounded-xl border border-line bg-paper px-3 text-sm font-normal text-ink"
+            required
+          />
         </label>
         <button type="submit" disabled={enviando || senha.length < 8} className="mt-3 inline-flex h-12 w-full items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-60">
           {enviando ? "Conferindo…" : "Confirmar senha"}
