@@ -1234,7 +1234,7 @@ export function PrazosApp() {
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     placeholder="Buscar número, parte ou assunto"
-                    className="h-12 w-full rounded-xl border border-line bg-sheet pr-3 pl-10 text-sm text-ink placeholder:text-muted"
+                    className="campo-busca h-12 w-full rounded-xl border border-line pr-3 pl-10 text-sm text-ink placeholder:text-muted"
                   />
                 </label>
                 <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Tipo de processo">

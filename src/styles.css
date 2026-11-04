@@ -84,6 +84,16 @@ html[data-tema="escuro"] .silhueta {
   filter: invert(1);
 }
 
+.campo-busca,
+input[placeholder^="Buscar"] {
+  background: #fffefb !important;
+}
+
+html[data-tema="escuro"] .campo-busca,
+html[data-tema="escuro"] input[placeholder^="Buscar"] {
+  background: var(--color-sheet);
+}
+
 html[data-tema="escuro"] {
   color-scheme: dark;
   --color-paper: #12110e;
@@ -113,6 +123,11 @@ html[data-tema="escuro"] {
     --color-brass-soft: #3a2c1c;
     --color-seal: #f0a8a2;
     --color-seal-soft: #3a2220;
+  }
+
+  html[data-tema="auto"] .campo-busca,
+  html[data-tema="auto"] input[placeholder^="Buscar"] {
+    background: var(--color-sheet);
   }
 }
 

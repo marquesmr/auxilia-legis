@@ -1135,7 +1135,7 @@ export function AdminPainel({
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                   placeholder="Buscar número, CI, parecer, objeto ou referência"
-                  className={inputCls}
+                  className="campo-busca h-11 w-full rounded-xl border border-line px-3 text-sm text-ink placeholder:text-muted"
                 />
                 <label className="flex items-center gap-2 text-sm text-muted">
                   Ordenar
