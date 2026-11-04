@@ -865,7 +865,7 @@ export function PrazosApp() {
 
   async function criarNovaEquipe(nome: string) {
     try {
-      const criada = await criarEquipe({ data: nome });
+      const criada = await criarEquipe({ data: { nome, modulo: area } });
       setEquipeAtual(criada.id);
       setToast(`Equipe ${criada.nome} criada`);
     } catch (err) {

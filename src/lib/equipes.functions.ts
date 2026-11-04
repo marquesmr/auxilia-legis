@@ -153,25 +153,28 @@ export const listarEquipes = createServerFn({ method: "GET" })
   .handler(async ({ context }) => equipesDaConta(context.userId));
 
 export const criarEquipe = createServerFn({ method: "POST" })
-  .validator((nome: unknown) => {
-    if (typeof nome !== "string" || nome.trim().length < 2) throw new Error("Dê um nome para a equipe.");
-    return nome.trim().slice(0, 60);
+  .validator((input: unknown) => {
+    const bruto = typeof input === "string" ? { nome: input } : input;
+    if (!bruto || typeof bruto !== "object") throw new Error("Dê um nome para a equipe.");
+    const dados = bruto as { nome?: unknown; modulo?: unknown };
+    if (typeof dados.nome !== "string" || dados.nome.trim().length < 2) throw new Error("Dê um nome para a equipe.");
+    const modulo: ModuloEquipe = dados.modulo === "administrativo" ? "administrativo" : "legislativo";
+    return { nome: dados.nome.trim().slice(0, 60), modulo };
   })
   .middleware([authMiddleware])
-  .handler(async ({ context, data: nome }) => {
+  .handler(async ({ context, data }) => {
     const sql = await getSql();
     const id = crypto.randomUUID();
-    await sql`insert into equipes (id, nome, owner_id) values (${id}, ${nome}, ${context.userId})`;
+    await sql`insert into equipes (id, nome, owner_id) values (${id}, ${data.nome}, ${context.userId})`;
     await sql`
       insert into equipe_membros (equipe_id, user_id, papel)
       values (${id}, ${context.userId}, 'dono')
     `;
     await garantirModulosEquipe();
-    await sql`insert into equipe_modulos (equipe_id, modulo) values (${id}, 'legislativo')`;
-    await sql`insert into equipe_modulos (equipe_id, modulo) values (${id}, 'administrativo')`;
+    await sql`insert into equipe_modulos (equipe_id, modulo) values (${id}, ${data.modulo})`;
     const { anotarUso } = await import("./gestao.server");
-    void anotarUso(context.userId, "Criou equipe", nome).catch(() => undefined);
-    return { id, nome };
+    void anotarUso(context.userId, "Criou equipe", data.nome).catch(() => undefined);
+    return { id, nome: data.nome, modulo: data.modulo };
   });
 
 export const renomearEquipe = createServerFn({ method: "POST" })
