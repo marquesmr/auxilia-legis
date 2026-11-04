@@ -36,8 +36,8 @@ export function AjudaFlutuante({ nome, area }: { nome: string; area: "legislativ
     {
       de: "ajuda",
       texto: pessoa
-        ? `Oi, ${pessoa}. Pergunta qualquer coisa do sistema, do jeito que vier na cabeça.`
-        : "Oi. Pergunta qualquer coisa do sistema, do jeito que vier na cabeça.",
+        ? `Oi, ${pessoa}. Eu sou a Lexis. Pergunta qualquer coisa do sistema, do jeito que vier na cabeça.`
+        : "Oi. Eu sou a Lexis. Pergunta qualquer coisa do sistema, do jeito que vier na cabeça.",
     },
   ]);
 
@@ -78,18 +78,18 @@ export function AjudaFlutuante({ nome, area }: { nome: string; area: "legislativ
       {aberto && (
         <section
           className="flex h-[min(32rem,calc(100vh-6rem))] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-line bg-sheet shadow-lg"
-          aria-label="Ajuda do sistema"
+          aria-label="Lexis"
         >
           <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
             <div>
-              <p className="text-sm font-medium text-ink">Ajuda</p>
+              <p className="text-sm font-medium text-ink">Lexis</p>
               <p className="text-xs text-muted">{digitando ? "Digitando…" : pessoa ? `Para ${pessoa}` : "Sobre o sistema"}</p>
             </div>
             <button
               type="button"
               onClick={() => setAberto(false)}
               className="grid size-9 place-items-center rounded-lg text-muted"
-              aria-label="Fechar ajuda"
+              aria-label="Fechar a Lexis"
             >
               <X className="size-4" />
             </button>
@@ -153,7 +153,7 @@ export function AjudaFlutuante({ nome, area }: { nome: string; area: "legislativ
         type="button"
         onClick={() => setAberto((valor) => !valor)}
         className="grid size-14 place-items-center rounded-full bg-pine text-sheet shadow-lg"
-        aria-label={aberto ? "Fechar ajuda" : "Abrir ajuda"}
+        aria-label={aberto ? "Fechar a Lexis" : "Abrir a Lexis"}
         aria-expanded={aberto}
       >
         {aberto ? <X className="size-5" /> : <MessageCircle className="size-6" />}
