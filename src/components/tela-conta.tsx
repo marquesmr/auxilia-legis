@@ -11,24 +11,21 @@ import { AvisoSenha } from "@/components/aviso-senha";
 import { idadeEm, limitesNascimento } from "@/lib/idade";
 import { soltarTemaDaConta } from "@/lib/preferencias";
 import { concluirAcessoForcado, esquecerLembranca, guardarLembranca, lerLembranca } from "@/lib/lembrar-acesso";
-import { campanhaDoMes, corClara, corNoDegrade, corTexto, degradeCampanha, type FaixaCampanha } from "@/lib/campanha-mes";
+import { campanhaDoMes, corClara, corTexto, type FaixaCampanha } from "@/lib/campanha-mes";
 
 type Modo = "entrar" | "criar" | "esqueci";
 
 function Fita({ cor }: { cor: string }) {
+  const borda = corClara(cor) ? "#1c1915" : "rgba(255,255,255,.85)";
   return (
-    <svg viewBox="0 0 24 24" className="mt-0.5 size-5 shrink-0" aria-hidden>
+    <svg viewBox="0 0 100 170" className="mt-0.5 h-8 w-5 shrink-0" aria-hidden>
       <path
         fill={cor}
-        stroke={corClara(cor) ? "#1c1915" : "rgba(255,255,255,.7)"}
-        strokeWidth="1.2"
-        d="M12 2.4c.3 1.8.9 3.2 1.8 4.4 1 1.3 1.4 2.4 1.4 3.6 0 1.3-.9 2.3-2.1 2.4v7.6L12 18.6 10.9 20.4v-7.6c-1.2-.1-2.1-1.1-2.1-2.4 0-1.2.4-2.3 1.4-3.6C11.1 5.6 11.7 4.2 12 2.4z"
-      />
-      <path
-        fill={cor}
-        stroke={corClara(cor) ? "#1c1915" : "rgba(255,255,255,.7)"}
-        strokeWidth="1.2"
-        d="M8.6 12.2 4.2 21.2l4.4-2.2 1.5-5.2zm6.8 0 4.4 9-4.4-2.2-1.5-5.2z"
+        stroke={borda}
+        strokeWidth="3"
+        strokeLinejoin="round"
+        fillRule="evenodd"
+        d="M16 160 L10 146 L24 78 C12 64 12 40 24 22 C34 8 46 4 50 4 C58 4 72 10 80 22 C92 40 90 64 78 76 L90 122 L74 148 L58 130 L66 104 L50 86 L38 102 L28 146 L20 160 Z M50 16 C40 18 36 28 38 38 C42 48 48 48 50 42 C52 48 60 46 62 38 C64 28 60 18 50 16 Z"
       />
     </svg>
   );
@@ -355,13 +352,8 @@ export function TelaConta() {
   }
 
   const campanha = campanhaDoMes();
-  const fundoTopo = corNoDegrade(campanha.faixas, 0.08);
-  const fundoMeio = corNoDegrade(campanha.faixas, 0.46);
-  const fundoBase = corNoDegrade(campanha.faixas, 0.92);
-  const textoTopo = corTexto(fundoTopo);
-  const textoMeio = corTexto(fundoMeio);
-  const textoBase = corTexto(fundoBase);
-  const painel = degradeCampanha(campanha.faixas);
+  const principal = campanha.faixas[0].cor;
+  const texto = corTexto(principal);
 
   return (
     <main className="min-h-screen bg-[#f3eee6] lg:grid lg:grid-cols-5">
@@ -396,19 +388,19 @@ export function TelaConta() {
       )}
       <aside
         className="hidden min-h-screen flex-col px-8 py-8 lg:col-span-2 lg:flex xl:px-12"
-        style={{ background: painel, color: textoTopo }}
+        style={{ background: principal, color: texto }}
       >
         <div className="flex items-center gap-3">
           <div
             className="grid size-12 place-items-center rounded-2xl"
-            style={{ background: corClara(fundoTopo) ? "#1c1915" : "#f4efe4", color: corClara(fundoTopo) ? "#f6f1e6" : "#1c1915" }}
+            style={{ background: corClara(principal) ? "#1c1915" : "#f4efe4", color: corClara(principal) ? "#f6f1e6" : "#1c1915" }}
             aria-hidden
           >
             <Scale className="size-6" strokeWidth={1.75} />
           </div>
           <p className="font-painel text-2xl">Auxilia Legis</p>
         </div>
-        <div className="flex flex-1 items-center" style={{ color: textoMeio }}>
+        <div className="flex flex-1 items-center">
           <div>
             <h1 className="font-painel text-[2.85rem] font-medium leading-[0.98] tracking-[-0.025em] xl:text-[3.7rem]">
               Assistente do
@@ -418,7 +410,7 @@ export function TelaConta() {
             <ListaCampanha faixas={campanha.faixas} mes={campanha.nome} />
           </div>
         </div>
-        <div className="mt-8" style={{ color: textoBase }}>
+        <div className="mt-8">
           <p className="text-center text-sm">
             <Link to="/privacidade" className="hover:underline">
               Política de Privacidade
@@ -441,7 +433,7 @@ export function TelaConta() {
         <div className="w-full max-w-[440px]">
           <div className="mb-6 text-ink lg:hidden">
             <div className="flex items-center gap-3">
-              <div className="grid size-11 shrink-0 place-items-center rounded-2xl" style={{ background: painel, color: textoMeio }} aria-hidden>
+              <div className="grid size-11 shrink-0 place-items-center rounded-2xl" style={{ background: principal, color: texto }} aria-hidden>
                 <Scale className="size-5" strokeWidth={1.75} />
               </div>
               <div>
