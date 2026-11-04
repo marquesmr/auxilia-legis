@@ -808,19 +808,13 @@ export function PrazosApp() {
 
   async function incluirNaEquipe(email: string, nome: string) {
     if (!equipeAtual) return;
-    try {
-      const resultado = await adicionarNaEquipe({ data: { equipeId: equipeAtual, email, nome } });
-      setEquipes(await listarEquipes());
-      setToast(
-        resultado.emailEnviado
-          ? resultado.entrou
-            ? `${resultado.nome} agora vê os processos desta equipe. O convite foi enviado por e-mail.`
-            : `Convite de ${resultado.nome} enviado por e-mail.`
-          : resultado.avisoEmail || "O e-mail não foi enviado.",
-      );
-    } catch (err) {
-      setToast(err instanceof Error ? err.message : "Não foi possível adicionar.");
-    }
+    setToast(`Convite de ${nome} enviado.`);
+    void adicionarNaEquipe({ data: { equipeId: equipeAtual, email, nome } })
+      .then(async (resultado) => {
+        setEquipes(await listarEquipes());
+        if (!resultado.emailEnviado && resultado.avisoEmail) setToast(resultado.avisoEmail);
+      })
+      .catch((err: unknown) => setToast(err instanceof Error ? err.message : "Não foi possível adicionar."));
   }
 
   async function tirarDaEquipe(email: string) {
@@ -2059,6 +2053,7 @@ function PainelEquipe({
   onRenomear: (equipeId: string, nome: string) => Promise<void>;
 }) {
   const [nome, setNome] = useState("");
+  const [conviteAberto, setConviteAberto] = useState(false);
   const [nomePessoa, setNomePessoa] = useState("");
   const [email, setEmail] = useState("");
   const [ocupado, setOcupado] = useState(false);
@@ -2277,46 +2272,64 @@ function PainelEquipe({
             ))}
           </ul>
           {selecionada.papel === "dono" && (
-            <form
-              className="flex flex-col gap-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (ocupado || nomePessoa.trim().length < 2 || !email.trim()) return;
-                setOcupado(true);
-                void onAdicionar(email.trim(), nomePessoa.trim()).finally(() => {
-                  setEmail("");
-                  setNomePessoa("");
-                  setOcupado(false);
-                });
-              }}
+            <button
+              type="button"
+              onClick={() => setConviteAberto(true)}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink"
             >
-              <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                Nome da pessoa
-                <input
-                  value={nomePessoa}
-                  onChange={(event) => setNomePessoa(event.target.value)}
-                  placeholder="Nome completo"
-                  className="h-11 rounded-xl border border-line bg-paper px-3 text-sm font-normal"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                E-mail
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="pessoa@email.com"
-                  className="h-11 rounded-xl border border-line bg-paper px-3 text-sm font-normal"
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={ocupado}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink disabled:opacity-60"
+              Adicionar pessoa
+            </button>
+          )}
+          {conviteAberto && (
+            <div className="fixed inset-0 z-[80] flex items-end justify-center bg-ink/50 p-4 sm:items-center">
+              <form
+                className="w-full max-w-md rounded-2xl border border-line bg-sheet p-5 shadow-xl"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (ocupado || nomePessoa.trim().length < 2 || !email.trim()) return;
+                  const nomeConvite = nomePessoa.trim();
+                  const emailConvite = email.trim();
+                  setConviteAberto(false);
+                  setNomePessoa("");
+                  setEmail("");
+                  void onAdicionar(emailConvite, nomeConvite);
+                }}
               >
-                Adicionar
-              </button>
-            </form>
+                <h2 className="font-display text-2xl text-ink">Adicionar pessoa</h2>
+                <p className="mt-1 text-sm text-muted">Informe o nome e o e-mail de quem vai entrar na equipe.</p>
+                <label className="mt-4 flex flex-col gap-1 text-sm font-medium text-ink">
+                  Nome da pessoa
+                  <input
+                    value={nomePessoa}
+                    onChange={(event) => setNomePessoa(event.target.value)}
+                    placeholder="Nome completo"
+                    autoComplete="off"
+                    className="h-11 rounded-xl border border-line bg-paper px-3 text-sm font-normal"
+                    required
+                  />
+                </label>
+                <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
+                  E-mail
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="pessoa@email.com"
+                    autoComplete="off"
+                    className="h-11 rounded-xl border border-line bg-paper px-3 text-sm font-normal"
+                    required
+                  />
+                </label>
+                <div className="mt-4 flex gap-2">
+                  <button type="button" onClick={() => setConviteAberto(false)} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink">
+                    Cancelar
+                  </button>
+                  <button type="submit" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">
+                    Adicionar
+                  </button>
+                </div>
+              </form>
+            </div>
           )}
         </div>
       )}

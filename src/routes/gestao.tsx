@@ -13,6 +13,8 @@ import {
   abrirSistemaGestao,
   ordenarAbasGestao,
   ordenarStatusGestao,
+  cancelarConviteGestao,
+  convitesPendentesGestao,
 } from "@/lib/gestao.functions";
 import { SecaoContas, SecaoSistema, SecaoStatus, SecaoUsuarios, novaOrdem } from "@/components/gestao-extra";
 import { CampoSenha } from "@/components/campo-senha";
@@ -260,6 +262,67 @@ function Entrada({ erroInicial, onEntrou }: { erroInicial: string; onEntrou: (to
   );
 }
 
+function SecaoConvites({
+  token,
+  onErro,
+  onConfirmar,
+}: {
+  token: string;
+  onErro: (texto: string) => void;
+  onConfirmar: (pergunta: string, acao: () => void) => void;
+}) {
+  const [lista, setLista] = useState<Awaited<ReturnType<typeof convitesPendentesGestao>>>([]);
+  const [pronto, setPronto] = useState(false);
+
+  function carregar() {
+    void convitesPendentesGestao({ data: token })
+      .then((itens) => {
+        setLista(itens);
+        setPronto(true);
+      })
+      .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível listar os convites."));
+  }
+
+  useEffect(() => {
+    carregar();
+  }, [token]);
+
+  return (
+    <section className="mt-5 rounded-2xl border border-line bg-sheet p-4">
+      <h2 className="text-sm font-medium text-ink">Convites pendentes</h2>
+      <p className="mt-1 text-sm text-muted">Quem ainda não entrou na equipe. O link do e-mail vale 24 horas.</p>
+      <ul className="mt-3 flex flex-col">
+        {pronto && lista.length === 0 && <li className="text-sm text-muted">Nenhum convite pendente.</li>}
+        {lista.map((item, indice) => (
+          <li key={`${item.equipeId}:${item.email}`} className={"flex items-center justify-between gap-3 px-2 py-2 text-sm " + (indice % 2 === 0 ? "bg-paper" : "")}>
+            <span className="min-w-0">
+              <span className="block truncate font-medium text-ink">{item.nome}</span>
+              <span className="block truncate text-muted">
+                {item.email} · {item.equipe}
+                {item.expiraEm ? ` · até ${hora(item.expiraEm)}` : ""}
+                {item.valido ? "" : " · expirado"}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                onConfirmar(`Cancelar o convite de ${item.nome} para ${item.equipe}?`, () => {
+                  void cancelarConviteGestao({ data: { token, equipeId: item.equipeId, email: item.email } })
+                    .then(() => carregar())
+                    .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível cancelar."));
+                })
+              }
+              className="shrink-0 font-medium text-seal"
+            >
+              Cancelar
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function PainelVivo({
   token,
   painel,
@@ -284,7 +347,7 @@ function PainelVivo({
   const [aviso, setAviso] = useState("");
   const [erro, setErro] = useState("");
   const [pulso, setPulso] = useState<number[]>([]);
-  const [guia, setGuia] = useState<"geral" | "usuarios" | "contas" | "tipos" | "sistema">("geral");
+  const [guia, setGuia] = useState<"geral" | "usuarios" | "contas" | "convites" | "tipos" | "sistema">("geral");
   const [editandoAba, setEditandoAba] = useState<string | null>(null);
   const [nomeEdicao, setNomeEdicao] = useState("");
   const [sobreAba, setSobreAba] = useState<string | null>(null);
@@ -423,6 +486,7 @@ function PainelVivo({
             ["geral", "Visão geral"],
             ["usuarios", "Usuários e equipes"],
             ["contas", "Bloqueios e exclusões"],
+            ["convites", "Convites pendentes"],
             ["tipos", "Tipos e status"],
             ["sistema", "Logs e sistema"],
           ] as const
@@ -538,6 +602,7 @@ function PainelVivo({
       {guia === "contas" && (
         <SecaoContas token={token} painel={painel} onMudou={onMudou} onErro={falhar} onAviso={avisar} onConfirmar={pedirConfirmacao} />
       )}
+      {guia === "convites" && <SecaoConvites token={token} onErro={falhar} onConfirmar={pedirConfirmacao} />}
 
       {guia === "tipos" && (
         <>

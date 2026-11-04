@@ -617,3 +617,30 @@ export const manutencaoGestao = createServerFn({ method: "POST" })
     return definirManutencao(data.ligado);
   });
 
+export const convitesPendentesGestao = createServerFn({ method: "POST" })
+  .validator(tokenOk)
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao } = await import("./gestao.server");
+    await exigirGestao(data);
+    const { listarConvitesPendentes } = await import("./convite-equipe.server");
+    return listarConvitesPendentes();
+  });
+
+export const cancelarConviteGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; equipeId?: unknown; email?: unknown };
+    const equipeId = typeof bruto.equipeId === "string" ? bruto.equipeId.trim().slice(0, 80) : "";
+    const email = typeof bruto.email === "string" ? bruto.email.trim().toLowerCase().slice(0, 160) : "";
+    if (!equipeId || !email) throw new Error("Convite inválido.");
+    return { token: tokenOk(bruto.token), equipeId, email };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    const { cancelarConvitePendente } = await import("./convite-equipe.server");
+    return cancelarConvitePendente(data.equipeId, data.email);
+  });
+

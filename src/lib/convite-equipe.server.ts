@@ -26,6 +26,8 @@ async function garantirTabela() {
       expira_em timestamptz not null
     )
   `;
+  await sql`alter table convite_link add column if not exists token text`;
+  await sql`alter table convite_link add column if not exists expira_iso text`;
   return sql;
 }
 
@@ -44,10 +46,11 @@ export async function enviarConviteEquipe(dados: { equipeId: string; email: stri
   }
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashToken(token);
+  const expiraIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   await sql`delete from convite_link where equipe_id = ${dados.equipeId} and lower(email) = ${dados.email}`;
   await sql`
-    insert into convite_link (token_hash, equipe_id, email, nome, expira_em)
-    values (${tokenHash}, ${dados.equipeId}, ${dados.email}, ${dados.nome}, now() + interval '24 hours')
+    insert into convite_link (token_hash, token, equipe_id, email, nome, expira_em, expira_iso)
+    values (${tokenHash}, ${token}, ${dados.equipeId}, ${dados.email}, ${dados.nome}, ${expiraIso}, ${expiraIso})
   `;
   await copiarBancoAgora();
   const origem = origemPublica(await urlDoSite());
@@ -76,17 +79,30 @@ ${botaoEmail(link, "Acessar Minha Equipe")}
   return { enviado: true as const };
 }
 
-export async function abrirConvite(token: string) {
+async function acharConvite(token: string) {
   if (!/^[a-f0-9]{64}$/.test(token)) throw new Error("Este convite não é válido.");
   await puxarNuvem();
   const sql = await garantirTabela();
-  const linhas = await sql<{ equipe_id: string; email: string; nome: string }>`
-    select equipe_id, email, nome from convite_link
-    where token_hash = ${hashToken(token)} and expira_em > now()
+  const linhas = await sql<{ equipe_id: string; email: string; nome: string; expira_iso: string | null; expira_em: string }>`
+    select equipe_id, email, nome, expira_iso, expira_em from convite_link
+    where token = ${token} or token_hash = ${hashToken(token)}
     limit 1
   `;
   const convite = linhas[0];
-  if (!convite) throw new Error("Este convite expirou. Peça um novo à sua equipe.");
+  if (!convite) throw new Error("Este convite não foi encontrado. Peça um novo à sua equipe.");
+  const limite = new Date(convite.expira_iso || convite.expira_em).getTime();
+  if (!Number.isFinite(limite) || limite <= Date.now()) throw new Error("Este convite expirou. Peça um novo à sua equipe.");
+  const equipe = await sql<{ nome: string }>`select nome from equipes where id = ${convite.equipe_id}`;
+  return { sql, convite, equipe: equipe[0]?.nome?.trim() || "sua equipe" };
+}
+
+export async function lerConvite(token: string) {
+  const { convite, equipe } = await acharConvite(token);
+  return { nome: convite.nome, email: convite.email, equipe };
+}
+
+export async function abrirConvite(token: string) {
+  const { sql, convite } = await acharConvite(token);
   const usuarios = await sql<{ id: string }>`select id from "user" where lower(email) = ${convite.email.toLowerCase()}`;
   if (usuarios[0]) {
     await sql`
@@ -95,10 +111,61 @@ export async function abrirConvite(token: string) {
       on conflict (equipe_id, user_id) do nothing
     `;
     await sql`delete from equipe_convites where equipe_id = ${convite.equipe_id} and lower(email) = ${convite.email.toLowerCase()}`;
-    await sql`delete from convite_link where token_hash = ${hashToken(token)}`;
+    await sql`delete from convite_link where token = ${token} or token_hash = ${hashToken(token)}`;
+    await copiarBancoAgora();
     const { abrirSessaoConta } = await import("./cadastro-email.server");
     await abrirSessaoConta(usuarios[0].id);
     return { destino: "painel" as const, email: "", nome: "" };
   }
   return { destino: "criar" as const, email: convite.email, nome: convite.nome };
+}
+
+export async function listarConvitesPendentes() {
+  const sql = await garantirTabela();
+  const links = await sql<{ email: string; nome: string; equipe_id: string; equipe: string; expira_iso: string | null; expira_em: string }>`
+    select c.email, c.nome, c.equipe_id, e.nome as equipe, c.expira_iso, c.expira_em
+    from convite_link c
+    join equipes e on e.id = c.equipe_id
+    order by e.nome, c.email
+  `;
+  const guardados = await sql<{ email: string; nome: string | null; equipe_id: string; equipe: string }>`
+    select c.email, c.nome, c.equipe_id, e.nome as equipe
+    from equipe_convites c
+    join equipes e on e.id = c.equipe_id
+    order by e.nome, c.email
+  `;
+  const vistos = new Set(links.map((item) => `${item.equipe_id}:${item.email}`));
+  const agora = Date.now();
+  const lista = links.map((item) => {
+    const limite = new Date(item.expira_iso || item.expira_em).getTime();
+    return {
+      email: item.email,
+      nome: item.nome,
+      equipeId: item.equipe_id,
+      equipe: item.equipe,
+      expiraEm: Number.isFinite(limite) ? new Date(limite).toISOString() : "",
+      valido: Number.isFinite(limite) && limite > agora,
+    };
+  });
+  for (const item of guardados) {
+    if (vistos.has(`${item.equipe_id}:${item.email}`)) continue;
+    lista.push({
+      email: item.email,
+      nome: item.nome?.trim() || item.email,
+      equipeId: item.equipe_id,
+      equipe: item.equipe,
+      expiraEm: "",
+      valido: true,
+    });
+  }
+  return lista;
+}
+
+export async function cancelarConvitePendente(equipeId: string, email: string) {
+  const sql = await garantirTabela();
+  const limpo = email.trim().toLowerCase();
+  await sql`delete from convite_link where equipe_id = ${equipeId} and lower(email) = ${limpo}`;
+  await sql`delete from equipe_convites where equipe_id = ${equipeId} and lower(email) = ${limpo}`;
+  await copiarBancoAgora();
+  return { ok: true };
 }

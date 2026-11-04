@@ -1,13 +1,14 @@
-import { useState, type FormEvent } from "react";
+import { useState, type CSSProperties, type FormEvent } from "react";
 import { authClient } from "@/lib/auth/client";
 import { atualizarSenhaLembrada, confirmarSenhaDigitada } from "@/lib/lembrar-acesso";
-import { CampoSenha } from "@/components/campo-senha";
+import { Eye, EyeOff } from "lucide-react";
 
 export function AvisoSenha({ email, onPronto }: { email: string; onPronto: () => void }) {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const [podeDigitar, setPodeDigitar] = useState(false);
+  const [visivel, setVisivel] = useState(false);
+  const [nomeCampo] = useState(() => `lembrete-${Math.random().toString(36).slice(2)}`);
 
   async function confirmar(event: FormEvent) {
     event.preventDefault();
@@ -54,23 +55,33 @@ export function AvisoSenha({ email, onPronto }: { email: string; onPronto: () =>
         {erro && <p className="mt-3 rounded-xl bg-seal-soft px-3 py-2 text-sm text-seal">{erro}</p>}
         <label className="mt-4 flex flex-col gap-1 text-sm font-medium text-ink">
           Senha de {email}
-          <input type="text" name="usuario" autoComplete="username" tabIndex={-1} aria-hidden className="hidden" />
-          <input type="password" name="senha" autoComplete="current-password" tabIndex={-1} aria-hidden className="hidden" />
-          <CampoSenha
-            name="lembrete-manual"
-            value={senha}
-            onChange={(evento) => setSenha(evento.target.value)}
-            onFocus={() => setPodeDigitar(true)}
-            readOnly={!podeDigitar}
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-            data-1p-ignore="true"
-            data-lpignore="true"
-            data-form-type="other"
-            className="h-11 w-full rounded-xl border border-line bg-paper px-3 text-sm font-normal text-ink"
-            required
-          />
+          <span className="relative block">
+            <input
+              type="text"
+              name={nomeCampo}
+              value={senha}
+              onChange={(evento) => setSenha(evento.target.value)}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-form-type="other"
+              inputMode="text"
+              className="h-11 w-full rounded-xl border border-line bg-paper px-3 pr-11 text-sm font-normal text-ink"
+              style={{ WebkitTextSecurity: visivel ? "none" : "disc" } as CSSProperties}
+              required
+            />
+            <button
+              type="button"
+              aria-label={visivel ? "Ocultar senha" : "Mostrar senha"}
+              onClick={() => setVisivel((atual) => !atual)}
+              className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted"
+            >
+              {visivel ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+            </button>
+          </span>
         </label>
         <button type="submit" disabled={enviando || senha.length < 8} className="mt-3 inline-flex h-12 w-full items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-60">
           {enviando ? "Conferindo…" : "Confirmar senha"}
