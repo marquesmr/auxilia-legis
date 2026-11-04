@@ -342,7 +342,7 @@ function SecaoEquipeModulo({ token, onErro }: { token: string; onErro: (texto: s
     carregar();
   }, [token]);
 
-  function alternar(id: string, modulo: "legislativo" | "administrativo") {
+  function alternar(id: string, modulo: "legislativo" | "administrativo" | "frotas") {
     const atual = lista.find((item) => item.id === id);
     if (!atual) return;
     const tem = atual.modulos.includes(modulo);
@@ -362,7 +362,7 @@ function SecaoEquipeModulo({ token, onErro }: { token: string; onErro: (texto: s
   return (
     <section className="mt-5 rounded-2xl border border-line bg-sheet p-4">
       <h2 className="text-sm font-medium text-ink">Equipe por módulo</h2>
-      <p className="mt-1 text-sm text-muted">Escolha em quais módulos a equipe aparece. Pode ser um ou os dois.</p>
+      <p className="mt-1 text-sm text-muted">Escolha em quais módulos a equipe aparece. Pode ser um ou mais.</p>
       <ul className="mt-3 flex flex-col">
         {pronto && lista.length === 0 && <li className="text-sm text-muted">Nenhuma equipe criada.</li>}
         {lista.map((item, indice) => (
@@ -376,6 +376,10 @@ function SecaoEquipeModulo({ token, onErro }: { token: string; onErro: (texto: s
               <label className="inline-flex items-center gap-2 text-sm text-ink">
                 <input type="checkbox" checked={item.modulos.includes("administrativo")} onChange={() => alternar(item.id, "administrativo")} />
                 Processos Administrativo
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm text-ink">
+                <input type="checkbox" checked={item.modulos.includes("frotas")} onChange={() => alternar(item.id, "frotas")} />
+                Frotas
               </label>
             </span>
           </li>

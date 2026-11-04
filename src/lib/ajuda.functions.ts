@@ -6,7 +6,7 @@ type Papel = "user" | "assistant";
 
 type Entrada = {
   pergunta: string;
-  area: "legislativo" | "administrativo";
+  area: "legislativo" | "administrativo" | "frotas";
   nome: string;
   historico: { papel: Papel; texto: string }[];
 };
@@ -21,6 +21,8 @@ Controle e Estatística de Processos Administrativo: modalidades da Lei 14.133, 
 
 Comunicação interna e parecer do agente de contratações no formato 02/2026. A guia Comunicações Internas lista só as da Gerência Administrativa, em sequência até a última, com atenção no que falta. As demais ficam em Comunicações Internas - Setores, juntas por setor. Pareceres do Agente de Contratações segue a sequência dos pareceres.
 
+Frotas: cadastro de veículos com placa, modelo, ano, tipo, combustível, quilometragem, situação e setor. Situações: Disponível, Em uso, Manutenção e Baixado. Registrar saída pede motorista, destino, motivo, data e quilometragem, e o veículo fica Em uso. Registrar retorno pede data e quilometragem e devolve o veículo para Disponível. Excluir pede confirmação e apaga as saídas junto. A equipe criada dentro de Frotas só aparece nesse módulo, até a área restrita marcar outros.
+
 Prazos avisam ao vencer. No administrativo os dias de antecedência são escolhidos. Equipe compartilha a lista; mover por botão ou arrastando. Configurações: tema claro, escuro ou automático; cores verde, vinho, azul, laranja e roxo; abrir no legislativo ou administrativo, na equipe ou só nos meus. Perfil muda nome e senha. A mesma conta entra em qualquer navegador, sem aplicativo autenticador. O acesso é por e-mail e senha, Google ou X. Senha esquecida chega por código no e-mail. Relatórios em retrato, gráficos redondos, timbrado só na primeira página, rodapé só na última, sem cor do tema e sem cabeçalho do navegador. Histórico guarda quem fez o quê.`;
 
 const MODELOS = ["mistral-Nemo-Instruct-2407", "default"];
@@ -31,7 +33,7 @@ function entradaOk(valor: unknown): Entrada {
   if (typeof bruto.pergunta !== "string") throw new Error("Pergunta inválida");
   const pergunta = bruto.pergunta.trim().slice(0, 800);
   if (!pergunta) throw new Error("Pergunta vazia");
-  const area = bruto.area === "administrativo" ? "administrativo" : "legislativo";
+  const area = bruto.area === "administrativo" || bruto.area === "frotas" ? bruto.area : "legislativo";
   const nome = typeof bruto.nome === "string" ? bruto.nome.trim().slice(0, 80) : "";
   const historico = Array.isArray(bruto.historico)
     ? bruto.historico.slice(-8).flatMap((item) => {
@@ -91,8 +93,7 @@ export const perguntarAjuda = createServerFn({ method: "POST" })
     const falha = nome
       ? `${nome}, não consegui responder agora. Pergunta de novo daqui a pouco.`
       : "Não consegui responder agora. Pergunta de novo daqui a pouco.";
-    const administrativa = data.area === "administrativo";
-    const aba = administrativa ? "Controle e Estatística de Processos Administrativo" : "Processos Legislativos";
+    const aba = data.area === "frotas" ? "Frotas" : data.area === "administrativo" ? "Processos Administrativo" : "Processos Legislativos";
     const mensagens = [
       {
         role: "system",

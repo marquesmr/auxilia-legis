@@ -63,6 +63,7 @@ import { Timbrado, TimbradoRodape } from "@/components/timbrado";
 import { intervaloPeriodo, type PeriodoRelatorio } from "@/lib/admin";
 import type { ProcessoAdmin } from "@/lib/admin";
 import { AjudaFlutuante } from "@/components/ajuda-flutuante";
+import { FrotasPainel } from "@/components/frotas-painel";
 import { CampoMes } from "@/components/campo-mes";
 import { marcarPresenca, estadoSistema, consultarExclusao, abrirGestaoPelaConta, pedirExclusaoConta, registrarAcessoConta, definirCidadeConta } from "@/lib/gestao.functions";
 import { definirStatus, encerraStatus, nomeStatus, statusDaArea } from "@/lib/status-catalogo";
@@ -112,7 +113,7 @@ const ABAS_FIXAS = ["Requerimentos", "Indicações", "Projetos de Lei", "Outros"
 
 type OrdemCampo = "numero" | "tipo" | "prazo";
 type Guia = "lista" | "estatisticas" | "relatorio";
-type Area = "legislativo" | "administrativo";
+type Area = "legislativo" | "administrativo" | "frotas";
 
 function evento(texto: string, autorNome: string): Andamento {
   return { id: crypto.randomUUID(), em: new Date().toISOString(), texto, autorNome };
@@ -210,14 +211,25 @@ function IconeLegislativo({ className }: { className?: string }) {
   );
 }
 
+function IconeFrota({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 14h18l-1.5-5.2A2 2 0 0 0 17.6 7H6.4a2 2 0 0 0-1.9 1.8L3 14z" />
+      <path d="M5 14v2.5a1 1 0 0 0 1 1h1.2a1 1 0 0 0 1-1V16h7.6v.5a1 1 0 0 0 1 1H18a1 1 0 0 0 1-1V14" />
+      <circle cx="7.5" cy="16.5" r="1.4" />
+      <circle cx="16.5" cy="16.5" r="1.4" />
+    </svg>
+  );
+}
+
 function EscolhaModulo({ nome, onEscolher }: { nome: string; onEscolher: (area: Area) => void }) {
   const primeiro = nome.trim().split(/\s+/)[0] || "você";
   return (
-    <main className="mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-4 py-12">
+    <main className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4 py-12">
       <p className="text-sm font-medium text-muted">Auxilia Legis</p>
       <h1 className="mt-2 font-display text-3xl text-ink sm:text-4xl">Olá, {primeiro}</h1>
       <p className="mt-2 max-w-xl text-sm text-muted">Escolha o módulo em que você quer entrar.</p>
-      <div className="mt-8 grid gap-4 md:grid-cols-2">
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
         <button
           type="button"
           onClick={() => onEscolher("legislativo")}
@@ -237,6 +249,16 @@ function EscolhaModulo({ nome, onEscolher }: { nome: string; onEscolher: (area: 
             <PranchetaGrafico className="size-7" />
           </span>
           <span className="mt-5 font-display text-2xl leading-tight">Processos Administrativo</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onEscolher("frotas")}
+          className="flex flex-col items-start rounded-3xl bg-ink p-6 text-left text-sheet shadow-sm transition hover:-translate-y-0.5"
+        >
+          <span className="grid size-14 place-items-center rounded-2xl bg-sheet/15">
+            <IconeFrota className="size-7" />
+          </span>
+          <span className="mt-5 font-display text-2xl leading-tight">Frotas</span>
         </button>
       </div>
     </main>
@@ -327,7 +349,7 @@ export function PrazosApp() {
 
   useEffect(() => {
     const guardado = sessionStorage.getItem("prazos.modulo");
-    if (guardado === "legislativo" || guardado === "administrativo") {
+    if (guardado === "legislativo" || guardado === "administrativo" || guardado === "frotas") {
       setModulo(guardado);
       setArea(guardado);
     }
@@ -432,7 +454,8 @@ export function PrazosApp() {
       aberturaAplicada.current = true;
       const prefs = lerPreferencias(usuarioId);
       const equipeInicial = prefs.escopo === "equipe" ? prefs.equipeId : null;
-      if (prefs.area !== area) setArea(prefs.area);
+      const moduloGuardado = sessionStorage.getItem("prazos.modulo");
+      if (moduloGuardado !== "legislativo" && moduloGuardado !== "administrativo" && moduloGuardado !== "frotas" && prefs.area !== area) setArea(prefs.area);
       if (equipeInicial !== equipeAtual) {
         setEquipeAtual(equipeInicial);
         return;
@@ -1025,7 +1048,7 @@ export function PrazosApp() {
     <div className="mx-auto min-h-screen max-w-[100rem] px-4 py-6 md:px-8 md:py-8 xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-x-6">
       <header className="flex flex-col gap-4 border-b border-line pb-6 md:flex-row md:items-center md:justify-between xl:col-start-1">
         <h1 className="font-display text-2xl leading-tight text-ink sm:text-3xl">
-          {area === "administrativo" ? "Processos Administrativo" : "Processos Legislativos"}
+          {area === "frotas" ? "Frotas" : area === "administrativo" ? "Processos Administrativo" : "Processos Legislativos"}
         </h1>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <UserButton />
@@ -1063,7 +1086,7 @@ export function PrazosApp() {
               Perfil
             </button>
           </div>
-          {area !== "administrativo" && (
+          {area === "legislativo" && (
           <button
             type="button"
             onClick={abrirNovo}
@@ -1081,7 +1104,23 @@ export function PrazosApp() {
         <CalendarioExpediente dias={diasMarcados} />
       </div>
 
-      {area === "administrativo" ? (
+      {area === "frotas" ? (
+        <div className="mt-4 grid gap-6 md:grid-cols-[16rem_1fr]">
+          <aside className="md:sticky md:top-6 md:self-start">
+            <PainelEquipe
+              equipes={equipesModulo}
+              atual={equipeVisivel}
+              meuEmail={user.primaryEmail ?? ""}
+              onEscolher={setEquipeAtual}
+              onCriar={criarNovaEquipe}
+              onAdicionar={incluirNaEquipe}
+              onRemover={tirarDaEquipe}
+              onRenomear={mudarNomeEquipe}
+            />
+          </aside>
+          <FrotasPainel equipeId={equipeVisivel} onToast={setToast} />
+        </div>
+      ) : area === "administrativo" ? (
         <Suspense fallback={<p className="mt-6 text-sm text-muted">Carregando…</p>}>
         <AdminPainel
           equipeAtual={equipeVisivel}

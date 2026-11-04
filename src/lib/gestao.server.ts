@@ -1289,7 +1289,7 @@ export async function listarLogs(filtro: { de: string; ate: string; texto: strin
 
 async function montarBackup(sql: Sql) {
   await tabelaPedido(sql);
-  const [usuarios, contas, autenticadores, processos, processosAdmin, equipes, membros, convites, abas, statusCatalogo, feriados, perfis, termos, gestaoAcesso, excluidas, pedidos] =
+  const [usuarios, contas, autenticadores, processos, processosAdmin, equipes, membros, convites, abas, statusCatalogo, feriados, perfis, termos, gestaoAcesso, excluidas, pedidos, veiculos, saidas] =
     await Promise.all([
       sql`select * from "user"`,
       sql`select "id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt" from "account"`,
@@ -1307,6 +1307,8 @@ async function montarBackup(sql: Sql) {
       sql`select * from gestao_acesso`,
       sql`select * from conta_excluida`,
       sql`select * from pedido_exclusao`,
+      sql`select * from frota_veiculos`,
+      sql`select * from frota_saidas`,
     ]);
   return JSON.stringify({
     versao: 2,
@@ -1328,6 +1330,8 @@ async function montarBackup(sql: Sql) {
     gestaoAcesso,
     excluidas,
     pedidos,
+    veiculos,
+    saidas,
   });
 }
 
@@ -1535,6 +1539,8 @@ export async function restaurarBackup(conteudo: string) {
     await gravarLinhas(sql, "feriados", ["id"], (dados as { feriados?: unknown }).feriados);
     await gravarLinhas(sql, "conta_excluida", ["user_id"], (dados as { excluidas?: unknown }).excluidas);
     await gravarLinhas(sql, "pedido_exclusao", ["user_id"], (dados as { pedidos?: unknown }).pedidos);
+    await gravarLinhas(sql, "frota_veiculos", ["id"], (dados as { veiculos?: unknown }).veiculos);
+    await gravarLinhas(sql, "frota_saidas", ["id"], (dados as { saidas?: unknown }).saidas);
     const processos = await gravarLinhas(sql, "processos", ["id"], dados.processos);
     const administrativos = await gravarLinhas(sql, "processos_admin", ["id"], dados.processosAdmin);
     const ids = [...new Set([...idsDe(dados.usuarios, "id"), ...idsDe(dados.contas, "userId")])];

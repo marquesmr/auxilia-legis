@@ -3,7 +3,7 @@ import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
 
 export type PapelEquipe = "dono" | "membro";
-export type ModuloEquipe = "legislativo" | "administrativo";
+export type ModuloEquipe = "legislativo" | "administrativo" | "frotas";
 
 export type MembroEquipe = {
   userId: string;
@@ -40,7 +40,7 @@ function papelOk(value: string): PapelEquipe {
 }
 
 export function modulosOuAmbos(lista: readonly string[] | undefined): ModuloEquipe[] {
-  const validos = (lista ?? []).filter((item): item is ModuloEquipe => item === "legislativo" || item === "administrativo");
+  const validos = (lista ?? []).filter((item): item is ModuloEquipe => item === "legislativo" || item === "administrativo" || item === "frotas");
   return validos.length ? validos : ["legislativo", "administrativo"];
 }
 
@@ -61,7 +61,7 @@ async function mapaModulos() {
   const linhas = await sql<{ equipe_id: string; modulo: string }>`select equipe_id, modulo from equipe_modulos`;
   const mapa = new Map<string, ModuloEquipe[]>();
   for (const linha of linhas) {
-    if (linha.modulo !== "legislativo" && linha.modulo !== "administrativo") continue;
+    if (linha.modulo !== "legislativo" && linha.modulo !== "administrativo" && linha.modulo !== "frotas") continue;
     const atual = mapa.get(linha.equipe_id) ?? [];
     atual.push(linha.modulo);
     mapa.set(linha.equipe_id, atual);
@@ -158,7 +158,7 @@ export const criarEquipe = createServerFn({ method: "POST" })
     if (!bruto || typeof bruto !== "object") throw new Error("Dê um nome para a equipe.");
     const dados = bruto as { nome?: unknown; modulo?: unknown };
     if (typeof dados.nome !== "string" || dados.nome.trim().length < 2) throw new Error("Dê um nome para a equipe.");
-    const modulo: ModuloEquipe = dados.modulo === "administrativo" ? "administrativo" : "legislativo";
+    const modulo: ModuloEquipe = dados.modulo === "administrativo" || dados.modulo === "frotas" ? dados.modulo : "legislativo";
     return { nome: dados.nome.trim().slice(0, 60), modulo };
   })
   .middleware([authMiddleware])
@@ -325,7 +325,7 @@ export async function listarAtribuicaoModulos() {
 }
 
 export async function definirModulosEquipe(equipeId: string, modulos: ModuloEquipe[]) {
-  const unicos = [...new Set(modulos)].filter((item): item is ModuloEquipe => item === "legislativo" || item === "administrativo");
+  const unicos = [...new Set(modulos)].filter((item): item is ModuloEquipe => item === "legislativo" || item === "administrativo" || item === "frotas");
   if (!unicos.length) throw new Error("A equipe precisa ficar em pelo menos um módulo.");
   const sql = await garantirModulosEquipe();
   const existe = await sql<{ ok: number }>`select 1 as ok from equipes where id = ${equipeId}`;
