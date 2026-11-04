@@ -267,5 +267,7 @@ export const removerDaEquipe = createServerFn({ method: "POST" })
       delete from equipe_convites
       where equipe_id = ${data.equipeId} and lower(email) = ${data.email}
     `;
+    const { cancelarConvitePendente } = await import("./convite-equipe.server");
+    await cancelarConvitePendente(data.equipeId, data.email);
     return { ok: true };
   });

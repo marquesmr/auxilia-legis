@@ -52,7 +52,6 @@ export async function enviarConviteEquipe(dados: { equipeId: string; email: stri
     insert into convite_link (token_hash, token, equipe_id, email, nome, expira_em, expira_iso)
     values (${tokenHash}, ${token}, ${dados.equipeId}, ${dados.email}, ${dados.nome}, ${expiraIso}, ${expiraIso})
   `;
-  await copiarBancoAgora();
   const origem = origemPublica(await urlDoSite());
   const link = `${origem}/convite?token=${token}`;
   const convidou = escapar(dados.convidou.trim() || "um responsável da equipe");
@@ -76,6 +75,11 @@ ${botaoEmail(link, "Acessar Minha Equipe")}
     emailHtml(dados.nome, corpo, origem, "Atenciosamente"),
     senhaCaixa,
   );
+  try {
+    await copiarBancoAgora();
+  } catch (err) {
+    console.error("[convite] banco não copiado depois do e-mail", err);
+  }
   return { enviado: true as const };
 }
 

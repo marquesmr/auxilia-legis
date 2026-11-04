@@ -1018,7 +1018,7 @@ export function PrazosApp() {
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <UserButton />
           <div className="flex items-center gap-2">
-            <BotaoConfiguracoes equipes={equipes} userId={user.id} />
+            <BotaoConfiguracoes userId={user.id} />
             <button
               type="button"
               onClick={voltarModulos}
@@ -2384,7 +2384,15 @@ function PainelEquipe({
                     />
                   </label>
                   <div className="mt-4 flex gap-2">
-                    <button type="button" onClick={() => setConviteAberto(false)} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setConviteAberto(false);
+                      }}
+                      className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink"
+                    >
                       Cancelar
                     </button>
                     <button type="submit" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">

@@ -1,10 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Settings, X } from "lucide-react";
-import type { Equipe } from "@/lib/equipes.functions";
-import { gravarPreferencias, lerPreferencias, type AreaInicial, type Cor, type Preferencias, type Tema } from "@/lib/preferencias";
+import { gravarPreferencias, lerPreferencias, type Cor, type Preferencias, type Tema } from "@/lib/preferencias";
 
-export function BotaoConfiguracoes({ equipes, userId }: { equipes: Equipe[]; userId: string }) {
+export function BotaoConfiguracoes({ userId }: { userId: string }) {
   const [aberto, setAberto] = useState(false);
   const [prefs, setPrefs] = useState<Preferencias>(() => lerPreferencias(userId));
   const [aviso, setAviso] = useState("");
@@ -16,13 +15,8 @@ export function BotaoConfiguracoes({ equipes, userId }: { equipes: Equipe[]; use
   }, [aberto, userId]);
 
   function salvar() {
-    const equipeId = prefs.escopo === "equipe" ? prefs.equipeId || equipes[0]?.id || null : prefs.equipeId;
-    if (prefs.escopo === "equipe" && !equipeId) {
-      setAviso("Crie uma equipe antes de escolhê-la como abertura.");
-      return;
-    }
-    gravarPreferencias({ ...prefs, equipeId: prefs.escopo === "equipe" ? equipeId : null }, userId);
-    setAviso("Guardado. Tema já aplicado. A parte e a equipe valem na próxima abertura.");
+    gravarPreferencias(prefs, userId);
+    setAviso("Guardado. O tema já foi aplicado.");
   }
 
   return (
@@ -42,7 +36,6 @@ export function BotaoConfiguracoes({ equipes, userId }: { equipes: Equipe[]; use
           <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
             <div>
               <Dialog.Title className="font-display text-2xl text-ink">Configurações</Dialog.Title>
-              <Dialog.Description className="mt-1 text-sm text-muted">Tema, parte inicial e de onde abrir os processos.</Dialog.Description>
             </div>
             <Dialog.Close className="grid size-9 place-items-center rounded-full text-muted hover:bg-paper">
               <X className="size-4" />
@@ -75,56 +68,6 @@ export function BotaoConfiguracoes({ equipes, userId }: { equipes: Equipe[]; use
                   {item.nome}
                 </Opcao>
               ))}
-            </fieldset>
-            <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm font-medium text-ink">Ao abrir o sistema</legend>
-              <Opcao
-                nome="area"
-                valor="legislativo"
-                atual={prefs.area}
-                onChange={(area) => setPrefs({ ...prefs, area: area as AreaInicial })}
-              >
-                Processos legislativos
-              </Opcao>
-              <Opcao
-                nome="area"
-                valor="administrativo"
-                atual={prefs.area}
-                onChange={(area) => setPrefs({ ...prefs, area: area as AreaInicial })}
-              >
-                Processos administrativos
-              </Opcao>
-            </fieldset>
-            <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm font-medium text-ink">Processos iniciais</legend>
-              <Opcao nome="escopo" valor="meus" atual={prefs.escopo} onChange={() => setPrefs({ ...prefs, escopo: "meus" })}>
-                Só os meus
-              </Opcao>
-              <Opcao
-                nome="escopo"
-                valor="equipe"
-                atual={prefs.escopo}
-                onChange={() => setPrefs({ ...prefs, escopo: "equipe", equipeId: prefs.equipeId || equipes[0]?.id || null })}
-              >
-                Uma equipe
-              </Opcao>
-              {prefs.escopo === "equipe" && (
-                <label className="mt-1 flex flex-col gap-1 text-sm text-muted">
-                  Equipe
-                  <select
-                    value={prefs.equipeId ?? ""}
-                    onChange={(e) => setPrefs({ ...prefs, equipeId: e.target.value || null })}
-                    className="h-11 rounded-xl border border-line bg-paper px-3 text-sm text-ink"
-                  >
-                    {equipes.length === 0 && <option value="">Nenhuma equipe</option>}
-                    {equipes.map((equipe) => (
-                      <option key={equipe.id} value={equipe.id}>
-                        {equipe.nome}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
             </fieldset>
             {aviso && <p className="text-sm text-ink">{aviso}</p>}
           </div>
