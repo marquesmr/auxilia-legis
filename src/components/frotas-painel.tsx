@@ -129,17 +129,13 @@ const vazioVeiculo = {
   tipo: "Carro",
   combustivel: "Flex",
   capacidade: "",
-  aquisicao: "",
+  posse: "Próprio",
   km: "",
   situacao: "disponivel" as SituacaoFrota,
   setor: "",
-  ipva: "",
-  licenciamento: "",
   seguroApolice: "",
   seguroCobertura: "",
   seguroVence: "",
-  inspecao: "",
-  cronotacografo: "",
 };
 
 export function FrotasPainel({ equipeId, onToast }: { equipeId: string | null; onToast: (texto: string) => void }) {
@@ -186,13 +182,7 @@ export function FrotasPainel({ equipeId, onToast }: { equipeId: string | null; o
   const alertas = useMemo(() => {
     const lista: string[] = [];
     for (const item of veiculos) {
-      const docs = [
-        ["IPVA", item.ipva],
-        ["licenciamento", item.licenciamento],
-        ["seguro", item.seguroVence],
-        ["inspeção", item.inspecao],
-        ["cronotacógrafo", item.cronotacografo],
-      ] as const;
+      const docs = [["seguro", item.seguroVence]] as const;
       for (const [nome, data] of docs) {
         if (data && data < hoje()) lista.push(`${item.placa}: ${nome} vencido`);
         else if (venceEm(data)) lista.push(`${item.placa}: ${nome} vence em ${dataTexto(data)}`);
@@ -342,7 +332,7 @@ function AbaCadastro({
               <div>
                 <p className="font-display text-2xl text-ink">{item.placa}</p>
                 <p className="text-sm text-ink">{[item.marca, item.descricao].filter(Boolean).join(" ")}{item.ano ? ` · ${item.ano}` : ""}</p>
-                <p className="text-sm text-muted">{item.tipo} · {item.combustivel}{item.capacidade ? ` · ${item.capacidade}` : ""}{item.setor ? ` · ${item.setor}` : ""}</p>
+                <p className="text-sm text-muted">{item.tipo} · {item.combustivel} · {item.posse || "Próprio"}{item.capacidade ? ` · ${item.capacidade}` : ""}{item.setor ? ` · ${item.setor}` : ""}</p>
               </div>
               <span className={"shrink-0 rounded-full px-2 py-1 text-xs font-medium " + tomSituacao(item.situacao)}>{rotuloSituacao(item.situacao)}</span>
             </div>
@@ -394,20 +384,13 @@ function AbaCadastro({
               <Campo nome="Renavam"><input value={veiculo.renavam} onChange={(evento) => setVeiculo({ ...veiculo, renavam: evento.target.value })} className={campo} autoComplete="off" /></Campo>
             </div>
             <Campo nome="Capacidade de carga ou lotação"><input value={veiculo.capacidade} onChange={(evento) => setVeiculo({ ...veiculo, capacidade: evento.target.value })} className={campo} autoComplete="off" /></Campo>
-            <Campo nome="Aquisição"><input type="date" value={veiculo.aquisicao} onChange={(evento) => setVeiculo({ ...veiculo, aquisicao: evento.target.value })} className={campo} /></Campo>
+            <Campo nome="Aquisição"><select value={veiculo.posse === "Alugado" ? "Alugado" : "Próprio"} onChange={(evento) => setVeiculo({ ...veiculo, posse: evento.target.value })} className={campo}><option>Próprio</option><option>Alugado</option></select></Campo>
             <div className="grid grid-cols-2 gap-3">
               <Campo nome="Tipo"><select value={veiculo.tipo} onChange={(evento) => setVeiculo({ ...veiculo, tipo: evento.target.value })} className={campo}>{TIPOS.map((item) => <option key={item}>{item}</option>)}</select></Campo>
               <Campo nome="Combustível"><select value={veiculo.combustivel} onChange={(evento) => setVeiculo({ ...veiculo, combustivel: evento.target.value })} className={campo}>{COMBUSTIVEIS.map((item) => <option key={item}>{item}</option>)}</select></Campo>
             </div>
             <Campo nome="Situação"><select value={veiculo.situacao} onChange={(evento) => setVeiculo({ ...veiculo, situacao: evento.target.value as SituacaoFrota })} className={campo}>{SITUACOES.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select></Campo>
             <Campo nome="Setor"><input value={veiculo.setor} onChange={(evento) => setVeiculo({ ...veiculo, setor: evento.target.value })} className={campo} autoComplete="off" /></Campo>
-            <p className="pt-1 text-sm font-medium text-ink">Documentos</p>
-            <div className="grid grid-cols-2 gap-3">
-              <Campo nome="IPVA"><input type="date" value={veiculo.ipva} onChange={(evento) => setVeiculo({ ...veiculo, ipva: evento.target.value })} className={campo} /></Campo>
-              <Campo nome="Licenciamento"><input type="date" value={veiculo.licenciamento} onChange={(evento) => setVeiculo({ ...veiculo, licenciamento: evento.target.value })} className={campo} /></Campo>
-              <Campo nome="Inspeção"><input type="date" value={veiculo.inspecao} onChange={(evento) => setVeiculo({ ...veiculo, inspecao: evento.target.value })} className={campo} /></Campo>
-              <Campo nome="Cronotacógrafo"><input type="date" value={veiculo.cronotacografo} onChange={(evento) => setVeiculo({ ...veiculo, cronotacografo: evento.target.value })} className={campo} /></Campo>
-            </div>
             <Campo nome="Apólice do seguro"><input value={veiculo.seguroApolice} onChange={(evento) => setVeiculo({ ...veiculo, seguroApolice: evento.target.value })} className={campo} autoComplete="off" /></Campo>
             <Campo nome="Cobertura"><input value={veiculo.seguroCobertura} onChange={(evento) => setVeiculo({ ...veiculo, seguroCobertura: evento.target.value })} className={campo} autoComplete="off" /></Campo>
             <Campo nome="Seguro vence"><input type="date" value={veiculo.seguroVence} onChange={(evento) => setVeiculo({ ...veiculo, seguroVence: evento.target.value })} className={campo} /></Campo>

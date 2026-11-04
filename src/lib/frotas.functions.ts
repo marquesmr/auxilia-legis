@@ -15,18 +15,14 @@ export type VeiculoFrota = {
   tipo: string;
   combustivel: string;
   capacidade: string;
-  aquisicao: string;
+  posse: string;
   km: number;
   situacao: SituacaoFrota;
   setor: string;
   equipeId: string | null;
-  ipva: string;
-  licenciamento: string;
   seguroApolice: string;
   seguroCobertura: string;
   seguroVence: string;
-  inspecao: string;
-  cronotacografo: string;
 };
 
 export type CondutorFrota = {
@@ -197,7 +193,7 @@ async function garantirFrota() {
   await sql`alter table frota_veiculos add column if not exists chassi text not null default ''`;
   await sql`alter table frota_veiculos add column if not exists renavam text not null default ''`;
   await sql`alter table frota_veiculos add column if not exists capacidade text not null default ''`;
-  await sql`alter table frota_veiculos add column if not exists aquisicao date`;
+  await sql`alter table frota_veiculos add column if not exists posse text not null default 'Próprio'`;
   await sql`alter table frota_veiculos add column if not exists ipva date`;
   await sql`alter table frota_veiculos add column if not exists licenciamento date`;
   await sql`alter table frota_veiculos add column if not exists seguro_apolice text not null default ''`;
@@ -396,18 +392,14 @@ function mapaVeiculo(item: Record<string, unknown>): VeiculoFrota {
     tipo: txt(item, "tipo"),
     combustivel: txt(item, "combustivel"),
     capacidade: txt(item, "capacidade"),
-    aquisicao: dia(item.aquisicao),
+    posse: txt(item, "posse") === "Alugado" ? "Alugado" : "Próprio",
     km: num(item, "km"),
     situacao: situacaoOk(item.situacao),
     setor: txt(item, "setor"),
     equipeId: item.team_id ? String(item.team_id) : null,
-    ipva: dia(item.ipva),
-    licenciamento: dia(item.licenciamento),
     seguroApolice: txt(item, "seguro_apolice"),
     seguroCobertura: txt(item, "seguro_cobertura"),
     seguroVence: dia(item.seguro_vence),
-    inspecao: dia(item.inspecao),
-    cronotacografo: dia(item.cronotacografo),
   };
 }
 
@@ -581,17 +573,13 @@ export const salvarVeiculo = createServerFn({ method: "POST" })
       tipo,
       combustivel,
       capacidade: opcional(bruto.capacidade, 80),
-      aquisicao: dataOpcional(bruto.aquisicao),
+      posse: bruto.posse === "Alugado" ? "Alugado" : "Próprio",
       km: kmOk(bruto.km, "A quilometragem"),
       situacao: situacaoOk(bruto.situacao),
       setor: opcional(bruto.setor, 80),
-      ipva: dataOpcional(bruto.ipva),
-      licenciamento: dataOpcional(bruto.licenciamento),
       seguroApolice: opcional(bruto.seguroApolice, 80),
       seguroCobertura: opcional(bruto.seguroCobertura, 200),
       seguroVence: dataOpcional(bruto.seguroVence),
-      inspecao: dataOpcional(bruto.inspecao),
-      cronotacografo: dataOpcional(bruto.cronotacografo),
     };
   })
   .handler(async ({ context, data }) => {
@@ -621,31 +609,26 @@ export const salvarVeiculo = createServerFn({ method: "POST" })
           tipo = ${data.tipo},
           combustivel = ${data.combustivel},
           capacidade = ${data.capacidade},
-          aquisicao = ${data.aquisicao || null},
+          posse = ${data.posse},
           km = ${data.km},
           situacao = ${data.situacao},
           setor = ${data.setor},
-          ipva = ${data.ipva || null},
-          licenciamento = ${data.licenciamento || null},
           seguro_apolice = ${data.seguroApolice},
           seguro_cobertura = ${data.seguroCobertura},
-          seguro_vence = ${data.seguroVence || null},
-          inspecao = ${data.inspecao || null},
-          cronotacografo = ${data.cronotacografo || null}
+          seguro_vence = ${data.seguroVence || null}
         where id = ${id}
       `;
     } else {
       await sql`
         insert into frota_veiculos (
           id, user_id, team_id, placa, descricao, marca, ano, chassi, renavam, tipo, combustivel,
-          capacidade, aquisicao, km, situacao, setor, ipva, licenciamento, seguro_apolice, seguro_cobertura,
-          seguro_vence, inspecao, cronotacografo
+          capacidade, posse, km, situacao, setor, seguro_apolice, seguro_cobertura, seguro_vence
         )
         values (
           ${id}, ${context.userId}, ${data.equipeId}, ${data.placa}, ${data.descricao}, ${data.marca}, ${data.ano},
-          ${data.chassi}, ${data.renavam}, ${data.tipo}, ${data.combustivel}, ${data.capacidade}, ${data.aquisicao || null},
-          ${data.km}, ${data.situacao}, ${data.setor}, ${data.ipva || null}, ${data.licenciamento || null},
-          ${data.seguroApolice}, ${data.seguroCobertura}, ${data.seguroVence || null}, ${data.inspecao || null}, ${data.cronotacografo || null}
+          ${data.chassi}, ${data.renavam}, ${data.tipo}, ${data.combustivel}, ${data.capacidade}, ${data.posse},
+          ${data.km}, ${data.situacao}, ${data.setor},
+          ${data.seguroApolice}, ${data.seguroCobertura}, ${data.seguroVence || null}
         )
       `;
     }
