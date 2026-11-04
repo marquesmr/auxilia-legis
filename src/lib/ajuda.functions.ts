@@ -23,7 +23,7 @@ Comunicação interna e parecer do agente de contratações no formato 02/2026. 
 
 Prazos avisam ao vencer. No administrativo os dias de antecedência são escolhidos. Equipe compartilha a lista; mover por botão ou arrastando. Configurações: tema claro, escuro ou automático; cores verde, vinho, azul, laranja e roxo; abrir no legislativo ou administrativo, na equipe ou só nos meus. Perfil muda nome e senha. A mesma conta entra em qualquer navegador, sem aplicativo autenticador. O acesso é por e-mail e senha, Google ou X. Senha esquecida chega por código no e-mail. Relatórios em retrato, gráficos redondos, timbrado só na primeira página, rodapé só na última, sem cor do tema e sem cabeçalho do navegador. Histórico guarda quem fez o quê.`;
 
-const MODELOS = ["mistral-Nemo-Instruct-2407", "default"];
+const MODELOS = ["mistral-Nemo-Instruct-2407", "gpt-oss:20b", "default"];
 
 function entradaOk(valor: unknown): Entrada {
   if (!valor || typeof valor !== "object") throw new Error("Dados inválidos");
@@ -60,24 +60,37 @@ function garantirNome(nome: string, texto: string) {
   return `${pessoa}, ${miudo}`;
 }
 
-async function consultarModelo(modelo: string, mensagens: { role: string; content: string }[]) {
-  const chave = process.env.LLM7_API_KEY?.trim();
+function limparResposta(bruto: string) {
+  const semPensamento = bruto.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  if (!semPensamento) return "";
+  const partes = semPensamento
+    .split(/\n{2,}/)
+    .map((parte) => parte.trim())
+    .filter(Boolean)
+    .filter((parte) => !/^(the user|so they|we (can|should)|let me|i (should|need|will)|analysis|reasoning)\b/i.test(parte));
+  const texto = (partes.length ? partes : [semPensamento]).join("\n\n").trim();
+  if (/^the user\b/i.test(texto) && !/[áàâãéêíóôõúç]/i.test(texto)) return "";
+  return texto;
+}
+
+async function consultarModelo(modelo: string, mensagens: { role: string; content: string }[], chave: string) {
   const cabecalhos: Record<string, string> = { "Content-Type": "application/json" };
   if (chave) cabecalhos.Authorization = `Bearer ${chave}`;
   const res = await fetch("https://api.llm7.io/v1/chat/completions", {
     method: "POST",
     headers: cabecalhos,
-    signal: AbortSignal.timeout(22000),
+    signal: AbortSignal.timeout(18000),
     body: JSON.stringify({
       model: modelo,
-      max_tokens: 420,
+      max_tokens: 500,
       temperature: 0.3,
       messages: mensagens,
     }),
   });
   if (!res.ok) return "";
   const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  return body.choices?.[0]?.message?.content?.trim() ?? "";
+  const conteudo = body.choices?.[0]?.message?.content;
+  return typeof conteudo === "string" ? limparResposta(conteudo) : "";
 }
 
 export const perguntarAjuda = createServerFn({ method: "POST" })
@@ -104,11 +117,16 @@ A pessoa está agora na aba ${aba}. O primeiro nome dela é ${tratamento}. Comec
     ];
 
     let texto = "";
+    const chave = process.env.LLM7_API_KEY?.trim() ?? "";
+    const acessos = chave ? [chave, ""] : [""];
     for (const modelo of MODELOS) {
-      try {
-        texto = await consultarModelo(modelo, mensagens);
-      } catch {
-        texto = "";
+      for (const acesso of acessos) {
+        try {
+          texto = await consultarModelo(modelo, mensagens, acesso);
+        } catch {
+          texto = "";
+        }
+        if (texto) break;
       }
       if (texto) break;
     }
