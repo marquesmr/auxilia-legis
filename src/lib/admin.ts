@@ -57,6 +57,10 @@ export function permitePublicacaoNa(tipo: string): boolean {
   return tipo === "Pronto Pagamento" || tipo === "Inexigibilidade de Licitação";
 }
 
+export function permiteDoisContratados(tipo: string): boolean {
+  return !tipoSimples(tipo) && tipo !== "Pronto Pagamento";
+}
+
 export function normalizarLink(valor: string): string | null {
   const texto = valor.trim();
   if (!texto) return null;
@@ -125,6 +129,8 @@ export type ProcessoAdmin = {
   vigenciaFim: string | null;
   contratado: string;
   documento: string;
+  contratado2: string;
+  documento2: string;
   valorTotalCentavos: number | null;
   valorMensalCentavos: number | null;
   valorEstimadoCentavos: number | null;

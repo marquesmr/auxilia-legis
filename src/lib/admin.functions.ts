@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, permitePublicacaoNa, tipoSimples, type ProcessoAdmin } from "@/lib/admin";
+import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, permiteDoisContratados, permitePublicacaoNa, tipoSimples, type ProcessoAdmin } from "@/lib/admin";
 import { todayIso, type Andamento } from "@/lib/prazos";
 
 function dataOk(value: unknown): value is string {
@@ -138,6 +138,19 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     if (digitos.length !== 11 && digitos.length !== 14) throw new Error("Informe o CPF ou o CNPJ.");
     if (valorTotalCentavos == null) throw new Error("Informe o valor da contratação ou aquisição.");
   }
+  const guardaContratado = !simples && (possuiContrato || modo === "total");
+  const nome2 = typeof bruto.contratado2 === "string" ? bruto.contratado2.trim() : "";
+  const doc2 = typeof bruto.documento2 === "string" ? bruto.documento2.trim() : "";
+  let contratado2 = "";
+  let documento2 = "";
+  if (guardaContratado && permiteDoisContratados(tipo) && (nome2 || doc2)) {
+    if (!nome2) throw new Error("Informe o segundo contratado ou fornecedor.");
+    const digitos2 = doc2.replace(/\D/g, "");
+    if (digitos2 && digitos2.length !== 11 && digitos2.length !== 14) throw new Error("O CPF ou CNPJ do segundo contratado ou fornecedor está inválido.");
+    if (modo === "total" && digitos2.length !== 11 && digitos2.length !== 14) throw new Error("Informe o CPF ou o CNPJ do segundo contratado ou fornecedor.");
+    contratado2 = nome2.slice(0, 160);
+    documento2 = doc2.slice(0, 24);
+  }
   const encerramento =
     simples
       ? hoje
@@ -163,8 +176,10 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     possuiContrato: !simples && possuiContrato,
     vigenciaInicio: !simples && possuiContrato ? vigenciaInicio : null,
     vigenciaFim: !simples && possuiContrato ? vigenciaFim : null,
-    contratado: !simples && (possuiContrato || modo === "total") ? contratado.slice(0, 160) : "",
-    documento: !simples && (possuiContrato || modo === "total") ? documento.slice(0, 24) : "",
+    contratado: guardaContratado ? contratado.slice(0, 160) : "",
+    documento: guardaContratado ? documento.slice(0, 24) : "",
+    contratado2,
+    documento2,
     valorTotalCentavos: modo === "contrato" || modo === "total" ? valorTotalCentavos : null,
     valorMensalCentavos: modo === "contrato" ? valorMensalCentavos : null,
     valorEstimadoCentavos: modo === "estimado" ? valorEstimadoCentavos : null,
@@ -206,6 +221,8 @@ type Linha = {
   vigencia_fim: string | null;
   contratado: string;
   documento: string;
+  contratado_2: string | null;
+  documento_2: string | null;
   valor_total_centavos: number | null;
   valor_mensal_centavos: number | null;
   valor_estimado_centavos: number | null;
@@ -273,6 +290,8 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
     vigenciaFim: possui ? dia(linha.vigencia_fim) : null,
     contratado: linha.contratado ?? "",
     documento: linha.documento ?? "",
+    contratado2: linha.contratado_2 ?? "",
+    documento2: linha.documento_2 ?? "",
     valorTotalCentavos: linha.valor_total_centavos != null ? Number(linha.valor_total_centavos) : null,
     valorMensalCentavos: possui && linha.valor_mensal_centavos != null ? Number(linha.valor_mensal_centavos) : null,
     valorEstimadoCentavos: linha.valor_estimado_centavos != null ? Number(linha.valor_estimado_centavos) : null,
@@ -297,7 +316,7 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
 }
 
 let schemaPronto: { versao: number; pendente: Promise<void> } | null = null;
-const SCHEMA_ADMIN = 11;
+const SCHEMA_ADMIN = 12;
 
 /** Garante as colunas novas mesmo se a migração ainda não tiver rodado nesta instância. */
 async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
@@ -321,6 +340,10 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
         "alter table processos_admin add column if not exists link_pncp text not null default ''",
         "alter table processos_admin add column if not exists link_retificacao text not null default ''",
         "alter table processos_admin add column if not exists link_cancelamento text not null default ''",
+        "alter table processos_admin add column if not exists contratado text not null default ''",
+        "alter table processos_admin add column if not exists documento text not null default ''",
+        "alter table processos_admin add column if not exists contratado_2 text not null default ''",
+        "alter table processos_admin add column if not exists documento_2 text not null default ''",
         "alter table processos_admin add column if not exists em_manutencao boolean not null default false",
         "alter table processos_admin add column if not exists status_em date",
       ];
@@ -336,8 +359,8 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
 
 const SELECT_ADMIN = `
   p.id, p.numero, p.numero_ano, p.referencia, p.objeto, p.tipo, p.tipo_numero, p.tipo_ano, p.data_inicio, p.previsao_etapa, p.encerramento,
-  p.alerta_dias, p.possui_contrato, p.vigencia_inicio, p.vigencia_fim, p.contratado,
-  p.documento, p.valor_total_centavos, p.valor_mensal_centavos, p.valor_estimado_centavos,
+  p.alerta_dias, p.possui_contrato, p.vigencia_inicio, p.vigencia_fim,
+  p.contratado, p.documento, p.contratado_2, p.documento_2, p.valor_total_centavos, p.valor_mensal_centavos, p.valor_estimado_centavos,
   p.ci_numero, p.ci_ano, p.ci_origem, p.link_abertura, p.link_abertura_na, p.link_homologacao, p.link_pncp, p.link_retificacao, p.link_cancelamento, p.parecer_numero, p.parecer_ano, p.parecer_na,
   p.status, p.historico, p.team_id,
   coalesce(nullif(p.autor_id, ''), p.user_id) as autor_id,
@@ -514,6 +537,8 @@ export const salvarAdmin = createServerFn({ method: "POST" })
             vigencia_fim = ${data.vigenciaFim},
             contratado = ${data.contratado},
             documento = ${data.documento},
+            contratado_2 = ${data.contratado2},
+            documento_2 = ${data.documento2},
             valor_total_centavos = ${data.valorTotalCentavos},
             valor_mensal_centavos = ${data.valorMensalCentavos},
             valor_estimado_centavos = ${data.valorEstimadoCentavos},
@@ -542,7 +567,7 @@ export const salvarAdmin = createServerFn({ method: "POST" })
       : await sql<{ id: string }>`
           insert into processos_admin (
             id, user_id, team_id, numero, numero_ano, referencia, objeto, tipo, tipo_numero, tipo_ano, data_inicio, previsao_etapa, encerramento,
-            alerta_dias, possui_contrato, vigencia_inicio, vigencia_fim, contratado, documento,
+            alerta_dias, possui_contrato, vigencia_inicio, vigencia_fim, contratado, documento, contratado_2, documento_2,
             valor_total_centavos, valor_mensal_centavos, valor_estimado_centavos, ci_numero, ci_ano, ci_origem,
             link_abertura, link_abertura_na, link_homologacao, link_pncp, link_retificacao, link_cancelamento,
             parecer_numero, parecer_ano, parecer_na, status, status_em, historico, autor_id, autor_nome, em_manutencao
@@ -550,7 +575,7 @@ export const salvarAdmin = createServerFn({ method: "POST" })
             ${data.id}, ${context.userId}, ${data.equipeId}, ${data.numero}, ${data.numeroAno}, ${data.referencia},
             ${data.objeto}, ${data.tipo}, ${data.tipoNumero}, ${data.tipoAno}, ${data.dataInicio}, ${data.previsaoEtapa}, ${data.encerramento}, ${data.alertaDias},
             ${data.possuiContrato}, ${data.vigenciaInicio}, ${data.vigenciaFim}, ${data.contratado},
-            ${data.documento}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos},
+            ${data.documento}, ${data.contratado2}, ${data.documento2}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos},
             ${data.ciNumero}, ${data.ciAno}, ${data.ciOrigem}, ${data.linkAbertura}, ${data.linkAberturaNa}, ${data.linkHomologacao}, ${data.linkPncp}, ${data.linkRetificacao}, ${data.linkCancelamento}, ${data.parecerNumero}, ${data.parecerAno}, ${data.parecerNa},
             ${data.status}, current_date,
             ${historicoJson}, ${context.userId}, ${autorNome}, ${lancadoNaManutencao}

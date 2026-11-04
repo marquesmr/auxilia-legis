@@ -10,6 +10,7 @@ import {
   dataAlvo,
   exigeLinks,
   permitePublicacaoNa,
+  permiteDoisContratados,
   marcoAdmin,
   anosDePeca,
   formatarPeca,
@@ -71,6 +72,8 @@ type FormAdmin = {
   vigenciaFim: string;
   contratado: string;
   documento: string;
+  contratado2: string;
+  documento2: string;
   valorTotal: string;
   valorMensal: string;
   valorEstimado: string;
@@ -176,6 +179,8 @@ function vazio(): FormAdmin {
     vigenciaFim: addDaysIso(365),
     contratado: "",
     documento: "",
+    contratado2: "",
+    documento2: "",
     valorTotal: "",
     valorMensal: "",
     valorEstimado: "",
@@ -223,6 +228,8 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
     vigenciaFim: p.vigenciaFim ?? p.encerramento,
     contratado: p.contratado,
     documento: p.documento,
+    contratado2: p.contratado2,
+    documento2: p.documento2,
     valorTotal: centavosParaCampo(p.valorTotalCentavos),
     valorMensal: centavosParaCampo(p.valorMensalCentavos),
     valorEstimado: centavosParaCampo(p.valorEstimadoCentavos),
@@ -309,6 +316,15 @@ function validar(form: FormAdmin): string[] {
   } else if (form.status !== "encerrado" && form.valorEstimado.trim() && reaisParaCentavos(form.valorEstimado) == null) {
     erros.push("O valor estimado está inválido.");
   }
+  if (permiteDoisContratados(form.tipo) && (form.status === "encerrado" || form.status === "execucao")) {
+    const nome2 = form.contratado2.trim();
+    const doc2 = form.documento2.replace(/\D/g, "");
+    if (nome2 || form.documento2.trim()) {
+      if (!nome2) erros.push("Informe o segundo contratado ou fornecedor.");
+      if (doc2 && doc2.length !== 11 && doc2.length !== 14) erros.push("O CPF ou CNPJ do segundo contratado ou fornecedor está inválido.");
+      else if (form.status === "encerrado" && nome2 && doc2.length !== 11 && doc2.length !== 14) erros.push("Informe o CPF ou o CNPJ do segundo contratado ou fornecedor.");
+    }
+  }
   erros.push(...errosDeLinks(form));
   return erros;
 }
@@ -369,6 +385,8 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
       vigenciaFim: null,
       contratado: "",
       documento: "",
+      contratado2: "",
+      documento2: "",
       valorTotalCentavos: null,
       valorMensalCentavos: null,
       valorEstimadoCentavos: form.status === "execucao" || form.status === "encerrado" ? null : reaisParaCentavos(form.valorEstimado),
@@ -420,6 +438,8 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     vigenciaFim: execucao ? form.vigenciaFim : null,
     contratado: execucao || encerrado ? form.contratado.trim() : "",
     documento: execucao || encerrado ? form.documento.trim() : "",
+    contratado2: (execucao || encerrado) && permiteDoisContratados(form.tipo) ? form.contratado2.trim() : "",
+    documento2: (execucao || encerrado) && permiteDoisContratados(form.tipo) ? form.documento2.trim() : "",
     valorTotalCentavos: comValor || execucao ? reaisParaCentavos(form.valorTotal) : null,
     valorMensalCentavos: execucao ? reaisParaCentavos(form.valorMensal) : null,
     valorEstimadoCentavos: !execucao && !encerrado ? reaisParaCentavos(form.valorEstimado) : null,
@@ -488,6 +508,8 @@ export function AdminPainel({
   const [vigenciaFimAnd, setVigenciaFimAnd] = useState("");
   const [contratadoAnd, setContratadoAnd] = useState("");
   const [documentoAnd, setDocumentoAnd] = useState("");
+  const [contratado2And, setContratado2And] = useState("");
+  const [documento2And, setDocumento2And] = useState("");
   const [valorAnd, setValorAnd] = useState("");
   const [escolhaLink, setEscolhaLink] = useState(false);
   const [linksAndamento, setLinksAndamento] = useState<Partial<Record<TipoLinkAndamento, string>>>({});
@@ -583,7 +605,7 @@ export function AdminPainel({
       const situacao = correspondeFiltro(p, filtro);
       if (!situacao || (tipoAba !== "todos" && p.tipo !== tipoAba)) return false;
       if (!q) return true;
-      return [rotuloNumero(p.numero, p.numeroAno), rotuloTipo(p.tipo, p.tipoNumero, p.tipoAno), p.referencia, p.objeto, p.tipo, p.contratado, p.autorNome, p.ciOrigem, formatarPeca(p.ciNumero, p.ciAno), formatarPeca(p.parecerNumero, p.parecerAno)]
+      return [rotuloNumero(p.numero, p.numeroAno), rotuloTipo(p.tipo, p.tipoNumero, p.tipoAno), p.referencia, p.objeto, p.tipo, p.contratado, p.contratado2, p.autorNome, p.ciOrigem, formatarPeca(p.ciNumero, p.ciAno), formatarPeca(p.parecerNumero, p.parecerAno)]
         .join(" ")
         .toLowerCase()
         .includes(q);
@@ -796,6 +818,25 @@ export function AdminPainel({
         }
         atualizado.contratado = contratadoAnd.trim();
         atualizado.documento = documentoAnd.trim();
+        if (permiteDoisContratados(atual.tipo)) {
+          const nome2 = contratado2And.trim();
+          const doc2 = documento2And.replace(/\D/g, "");
+          if (nome2 || documento2And.trim()) {
+            if (!nome2) {
+              onToast("Informe o segundo contratado ou fornecedor.");
+              return;
+            }
+            if (doc2.length !== 11 && doc2.length !== 14) {
+              onToast("Informe o CPF ou o CNPJ do segundo contratado ou fornecedor.");
+              return;
+            }
+          }
+          atualizado.contratado2 = nome2;
+          atualizado.documento2 = documento2And.trim();
+        } else {
+          atualizado.contratado2 = "";
+          atualizado.documento2 = "";
+        }
         atualizado.valorTotalCentavos = valor;
         atualizado.valorMensalCentavos = null;
         atualizado.possuiContrato = false;
@@ -1105,6 +1146,12 @@ export function AdminPainel({
                                 <>
                                   {item.contratado}
                                   {item.documento ? <span className="block text-xs text-muted">{item.documento}</span> : null}
+                                  {item.contratado2 ? (
+                                    <span className="mt-1 block">
+                                      {item.contratado2}
+                                      {item.documento2 ? <span className="block text-xs text-muted">{item.documento2}</span> : null}
+                                    </span>
+                                  ) : null}
                                 </>
                               ) : (
                                 "—"
@@ -1233,6 +1280,8 @@ export function AdminPainel({
                       setVigenciaFimAnd(item.vigenciaFim ?? "");
                       setContratadoAnd(item.contratado ?? "");
                       setDocumentoAnd(item.documento ?? "");
+                      setContratado2And(item.contratado2 ?? "");
+                      setDocumento2And(item.documento2 ?? "");
                       setValorAnd(centavosParaCampo(item.valorTotalCentavos));
                       setLinksAndamento({});
                       setEscolhaLink(false);
@@ -1497,7 +1546,7 @@ export function AdminPainel({
                 {form.status === "encerrado" && (
                   <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3">
                     <p className="text-sm text-muted">Este processo não continua. Informe quem foi contratado e o valor da contratação ou aquisição.</p>
-                    <Campo label="Contratado">
+                    <Campo label="Contratado ou fornecedor">
                       <input
                         value={form.contratado}
                         onChange={(e) => setForm({ ...form, contratado: e.target.value })}
@@ -1516,6 +1565,13 @@ export function AdminPainel({
                         required
                       />
                     </Campo>
+                    {permiteDoisContratados(form.tipo) && (
+                      <SegundoContratado
+                        nome={form.contratado2}
+                        documento={form.documento2}
+                        onChange={(contratado2, documento2) => setForm({ ...form, contratado2, documento2 })}
+                      />
+                    )}
                     <Campo label="Valor da contratação ou aquisição">
                       <input
                         value={form.valorTotal}
@@ -1539,7 +1595,7 @@ export function AdminPainel({
                         <input type="date" value={form.vigenciaFim} onChange={(e) => setForm({ ...form, vigenciaFim: e.target.value })} className={inputCls} required />
                       </Campo>
                     </div>
-                    <Campo label="Contratado">
+                    <Campo label="Contratado ou fornecedor">
                       <input
                         value={form.contratado}
                         onChange={(e) => setForm({ ...form, contratado: e.target.value })}
@@ -1557,6 +1613,13 @@ export function AdminPainel({
                         placeholder="000.000.000-00"
                       />
                     </Campo>
+                    {permiteDoisContratados(form.tipo) && (
+                      <SegundoContratado
+                        nome={form.contratado2}
+                        documento={form.documento2}
+                        onChange={(contratado2, documento2) => setForm({ ...form, contratado2, documento2 })}
+                      />
+                    )}
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Campo label="Valor anual">
                         <input
@@ -1698,12 +1761,22 @@ export function AdminPainel({
                       {!atual?.possuiContrato && (
                         <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3">
                           <p className="text-sm text-muted">Este processo não continua. Informe quem foi contratado e o valor da contratação ou aquisição.</p>
-                          <Campo label="Contratado">
+                          <Campo label="Contratado ou fornecedor">
                             <input value={contratadoAnd} onChange={(e) => setContratadoAnd(e.target.value)} className={inputCls} placeholder="Nome ou razão social" required />
                           </Campo>
                           <Campo label="CPF ou CNPJ">
                             <input value={documentoAnd} onChange={(e) => setDocumentoAnd(mascaraDocumento(e.target.value))} className={inputCls} inputMode="numeric" placeholder="000.000.000-00" required />
                           </Campo>
+                          {atual && permiteDoisContratados(atual.tipo) && (
+                            <SegundoContratado
+                              nome={contratado2And}
+                              documento={documento2And}
+                              onChange={(nome, documento) => {
+                                setContratado2And(nome);
+                                setDocumento2And(documento);
+                              }}
+                            />
+                          )}
                           <Campo label="Valor da contratação ou aquisição">
                             <input value={valorAnd} onChange={(e) => setValorAnd(mascaraReais(e.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" required />
                           </Campo>
@@ -1908,8 +1981,14 @@ function CardAdmin({
                 <Info rotulo="Prazo" valor={processo.previsaoEtapa ? formatDate(processo.previsaoEtapa) : "—"} />
                 <Info rotulo="Encerramento" valor={tipoSimples(processo.tipo) ? "—" : formatDate(processo.encerramento)} />
                 <Info rotulo="Aviso" valor={`${processo.alertaDias} dias antes`} />
-                <Info rotulo="Contratado" valor={processo.contratado || "—"} />
+                <Info rotulo="Contratado ou fornecedor" valor={processo.contratado || "—"} />
                 <Info rotulo="CPF ou CNPJ" valor={processo.documento || "—"} />
+                {processo.contratado2 ? (
+                  <>
+                    <Info rotulo="Segundo contratado ou fornecedor" valor={processo.contratado2} />
+                    <Info rotulo="CPF ou CNPJ" valor={processo.documento2 || "—"} />
+                  </>
+                ) : null}
                 <Info rotulo="Vigência" valor={processo.vigenciaInicio ? `${formatDate(processo.vigenciaInicio)} a ${processo.vigenciaFim ? formatDate(processo.vigenciaFim) : "—"}` : "—"} largo />
                 <Info rotulo="Valor estimado" valor={formatarReais(processo.valorEstimadoCentavos)} />
                 {processo.possuiContrato ? (
@@ -2376,6 +2455,32 @@ function BandeiraBrasil() {
   );
 }
 
+function SegundoContratado({ nome, documento, onChange }: { nome: string; documento: string; onChange: (nome: string, documento: string) => void }) {
+  return (
+    <>
+      <Campo label="Segundo contratado ou fornecedor">
+        <input
+          value={nome}
+          onChange={(e) => onChange(e.target.value, documento)}
+          className={inputCls}
+          placeholder="Opcional"
+          autoComplete="off"
+        />
+      </Campo>
+      <Campo label="CPF ou CNPJ do segundo">
+        <input
+          value={documento}
+          onChange={(e) => onChange(nome, mascaraDocumento(e.target.value))}
+          className={inputCls}
+          inputMode="numeric"
+          placeholder="Opcional"
+          autoComplete="off"
+        />
+      </Campo>
+    </>
+  );
+}
+
 function CartaoProcesso({ item }: { item: ProcessoAdmin }) {
   const marco = marcoAdmin(item);
   return (
@@ -2394,6 +2499,7 @@ function CartaoProcesso({ item }: { item: ProcessoAdmin }) {
       </p>
       <p className="mt-1 break-words text-ink">
         {item.possuiContrato ? item.contratado || "Contrato" : item.contratado || "Sem contrato"}
+        {item.contratado2 ? ` · ${item.contratado2}` : ""}
         {item.valorMensalCentavos != null ? ` · ${formatarReais(item.valorMensalCentavos)} / mês` : ""}
       </p>
     </li>
