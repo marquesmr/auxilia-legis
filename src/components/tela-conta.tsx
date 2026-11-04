@@ -137,6 +137,7 @@ export function TelaConta() {
   const [enviando, setEnviando] = useState(false);
   const [termos, setTermos] = useState(false);
   const [liberacao, setLiberacao] = useState("");
+  const [emailConvite, setEmailConvite] = useState(false);
   const [confirmando, setConfirmando] = useState(Boolean(rascunho));
   const [codigoCadastro, setCodigoCadastro] = useState(rascunho?.codigo ?? "");
   const [codigoLink, setCodigoLink] = useState("");
@@ -208,6 +209,18 @@ export function TelaConta() {
       if (emailQ) setEmail(emailQ);
       setCodigoLink(codigoQ);
       setModo("esqueci");
+      return;
+    }
+    if (params.get("convite") === "1") {
+      limparRascunhoCadastro();
+      setConfirmando(false);
+      setModo("criar");
+      const emailQ = params.get("email") ?? "";
+      const nomeQ = params.get("nome") ?? "";
+      if (emailQ) setEmail(emailQ);
+      if (nomeQ) setNome(nomeQ);
+      setEmailConvite(Boolean(emailQ));
+      setAviso("Você foi convidado para uma equipe. Crie a senha para entrar.");
       return;
     }
     if (lerRascunhoCadastro()) return;
@@ -553,8 +566,9 @@ export function TelaConta() {
             className={campo}
             autoComplete="email"
             required
-            disabled={Boolean(liberacao)}
+            disabled={Boolean(liberacao) || emailConvite}
           />
+          {emailConvite && <span className="text-xs font-normal text-muted">Este é o e-mail do convite. Não pode ser alterado.</span>}
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-medium text-ink">
           Senha

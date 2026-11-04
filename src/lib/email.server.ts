@@ -38,7 +38,7 @@ function escapar(texto: string) {
     .replace(/"/g, "&" + "quot;");
 }
 
-export function emailHtml(nome: string, corpo: string, origem = "") {
+export function emailHtml(nome: string, corpo: string, origem = "", fecho = "Abraço") {
   const tratamento = escapar(nome.trim() || "olá");
   const endereco = origem.replace(/\/$/, "");
   const banner = endereco
@@ -52,7 +52,7 @@ ${banner}
 <tr><td style="padding:28px 32px;font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.6;color:#1c1915;text-align:justify;">
 <p style="margin:0 0 16px;">Olá, <strong>${tratamento}</strong>!</p>
 ${corpo}
-<p style="margin:24px 0 0;">Abraço,<br><strong>Equipe Auxilia Legis</strong></p>
+<p style="margin:24px 0 0;">${escapar(fecho)},<br><strong>Equipe Auxilia Legis</strong></p>
 </td></tr>
 </table>
 </td></tr>

@@ -813,8 +813,12 @@ export function PrazosApp() {
       setEquipes(await listarEquipes());
       setToast(
         resultado.entrou
-          ? `${resultado.nome} agora vê os processos desta equipe.`
-          : `Convite de ${resultado.nome} guardado. A pessoa entra quando criar a conta com este e-mail.`,
+          ? resultado.emailEnviado
+            ? `${resultado.nome} agora vê os processos desta equipe. O convite foi enviado por e-mail.`
+            : `${resultado.nome} entrou na equipe, mas o e-mail não foi enviado.`
+          : resultado.emailEnviado
+            ? `Convite de ${resultado.nome} enviado por e-mail.`
+            : `Convite de ${resultado.nome} guardado, mas o e-mail não foi enviado.`,
       );
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Não foi possível adicionar.");
