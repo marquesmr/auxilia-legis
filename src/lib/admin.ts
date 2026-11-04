@@ -79,7 +79,16 @@ export function modoValor(tipo: string, status: string): "nenhum" | "total" | "c
 }
 
 export function pedePrevisao(status: StatusAdmin): boolean {
-  return status === "proposta" || status === "pareceres" || status === "assinatura";
+  const texto = `${status} ${nomeStatus("administrativo", status)}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return (
+    /\brecebendo propostas?\b/.test(texto) ||
+    /tramitacao de documentos?/.test(texto) ||
+    /\bpareceres\b/.test(texto) ||
+    /assinatura de contrato/.test(texto)
+  );
 }
 
 export function normalizarStatus(raw: string): StatusAdmin {
@@ -159,7 +168,7 @@ export function marcoAdmin(p: ProcessoAdmin): { rotulo: string; data: string | n
   if (p.status === "cancelado") return { rotulo: "Cancelado", data: null };
   if (encerraStatus("administrativo", p.status)) return { rotulo: statusAdminLabel(p.status), data: p.status === "encerrado" ? p.encerramento : null };
   if (p.status === "execucao") return { rotulo: "Fim da vigência", data: p.vigenciaFim };
-  return { rotulo: "Previsão da etapa", data: p.previsaoEtapa ?? p.encerramento };
+  return { rotulo: "Prazo", data: p.previsaoEtapa ?? p.encerramento };
 }
 
 export function urgenciaAdmin(p: ProcessoAdmin, now = new Date()): UrgenciaAdmin {
@@ -178,7 +187,7 @@ export function prazoAdminLabel(p: ProcessoAdmin, now = new Date()): string {
   if (p.status === "cancelado") return "Cancelado";
   if (encerraStatus("administrativo", p.status)) return statusAdminLabel(p.status);
   const dias = daysUntil(dataAlvo(p), now);
-  const qual = p.status === "execucao" ? "Vigência" : "Previsão";
+  const qual = p.status === "execucao" ? "Vigência" : "Prazo";
   if (dias < 0) {
     const n = Math.abs(dias);
     return n === 1 ? `${qual} vencida há 1 dia` : `${qual} vencida há ${n} dias`;

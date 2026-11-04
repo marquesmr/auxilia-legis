@@ -121,7 +121,7 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     if (!objeto) throw new Error("Informe o objeto.");
     if (parecer.numero == null) throw new Error("Informe o número do parecer.");
   }
-  if (!simples && pedePrevisao(status) && !previsaoEtapa) throw new Error("Informe a previsão de conclusão da etapa.");
+  if (!simples && pedePrevisao(status) && !previsaoEtapa) throw new Error("Informe a data do prazo.");
   if (!simples && status === "encerrado" && !encerramentoInformado) throw new Error("Informe a data de encerramento.");
   const modo = modoValor(tipo, status);
   if (modo === "contrato") {

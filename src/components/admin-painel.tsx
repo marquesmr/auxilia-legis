@@ -285,7 +285,7 @@ function validar(form: FormAdmin): string[] {
     if (!form.objeto.trim()) erros.push("Informe o objeto.");
     if (numeroPeca(form.parecerNumero) == null) erros.push("Informe o número do parecer do agente de contratações.");
   }
-  if (pedePrevisao(form.status) && !form.previsao) erros.push("Informe a previsão de conclusão da etapa.");
+  if (pedePrevisao(form.status) && !form.previsao) erros.push("Informe a data do prazo.");
   if (form.status === "encerrado") {
     if (!form.encerramento) erros.push("Informe a data de encerramento.");
     else if (form.dataInicio && form.encerramento < form.dataInicio) erros.push("O encerramento não pode ser antes do início.");
@@ -315,7 +315,7 @@ function mudancas(antes: ProcessoAdmin, form: FormAdmin): string | null {
   if (rotuloTipo(antes.tipo, antes.tipoNumero, antes.tipoAno) !== tipoNovo) partes.push(`o tipo para ${tipoNovo}`);
   if (antes.dataInicio !== form.dataInicio) partes.push("a data de início");
   if (antes.status !== form.status) partes.push(`o status para ${statusAdminLabel(form.status)}`);
-  if (pedePrevisao(form.status) && (antes.previsaoEtapa ?? "") !== form.previsao) partes.push(`a previsão para ${formatDate(form.previsao)}`);
+  if (pedePrevisao(form.status) && (antes.previsaoEtapa ?? "") !== form.previsao) partes.push(`o prazo para ${formatDate(form.previsao)}`);
   if (form.status === "encerrado" && antes.encerramento !== form.encerramento) partes.push(`o encerramento para ${formatDate(form.encerramento)}`);
   if (form.status === "execucao" && !antes.possuiContrato) partes.push("o contrato");
   if (antes.alertaDias !== form.alertaDias) partes.push("a antecedência do aviso");
@@ -734,8 +734,12 @@ export function AdminPainel({
       }
       aplicados.push({ curto: item.curto, url, campo: item.campo });
     }
-    if (!texto && aplicados.length === 0 && statusAndamento === atual.status) return;
     const simples = tipoSimples(atual.tipo);
+    if (!simples && pedePrevisao(statusAndamento) && !novoEncerramento) {
+      onToast("Informe a data do prazo.");
+      return;
+    }
+    if (!texto && aplicados.length === 0 && statusAndamento === atual.status && novoEncerramento === (atual.previsaoEtapa ?? "")) return;
     const statusMudou = statusAndamento !== atual.status;
     const atualizado: ProcessoAdmin = { ...atual, status: statusAndamento };
     for (const item of aplicados) atualizado[item.campo] = item.url;
@@ -744,11 +748,7 @@ export function AdminPainel({
       setLinksAndamento((previo) => ({ ...previo, cancelamento: previo.cancelamento ?? "" }));
       return;
     }
-    if (statusMudou && !simples && pedePrevisao(statusAndamento)) {
-      if (!novoEncerramento) {
-        onToast("Informe a nova previsão da etapa.");
-        return;
-      }
+    if (!simples && pedePrevisao(statusAndamento)) {
       atualizado.previsaoEtapa = novoEncerramento;
       atualizado.encerramento = novoEncerramento;
     }
@@ -1412,7 +1412,7 @@ export function AdminPainel({
                   <p className="text-sm text-muted">No cancelamento, o número do processo, o número do tipo, a comunicação interna, a origem, a data de início e o link de cancelamento são obrigatórios.</p>
                 )}
                 {pedePrevisao(form.status) && (
-                  <Campo label="Previsão de conclusão da etapa">
+                  <Campo label="Data do prazo">
                     <input type="date" value={form.previsao} onChange={(e) => setForm({ ...form, previsao: e.target.value })} className={inputCls} required />
                   </Campo>
                 )}
@@ -1422,7 +1422,7 @@ export function AdminPainel({
                   </Campo>
                 )}
                 {form.status !== "encerrado" && form.status !== "cancelado" && (
-                <Campo label={form.status === "execucao" ? "Avisar dias antes do fim da vigência" : "Avisar dias antes da previsão"}>
+                <Campo label={form.status === "execucao" ? "Avisar dias antes do fim da vigência" : pedePrevisao(form.status) ? "Avisar dias antes do prazo" : "Avisar dias antes da previsão"}>
                   <select
                     value={form.alertaDias}
                     onChange={(e) => setForm({ ...form, alertaDias: Number(e.target.value) })}
@@ -1603,22 +1603,39 @@ export function AdminPainel({
                 <Link2 className="size-4" />
                 Adicionar link
               </button>
-              {statusAndamento !== lista.find((item) => item.id === andamentoId)?.status && statusAndamento !== "cancelado" && lista.find((item) => item.id === andamentoId)?.tipo !== "Outros" && lista.find((item) => item.id === andamentoId)?.tipo !== "Doação" && (
-                statusAndamento === "execucao" ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Campo label="Vigência — início">
-                      <input type="date" value={vigenciaInicioAnd} onChange={(e) => setVigenciaInicioAnd(e.target.value)} className={inputCls} />
+              {(() => {
+                const atual = lista.find((item) => item.id === andamentoId);
+                const simples = atual ? tipoSimples(atual.tipo) : false;
+                const mudou = statusAndamento !== atual?.status;
+                if (simples) return null;
+                if (mudou && statusAndamento === "execucao") {
+                  return (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Campo label="Vigência — início">
+                        <input type="date" value={vigenciaInicioAnd} onChange={(e) => setVigenciaInicioAnd(e.target.value)} className={inputCls} required />
+                      </Campo>
+                      <Campo label="Vigência — fim">
+                        <input type="date" value={vigenciaFimAnd} onChange={(e) => setVigenciaFimAnd(e.target.value)} className={inputCls} required />
+                      </Campo>
+                    </div>
+                  );
+                }
+                if (mudou && statusAndamento === "encerrado") {
+                  return (
+                    <Campo label="Data de encerramento">
+                      <input type="date" value={novoEncerramento} onChange={(e) => setNovoEncerramento(e.target.value)} className={inputCls} required />
                     </Campo>
-                    <Campo label="Vigência — fim">
-                      <input type="date" value={vigenciaFimAnd} onChange={(e) => setVigenciaFimAnd(e.target.value)} className={inputCls} />
+                  );
+                }
+                if (pedePrevisao(statusAndamento) && statusAndamento !== "cancelado") {
+                  return (
+                    <Campo label="Data do prazo">
+                      <input type="date" value={novoEncerramento} onChange={(e) => setNovoEncerramento(e.target.value)} className={inputCls} required />
                     </Campo>
-                  </div>
-                ) : (
-                  <Campo label={statusAndamento === "encerrado" ? "Data de encerramento" : "Previsão da etapa"}>
-                    <input type="date" value={novoEncerramento} onChange={(e) => setNovoEncerramento(e.target.value)} className={inputCls} />
-                  </Campo>
-                )
-              )}
+                  );
+                }
+                return null;
+              })()}
               <button type="submit" className="inline-flex h-11 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">
                 Registrar
               </button>
@@ -1803,7 +1820,7 @@ function CardAdmin({
                 <Info rotulo="Origem da CI" valor={processo.ciOrigem || "—"} />
                 <Info rotulo="Parecer" valor={processo.parecerNumero != null ? formatarPeca(processo.parecerNumero, processo.parecerAno) : "—"} />
                 <Info rotulo="Início" valor={tipoSimples(processo.tipo) ? "—" : formatDate(processo.dataInicio)} />
-                <Info rotulo="Previsão" valor={processo.previsaoEtapa ? formatDate(processo.previsaoEtapa) : "—"} />
+                <Info rotulo="Prazo" valor={processo.previsaoEtapa ? formatDate(processo.previsaoEtapa) : "—"} />
                 <Info rotulo="Encerramento" valor={tipoSimples(processo.tipo) ? "—" : formatDate(processo.encerramento)} />
                 <Info rotulo="Aviso" valor={`${processo.alertaDias} dias antes`} />
                 <Info rotulo="Contratado" valor={processo.contratado || "—"} />
