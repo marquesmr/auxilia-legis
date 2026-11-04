@@ -289,15 +289,16 @@ function validar(form: FormAdmin): string[] {
   if (form.status === "encerrado") {
     if (!form.encerramento) erros.push("Informe a data de encerramento.");
     else if (form.dataInicio && form.encerramento < form.dataInicio) erros.push("O encerramento não pode ser antes do início.");
-  }
-  if (form.status === "execucao") {
+    if (!form.contratado.trim()) erros.push("Informe o contratado.");
+    const digitos = form.documento.replace(/\D/g, "");
+    if (digitos.length !== 11 && digitos.length !== 14) erros.push("Informe o CPF ou o CNPJ.");
+    if (reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor da contratação ou aquisição.");
+  } else if (form.status === "execucao") {
     if (!form.contratado.trim()) erros.push("Informe os dados do contratado.");
     if (!form.vigenciaInicio || !form.vigenciaFim) erros.push("Informe a vigência do contrato.");
     else if (form.vigenciaFim < form.vigenciaInicio) erros.push("A vigência termina antes de começar.");
     if (reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor anual do contrato.");
     if (reaisParaCentavos(form.valorMensal) == null) erros.push("Informe o valor mensal do contrato.");
-  } else if (form.status === "encerrado" && reaisParaCentavos(form.valorTotal) == null) {
-    erros.push("Informe o valor total.");
   } else if (form.status !== "encerrado" && form.valorEstimado.trim() && reaisParaCentavos(form.valorEstimado) == null) {
     erros.push("O valor estimado está inválido.");
   }
@@ -406,8 +407,8 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     possuiContrato: execucao,
     vigenciaInicio: execucao ? form.vigenciaInicio : null,
     vigenciaFim: execucao ? form.vigenciaFim : null,
-    contratado: execucao ? form.contratado.trim() : "",
-    documento: execucao ? form.documento.trim() : "",
+    contratado: execucao || encerrado ? form.contratado.trim() : "",
+    documento: execucao || encerrado ? form.documento.trim() : "",
     valorTotalCentavos: comValor || execucao ? reaisParaCentavos(form.valorTotal) : null,
     valorMensalCentavos: execucao ? reaisParaCentavos(form.valorMensal) : null,
     valorEstimadoCentavos: !execucao && !encerrado ? reaisParaCentavos(form.valorEstimado) : null,
@@ -472,6 +473,9 @@ export function AdminPainel({
   const [novoEncerramento, setNovoEncerramento] = useState("");
   const [vigenciaInicioAnd, setVigenciaInicioAnd] = useState("");
   const [vigenciaFimAnd, setVigenciaFimAnd] = useState("");
+  const [contratadoAnd, setContratadoAnd] = useState("");
+  const [documentoAnd, setDocumentoAnd] = useState("");
+  const [valorAnd, setValorAnd] = useState("");
   const [escolhaLink, setEscolhaLink] = useState(false);
   const [linksAndamento, setLinksAndamento] = useState<Partial<Record<TipoLinkAndamento, string>>>({});
   const [periodo, setPeriodo] = useState<PeriodoRelatorio>("mensal");
@@ -758,6 +762,27 @@ export function AdminPainel({
         return;
       }
       atualizado.encerramento = novoEncerramento;
+      if (!atual.possuiContrato) {
+        const digitos = documentoAnd.replace(/\D/g, "");
+        const valor = reaisParaCentavos(valorAnd);
+        if (!contratadoAnd.trim()) {
+          onToast("Informe o contratado.");
+          return;
+        }
+        if (digitos.length !== 11 && digitos.length !== 14) {
+          onToast("Informe o CPF ou o CNPJ.");
+          return;
+        }
+        if (valor == null) {
+          onToast("Informe o valor da contratação ou aquisição.");
+          return;
+        }
+        atualizado.contratado = contratadoAnd.trim();
+        atualizado.documento = documentoAnd.trim();
+        atualizado.valorTotalCentavos = valor;
+        atualizado.valorMensalCentavos = null;
+        atualizado.possuiContrato = false;
+      }
     }
     if (statusMudou && !simples && statusAndamento === "execucao") {
       if (!vigenciaInicioAnd || !vigenciaFimAnd) {
@@ -1059,13 +1084,13 @@ export function AdminPainel({
                             <td className="col-fixa py-2 pr-3 text-ink">{statusAdminLabel(item.status)}</td>
                             <td className="col-fixa py-2 pr-3 text-ink">{marcoAdmin(item).data ? formatDate(marcoAdmin(item).data as string) : "—"}</td>
                             <td className="py-2 pr-3 text-ink">
-                              {item.possuiContrato ? (
+                              {item.contratado ? (
                                 <>
                                   {item.contratado}
                                   {item.documento ? <span className="block text-xs text-muted">{item.documento}</span> : null}
                                 </>
                               ) : (
-                                "Sem contrato"
+                                "—"
                               )}
                             </td>
                             <td className="col-fixa py-2 text-ink">
@@ -1189,6 +1214,9 @@ export function AdminPainel({
                       setNovoEncerramento(item.status === "encerrado" ? item.encerramento : item.previsaoEtapa ?? "");
                       setVigenciaInicioAnd(item.vigenciaInicio ?? item.dataInicio);
                       setVigenciaFimAnd(item.vigenciaFim ?? "");
+                      setContratadoAnd(item.contratado ?? "");
+                      setDocumentoAnd(item.documento ?? "");
+                      setValorAnd(centavosParaCampo(item.valorTotalCentavos));
                       setLinksAndamento({});
                       setEscolhaLink(false);
                     }}
@@ -1448,16 +1476,38 @@ export function AdminPainel({
                   </Campo>
                 )}
                 {form.status === "encerrado" && (
-                  <Campo label="Valor total">
-                    <input
-                      value={form.valorTotal}
-                      onChange={(e) => setForm({ ...form, valorTotal: mascaraReais(e.target.value) })}
-                      className={inputCls}
-                      inputMode="decimal"
-                      placeholder="0,00"
-                      required
-                    />
-                  </Campo>
+                  <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3">
+                    <p className="text-sm text-muted">Este processo não continua. Informe quem foi contratado e o valor da contratação ou aquisição.</p>
+                    <Campo label="Contratado">
+                      <input
+                        value={form.contratado}
+                        onChange={(e) => setForm({ ...form, contratado: e.target.value })}
+                        className={inputCls}
+                        placeholder="Nome ou razão social"
+                        required
+                      />
+                    </Campo>
+                    <Campo label="CPF ou CNPJ">
+                      <input
+                        value={form.documento}
+                        onChange={(e) => setForm({ ...form, documento: mascaraDocumento(e.target.value) })}
+                        className={inputCls}
+                        inputMode="numeric"
+                        placeholder="000.000.000-00"
+                        required
+                      />
+                    </Campo>
+                    <Campo label="Valor da contratação ou aquisição">
+                      <input
+                        value={form.valorTotal}
+                        onChange={(e) => setForm({ ...form, valorTotal: mascaraReais(e.target.value) })}
+                        className={inputCls}
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        required
+                      />
+                    </Campo>
+                  </div>
                 )}
                 {form.status === "execucao" && (
                   <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3">
@@ -1622,9 +1672,25 @@ export function AdminPainel({
                 }
                 if (mudou && statusAndamento === "encerrado") {
                   return (
-                    <Campo label="Data de encerramento">
-                      <input type="date" value={novoEncerramento} onChange={(e) => setNovoEncerramento(e.target.value)} className={inputCls} required />
-                    </Campo>
+                    <div className="flex flex-col gap-3">
+                      <Campo label="Data de encerramento">
+                        <input type="date" value={novoEncerramento} onChange={(e) => setNovoEncerramento(e.target.value)} className={inputCls} required />
+                      </Campo>
+                      {!atual?.possuiContrato && (
+                        <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3">
+                          <p className="text-sm text-muted">Este processo não continua. Informe quem foi contratado e o valor da contratação ou aquisição.</p>
+                          <Campo label="Contratado">
+                            <input value={contratadoAnd} onChange={(e) => setContratadoAnd(e.target.value)} className={inputCls} placeholder="Nome ou razão social" required />
+                          </Campo>
+                          <Campo label="CPF ou CNPJ">
+                            <input value={documentoAnd} onChange={(e) => setDocumentoAnd(mascaraDocumento(e.target.value))} className={inputCls} inputMode="numeric" placeholder="000.000.000-00" required />
+                          </Campo>
+                          <Campo label="Valor da contratação ou aquisição">
+                            <input value={valorAnd} onChange={(e) => setValorAnd(mascaraReais(e.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" required />
+                          </Campo>
+                        </div>
+                      )}
+                    </div>
                   );
                 }
                 if (pedePrevisao(statusAndamento) && statusAndamento !== "cancelado") {
@@ -1827,8 +1893,14 @@ function CardAdmin({
                 <Info rotulo="CPF ou CNPJ" valor={processo.documento || "—"} />
                 <Info rotulo="Vigência" valor={processo.vigenciaInicio ? `${formatDate(processo.vigenciaInicio)} a ${processo.vigenciaFim ? formatDate(processo.vigenciaFim) : "—"}` : "—"} largo />
                 <Info rotulo="Valor estimado" valor={formatarReais(processo.valorEstimadoCentavos)} />
-                <Info rotulo="Valor anual" valor={formatarReais(processo.valorTotalCentavos)} />
-                <Info rotulo="Valor mensal" valor={formatarReais(processo.valorMensalCentavos)} />
+                {processo.possuiContrato ? (
+                  <>
+                    <Info rotulo="Valor anual" valor={formatarReais(processo.valorTotalCentavos)} />
+                    <Info rotulo="Valor mensal" valor={formatarReais(processo.valorMensalCentavos)} />
+                  </>
+                ) : (
+                  <Info rotulo="Valor da contratação" valor={formatarReais(processo.valorTotalCentavos)} />
+                )}
                 <Info rotulo="Lançado por" valor={processo.autorNome || "sem nome"} />
                 <Info rotulo="Equipe" valor={equipes.find((equipe) => equipe.id === processo.equipeId)?.nome ?? "Só meus"} />
               </dl>
@@ -2281,7 +2353,7 @@ function CartaoProcesso({ item }: { item: ProcessoAdmin }) {
         {marco.data ? ` · ${formatDate(marco.data)}` : ""}
       </p>
       <p className="mt-1 break-words text-ink">
-        {item.possuiContrato ? item.contratado || "Contrato" : "Sem contrato"}
+        {item.possuiContrato ? item.contratado || "Contrato" : item.contratado || "Sem contrato"}
         {item.valorMensalCentavos != null ? ` · ${formatarReais(item.valorMensalCentavos)} / mês` : ""}
       </p>
     </li>

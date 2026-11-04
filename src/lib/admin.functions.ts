@@ -130,8 +130,11 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     if (vigenciaFim < vigenciaInicio) throw new Error("A vigência termina antes de começar.");
     if (valorTotalCentavos == null) throw new Error("Informe o valor anual do contrato.");
     if (valorMensalCentavos == null) throw new Error("Informe o valor mensal do contrato.");
-  } else if (modo === "total" && valorTotalCentavos == null) {
-    throw new Error("Informe o valor total.");
+  } else if (modo === "total") {
+    if (!contratado) throw new Error("Informe o contratado.");
+    const digitos = documento.replace(/\D/g, "");
+    if (digitos.length !== 11 && digitos.length !== 14) throw new Error("Informe o CPF ou o CNPJ.");
+    if (valorTotalCentavos == null) throw new Error("Informe o valor da contratação ou aquisição.");
   }
   const encerramento =
     simples
@@ -158,8 +161,8 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     possuiContrato: !simples && possuiContrato,
     vigenciaInicio: !simples && possuiContrato ? vigenciaInicio : null,
     vigenciaFim: !simples && possuiContrato ? vigenciaFim : null,
-    contratado: !simples && possuiContrato ? contratado.slice(0, 160) : "",
-    documento: !simples && possuiContrato ? documento.slice(0, 24) : "",
+    contratado: !simples && (possuiContrato || modo === "total") ? contratado.slice(0, 160) : "",
+    documento: !simples && (possuiContrato || modo === "total") ? documento.slice(0, 24) : "",
     valorTotalCentavos: modo === "contrato" || modo === "total" ? valorTotalCentavos : null,
     valorMensalCentavos: modo === "contrato" ? valorMensalCentavos : null,
     valorEstimadoCentavos: modo === "estimado" ? valorEstimadoCentavos : null,
@@ -262,8 +265,8 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
     possuiContrato: status === "execucao" && possui,
     vigenciaInicio: possui ? dia(linha.vigencia_inicio) : null,
     vigenciaFim: possui ? dia(linha.vigencia_fim) : null,
-    contratado: possui ? (linha.contratado ?? "") : "",
-    documento: possui ? (linha.documento ?? "") : "",
+    contratado: linha.contratado ?? "",
+    documento: linha.documento ?? "",
     valorTotalCentavos: linha.valor_total_centavos != null ? Number(linha.valor_total_centavos) : null,
     valorMensalCentavos: possui && linha.valor_mensal_centavos != null ? Number(linha.valor_mensal_centavos) : null,
     valorEstimadoCentavos: linha.valor_estimado_centavos != null ? Number(linha.valor_estimado_centavos) : null,
