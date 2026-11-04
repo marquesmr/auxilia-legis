@@ -134,6 +134,7 @@ export type ProcessoAdmin = {
   linkCancelamento: string;
   parecerNumero: number | null;
   parecerAno: number | null;
+  parecerNa: boolean;
   status: StatusAdmin;
   historico: Andamento[];
   equipeId: string | null;

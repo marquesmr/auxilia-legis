@@ -104,7 +104,8 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
   const valorMensalCentavos = centavosOk(bruto.valorMensalCentavos);
   const valorEstimadoCentavos = centavosOk(bruto.valorEstimadoCentavos);
   const ci = pecaOpcional(bruto.ciNumero, bruto.ciAno, "comunicação interna");
-  const parecer = pecaOpcional(bruto.parecerNumero, bruto.parecerAno, "parecer");
+  const parecerNa = bruto.parecerNa === true;
+  const parecer = parecerNa ? { numero: null, ano: null } : pecaOpcional(bruto.parecerNumero, bruto.parecerAno, "parecer");
   const ciOrigem = typeof bruto.ciOrigem === "string" ? bruto.ciOrigem.trim() : "";
   const linkAbertura = linkCampo(bruto.linkAbertura, "link de publicação", exigeLinks(tipo));
   const linkHomologacao = linkCampo(bruto.linkHomologacao, "link de homologação", false);
@@ -119,7 +120,7 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     if (!objeto) throw new Error("Informe o objeto.");
   } else if (status !== "cancelado") {
     if (!objeto) throw new Error("Informe o objeto.");
-    if (parecer.numero == null) throw new Error("Informe o número do parecer.");
+    if (parecer.numero == null && !parecerNa) throw new Error("Informe o número do parecer.");
   }
   if (!simples && pedePrevisao(status) && !previsaoEtapa) throw new Error("Informe a data do prazo.");
   if (!simples && status === "encerrado" && !encerramentoInformado) throw new Error("Informe a data de encerramento.");
@@ -174,8 +175,9 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     linkPncp,
     linkRetificacao,
     linkCancelamento,
-    parecerNumero: simples || status === "cancelado" ? null : parecer.numero,
-    parecerAno: simples || status === "cancelado" ? null : parecer.ano,
+    parecerNumero: simples || status === "cancelado" || parecerNa ? null : parecer.numero,
+    parecerAno: simples || status === "cancelado" || parecerNa ? null : parecer.ano,
+    parecerNa: !simples && status !== "cancelado" && parecerNa,
     status,
     historico: historicoOk(bruto.historico),
     equipeId,
@@ -215,6 +217,7 @@ type Linha = {
   link_cancelamento: string | null;
   parecer_numero: number | null;
   parecer_ano: number | null;
+  parecer_na: boolean | number | string | null;
   status: string;
   historico: string;
   team_id: string | null;
@@ -280,6 +283,7 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
     linkCancelamento: linha.link_cancelamento ?? "",
     parecerNumero: inteiroOuNulo(linha.parecer_numero),
     parecerAno: inteiroOuNulo(linha.parecer_ano),
+    parecerNa: bool(linha.parecer_na ?? false),
     status,
     historico,
     equipeId: linha.team_id,
@@ -289,7 +293,7 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
 }
 
 let schemaPronto: { versao: number; pendente: Promise<void> } | null = null;
-const SCHEMA_ADMIN = 9;
+const SCHEMA_ADMIN = 10;
 
 /** Garante as colunas novas mesmo se a migração ainda não tiver rodado nesta instância. */
 async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
@@ -301,6 +305,7 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
         "alter table processos_admin add column if not exists ci_origem text not null default ''",
         "alter table processos_admin add column if not exists parecer_numero integer",
         "alter table processos_admin add column if not exists parecer_ano integer",
+        "alter table processos_admin add column if not exists parecer_na boolean not null default false",
         "alter table processos_admin add column if not exists numero_ano integer",
         "alter table processos_admin add column if not exists tipo_numero integer",
         "alter table processos_admin add column if not exists tipo_ano integer",
@@ -328,7 +333,7 @@ const SELECT_ADMIN = `
   p.id, p.numero, p.numero_ano, p.referencia, p.objeto, p.tipo, p.tipo_numero, p.tipo_ano, p.data_inicio, p.previsao_etapa, p.encerramento,
   p.alerta_dias, p.possui_contrato, p.vigencia_inicio, p.vigencia_fim, p.contratado,
   p.documento, p.valor_total_centavos, p.valor_mensal_centavos, p.valor_estimado_centavos,
-  p.ci_numero, p.ci_ano, p.ci_origem, p.link_abertura, p.link_homologacao, p.link_pncp, p.link_retificacao, p.link_cancelamento, p.parecer_numero, p.parecer_ano,
+  p.ci_numero, p.ci_ano, p.ci_origem, p.link_abertura, p.link_homologacao, p.link_pncp, p.link_retificacao, p.link_cancelamento, p.parecer_numero, p.parecer_ano, p.parecer_na,
   p.status, p.historico, p.team_id,
   coalesce(nullif(p.autor_id, ''), p.user_id) as autor_id,
   coalesce(nullif(p.autor_nome, ''), u.name, '') as autor_nome
@@ -517,6 +522,7 @@ export const salvarAdmin = createServerFn({ method: "POST" })
             link_cancelamento = ${data.linkCancelamento},
             parecer_numero = ${data.parecerNumero},
             parecer_ano = ${data.parecerAno},
+            parecer_na = ${data.parecerNa},
             status = ${data.status},
             status_em = case when status is distinct from ${data.status} then current_date else coalesce(status_em, data_inicio) end,
             historico = ${historicoJson}
@@ -533,13 +539,13 @@ export const salvarAdmin = createServerFn({ method: "POST" })
             alerta_dias, possui_contrato, vigencia_inicio, vigencia_fim, contratado, documento,
             valor_total_centavos, valor_mensal_centavos, valor_estimado_centavos, ci_numero, ci_ano, ci_origem,
             link_abertura, link_homologacao, link_pncp, link_retificacao, link_cancelamento,
-            parecer_numero, parecer_ano, status, status_em, historico, autor_id, autor_nome, em_manutencao
+            parecer_numero, parecer_ano, parecer_na, status, status_em, historico, autor_id, autor_nome, em_manutencao
           ) values (
             ${data.id}, ${context.userId}, ${data.equipeId}, ${data.numero}, ${data.numeroAno}, ${data.referencia},
             ${data.objeto}, ${data.tipo}, ${data.tipoNumero}, ${data.tipoAno}, ${data.dataInicio}, ${data.previsaoEtapa}, ${data.encerramento}, ${data.alertaDias},
             ${data.possuiContrato}, ${data.vigenciaInicio}, ${data.vigenciaFim}, ${data.contratado},
             ${data.documento}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos},
-            ${data.ciNumero}, ${data.ciAno}, ${data.ciOrigem}, ${data.linkAbertura}, ${data.linkHomologacao}, ${data.linkPncp}, ${data.linkRetificacao}, ${data.linkCancelamento}, ${data.parecerNumero}, ${data.parecerAno},
+            ${data.ciNumero}, ${data.ciAno}, ${data.ciOrigem}, ${data.linkAbertura}, ${data.linkHomologacao}, ${data.linkPncp}, ${data.linkRetificacao}, ${data.linkCancelamento}, ${data.parecerNumero}, ${data.parecerAno}, ${data.parecerNa},
             ${data.status}, current_date,
             ${historicoJson}, ${context.userId}, ${autorNome}, ${lancadoNaManutencao}
           )

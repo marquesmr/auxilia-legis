@@ -84,6 +84,7 @@ type FormAdmin = {
   linkCancelamento: string;
   parecerNumero: string;
   parecerAno: number;
+  parecerNa: boolean;
   status: StatusAdmin;
   nota: string;
 };
@@ -187,6 +188,7 @@ function vazio(): FormAdmin {
     linkCancelamento: "",
     parecerNumero: "",
     parecerAno: new Date().getFullYear(),
+    parecerNa: false,
     status: "proposta",
     nota: "",
   };
@@ -230,8 +232,9 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
     houveRetificacao: Boolean(p.linkRetificacao),
     linkRetificacao: p.linkRetificacao,
     linkCancelamento: p.linkCancelamento,
-    parecerNumero: p.parecerNumero != null ? String(p.parecerNumero) : "",
+    parecerNumero: p.parecerNa ? "" : p.parecerNumero != null ? String(p.parecerNumero) : "",
     parecerAno: p.parecerAno ?? new Date().getFullYear(),
+    parecerNa: p.parecerNa,
     status: p.status,
     nota: "",
   };
@@ -283,7 +286,7 @@ function validar(form: FormAdmin): string[] {
   if (!form.dataInicio) erros.push("Informe a data de início.");
   if (!cancelado) {
     if (!form.objeto.trim()) erros.push("Informe o objeto.");
-    if (numeroPeca(form.parecerNumero) == null) erros.push("Informe o número do parecer do agente de contratações.");
+    if (form.status !== "cancelado" && !form.parecerNa && numeroPeca(form.parecerNumero) == null) erros.push("Informe o número do parecer do agente de contratações.");
   }
   if (pedePrevisao(form.status) && !form.previsao) erros.push("Informe a data do prazo.");
   if (form.status === "encerrado") {
@@ -321,7 +324,7 @@ function mudancas(antes: ProcessoAdmin, form: FormAdmin): string | null {
   if (form.status === "execucao" && !antes.possuiContrato) partes.push("o contrato");
   if (antes.alertaDias !== form.alertaDias) partes.push("a antecedência do aviso");
   const ciNova = formatarPeca(numeroPeca(form.ciNumero), form.ciAno);
-  const parecerNovo = formatarPeca(numeroPeca(form.parecerNumero), form.parecerAno);
+  const parecerNovo = form.parecerNa ? "N/A" : formatarPeca(numeroPeca(form.parecerNumero), form.parecerAno);
   if (formatarPeca(antes.ciNumero, antes.ciAno) !== ciNova) partes.push(`a comunicação interna para ${ciNova}`);
   if (antes.ciOrigem !== form.ciOrigem.trim()) partes.push("a origem da comunicação interna");
   if ((antes.linkAbertura || "") !== (normalizarLink(form.linkAbertura) || "")) partes.push("o link de publicação");
@@ -331,7 +334,7 @@ function mudancas(antes: ProcessoAdmin, form: FormAdmin): string | null {
   if ((antes.linkRetificacao || "") !== retificacaoNova) partes.push(retificacaoNova ? "o link da retificação" : "a retificação");
   const cancelamentoNovo = form.status === "cancelado" ? normalizarLink(form.linkCancelamento) || "" : "";
   if ((antes.linkCancelamento || "") !== cancelamentoNovo) partes.push(cancelamentoNovo ? "o link de cancelamento" : "o cancelamento");
-  if (formatarPeca(antes.parecerNumero, antes.parecerAno) !== parecerNovo) partes.push(`o parecer para ${parecerNovo}`);
+  if ((antes.parecerNa ? "N/A" : formatarPeca(antes.parecerNumero, antes.parecerAno)) !== parecerNovo) partes.push(`o parecer para ${parecerNovo}`);
   if (!partes.length) return null;
   if (partes.length === 1) return `Alterou ${partes[0]}.`;
   const ultimo = partes.pop();
@@ -373,6 +376,7 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
       linkCancelamento: form.status === "cancelado" ? normalizarLink(form.linkCancelamento) || "" : "",
       parecerNumero: null,
       parecerAno: null,
+      parecerNa: false,
       status: form.status,
       historico: base.historico,
       equipeId: base.equipeId,
@@ -420,8 +424,9 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     linkPncp: normalizarLink(form.linkPncp) || "",
     linkRetificacao: form.houveRetificacao ? normalizarLink(form.linkRetificacao) || "" : "",
     linkCancelamento: form.status === "cancelado" ? normalizarLink(form.linkCancelamento) || "" : "",
-    parecerNumero: cancelado ? null : numeroPeca(form.parecerNumero),
-    parecerAno: cancelado ? null : form.parecerAno,
+    parecerNumero: cancelado || form.parecerNa ? null : numeroPeca(form.parecerNumero),
+    parecerAno: cancelado || form.parecerNa ? null : form.parecerAno,
+    parecerNa: !cancelado && form.parecerNa,
     status: form.status,
     historico: base.historico,
     equipeId: base.equipeId,
@@ -1420,9 +1425,11 @@ export function AdminPainel({
                   titulo="Parecer do agente de contratações"
                   numero={form.parecerNumero}
                   ano={form.parecerAno}
-                  onNumero={(parecerNumero) => setForm({ ...form, parecerNumero })}
+                  onNumero={(parecerNumero) => setForm({ ...form, parecerNumero, parecerNa: false })}
                   onAno={(parecerAno) => setForm({ ...form, parecerAno })}
-                  obrigatorio={form.status !== "cancelado"}
+                  obrigatorio={form.status !== "cancelado" && !form.parecerNa}
+                  na={form.parecerNa}
+                  onNa={(parecerNa) => setForm({ ...form, parecerNa })}
                 />
                 <PecaCampos
                   titulo="Número do tipo"
@@ -1884,7 +1891,7 @@ function CardAdmin({
                 <Info rotulo="Objeto" valor={processo.objeto || "—"} largo justificar />
                 <Info rotulo="Comunicação interna" valor={processo.ciNumero != null ? formatarPeca(processo.ciNumero, processo.ciAno) : "—"} />
                 <Info rotulo="Origem da CI" valor={processo.ciOrigem || "—"} />
-                <Info rotulo="Parecer" valor={processo.parecerNumero != null ? formatarPeca(processo.parecerNumero, processo.parecerAno) : "—"} />
+                <Info rotulo="Parecer" valor={processo.parecerNa ? "N/A" : processo.parecerNumero != null ? formatarPeca(processo.parecerNumero, processo.parecerAno) : "—"} />
                 <Info rotulo="Início" valor={tipoSimples(processo.tipo) ? "—" : formatDate(processo.dataInicio)} />
                 <Info rotulo="Prazo" valor={processo.previsaoEtapa ? formatDate(processo.previsaoEtapa) : "—"} />
                 <Info rotulo="Encerramento" valor={tipoSimples(processo.tipo) ? "—" : formatDate(processo.encerramento)} />
@@ -2197,7 +2204,7 @@ function RelatorioPecas({
                   <p className="mt-2 text-muted">Origem</p>
                   <p className="break-words text-ink">{item.ciOrigem || "—"}</p>
                   <p className="mt-2 text-muted">Parecer</p>
-                  <p className="text-ink">{formatarPeca(item.parecerNumero, item.parecerAno)}</p>
+                  <p className="text-ink">{item.parecerNa ? "N/A" : formatarPeca(item.parecerNumero, item.parecerAno)}</p>
                 </li>
               ))}
             </ul>
@@ -2219,7 +2226,7 @@ function RelatorioPecas({
                       <td className="py-2 pr-3 text-ink">{item.referencia || "—"}</td>
                       <td className="py-2 pr-3 text-ink">{formatarPeca(item.ciNumero, item.ciAno)}</td>
                       <td className="py-2 pr-3 text-ink">{item.ciOrigem || "—"}</td>
-                      <td className="py-2 text-ink">{formatarPeca(item.parecerNumero, item.parecerAno)}</td>
+                      <td className="py-2 text-ink">{item.parecerNa ? "N/A" : formatarPeca(item.parecerNumero, item.parecerAno)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2368,6 +2375,8 @@ function PecaCampos({
   onAno,
   rotulo,
   obrigatorio = true,
+  na = false,
+  onNa,
 }: {
   titulo: string;
   numero: string;
@@ -2376,33 +2385,45 @@ function PecaCampos({
   onAno: (ano: number) => void;
   rotulo?: (numero: number, ano: number) => string;
   obrigatorio?: boolean;
+  na?: boolean;
+  onNa?: (valor: boolean) => void;
 }) {
   const pronto = numeroPeca(numero);
-  const previa = pronto == null ? "número/ano" : rotulo ? rotulo(pronto, ano) : `${pronto}/${ano}`;
+  const previa = na ? "N/A" : pronto == null ? "número/ano" : rotulo ? rotulo(pronto, ano) : `${pronto}/${ano}`;
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3">
-      <p className="text-sm font-medium text-ink">{titulo}</p>
-      <div className="grid gap-3 sm:grid-cols-[1fr_9rem]">
-        <Campo label="Número">
-          <input
-            value={numero}
-            onChange={(e) => onNumero(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            className={inputCls}
-            inputMode="numeric"
-            placeholder="Ex.: 12"
-            required={obrigatorio}
-          />
-        </Campo>
-        <Campo label="Ano">
-          <select value={ano} onChange={(e) => onAno(Number(e.target.value))} className={inputCls}>
-            {anosDePeca().map((opcao) => (
-              <option key={opcao} value={opcao}>
-                {opcao}
-              </option>
-            ))}
-          </select>
-        </Campo>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium text-ink">{titulo}</p>
+        {onNa && (
+          <label className="flex items-center gap-2 text-sm font-medium text-ink">
+            <input type="checkbox" checked={na} onChange={(evento) => onNa(evento.target.checked)} />
+            N/A
+          </label>
+        )}
       </div>
+      {!na && (
+        <div className="grid gap-3 sm:grid-cols-[1fr_9rem]">
+          <Campo label="Número">
+            <input
+              value={numero}
+              onChange={(e) => onNumero(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              className={inputCls}
+              inputMode="numeric"
+              placeholder="Ex.: 12"
+              required={obrigatorio}
+            />
+          </Campo>
+          <Campo label="Ano">
+            <select value={ano} onChange={(e) => onAno(Number(e.target.value))} className={inputCls}>
+              {anosDePeca().map((opcao) => (
+                <option key={opcao} value={opcao}>
+                  {opcao}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        </div>
+      )}
       <p className="text-xs text-muted">Fica como {previa}.</p>
     </div>
   );
