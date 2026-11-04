@@ -15,6 +15,8 @@ import {
   ordenarStatusGestao,
   cancelarConviteGestao,
   convitesPendentesGestao,
+  definirModulosEquipeGestao,
+  equipesPorModuloGestao,
 } from "@/lib/gestao.functions";
 import { SecaoContas, SecaoSistema, SecaoStatus, SecaoUsuarios, novaOrdem } from "@/components/gestao-extra";
 import { CampoSenha } from "@/components/campo-senha";
@@ -323,6 +325,66 @@ function SecaoConvites({
   );
 }
 
+function SecaoEquipeModulo({ token, onErro }: { token: string; onErro: (texto: string) => void }) {
+  const [lista, setLista] = useState<Awaited<ReturnType<typeof equipesPorModuloGestao>>>([]);
+  const [pronto, setPronto] = useState(false);
+
+  function carregar() {
+    void equipesPorModuloGestao({ data: token })
+      .then((itens) => {
+        setLista(itens);
+        setPronto(true);
+      })
+      .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível listar as equipes."));
+  }
+
+  useEffect(() => {
+    carregar();
+  }, [token]);
+
+  function alternar(id: string, modulo: "legislativo" | "administrativo") {
+    const atual = lista.find((item) => item.id === id);
+    if (!atual) return;
+    const tem = atual.modulos.includes(modulo);
+    const proximos = tem ? atual.modulos.filter((item) => item !== modulo) : [...atual.modulos, modulo];
+    if (!proximos.length) {
+      onErro("A equipe precisa ficar em pelo menos um módulo.");
+      return;
+    }
+    const anterior = lista;
+    setLista((itens) => itens.map((item) => (item.id === id ? { ...item, modulos: proximos } : item)));
+    void definirModulosEquipeGestao({ data: { token, equipeId: id, modulos: proximos } }).catch((err: unknown) => {
+      setLista(anterior);
+      onErro(err instanceof Error ? err.message : "Não foi possível mudar o módulo da equipe.");
+    });
+  }
+
+  return (
+    <section className="mt-5 rounded-2xl border border-line bg-sheet p-4">
+      <h2 className="text-sm font-medium text-ink">Equipe por módulo</h2>
+      <p className="mt-1 text-sm text-muted">Escolha em quais módulos a equipe aparece. Pode ser um ou os dois.</p>
+      <ul className="mt-3 flex flex-col">
+        {pronto && lista.length === 0 && <li className="text-sm text-muted">Nenhuma equipe criada.</li>}
+        {lista.map((item, indice) => (
+          <li key={item.id} className={"flex flex-col gap-3 px-2 py-3 sm:flex-row sm:items-center sm:justify-between " + (indice % 2 === 0 ? "bg-paper" : "")}>
+            <span className="font-medium text-ink">{item.nome}</span>
+            <span className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+              <label className="inline-flex items-center gap-2 text-sm text-ink">
+                <input type="checkbox" checked={item.modulos.includes("legislativo")} onChange={() => alternar(item.id, "legislativo")} />
+                Processos Legislativos
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm text-ink">
+                <input type="checkbox" checked={item.modulos.includes("administrativo")} onChange={() => alternar(item.id, "administrativo")} />
+                Processos Administrativo
+              </label>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function PainelVivo({
   token,
   painel,
@@ -347,7 +409,7 @@ function PainelVivo({
   const [aviso, setAviso] = useState("");
   const [erro, setErro] = useState("");
   const [pulso, setPulso] = useState<number[]>([]);
-  const [guia, setGuia] = useState<"geral" | "usuarios" | "contas" | "convites" | "tipos" | "sistema">("geral");
+  const [guia, setGuia] = useState<"geral" | "usuarios" | "modulos" | "contas" | "convites" | "tipos" | "sistema">("geral");
   const [editandoAba, setEditandoAba] = useState<string | null>(null);
   const [nomeEdicao, setNomeEdicao] = useState("");
   const [sobreAba, setSobreAba] = useState<string | null>(null);
@@ -485,6 +547,7 @@ function PainelVivo({
           [
             ["geral", "Visão geral"],
             ["usuarios", "Usuários e equipes"],
+            ["modulos", "Equipe por módulo"],
             ["contas", "Bloqueios e exclusões"],
             ["convites", "Convites pendentes"],
             ["tipos", "Tipos e status"],
@@ -599,6 +662,7 @@ function PainelVivo({
       {guia === "usuarios" && (
         <SecaoUsuarios token={token} painel={painel} onMudou={onMudou} onErro={falhar} onAviso={avisar} onConfirmar={pedirConfirmacao} />
       )}
+      {guia === "modulos" && <SecaoEquipeModulo token={token} onErro={falhar} />}
       {guia === "contas" && (
         <SecaoContas token={token} painel={painel} onMudou={onMudou} onErro={falhar} onAviso={avisar} onConfirmar={pedirConfirmacao} />
       )}

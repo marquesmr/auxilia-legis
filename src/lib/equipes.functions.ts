@@ -3,6 +3,7 @@ import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
 
 export type PapelEquipe = "dono" | "membro";
+export type ModuloEquipe = "legislativo" | "administrativo";
 
 export type MembroEquipe = {
   userId: string;
@@ -22,6 +23,7 @@ export type Equipe = {
   papel: PapelEquipe;
   membros: MembroEquipe[];
   convites: ConviteEquipe[];
+  modulos: ModuloEquipe[];
 };
 
 function emailOk(value: unknown): string {
@@ -35,6 +37,36 @@ function emailOk(value: unknown): string {
 
 function papelOk(value: string): PapelEquipe {
   return value === "dono" ? "dono" : "membro";
+}
+
+export function modulosOuAmbos(lista: readonly string[] | undefined): ModuloEquipe[] {
+  const validos = (lista ?? []).filter((item): item is ModuloEquipe => item === "legislativo" || item === "administrativo");
+  return validos.length ? validos : ["legislativo", "administrativo"];
+}
+
+async function garantirModulosEquipe() {
+  const sql = await getSql();
+  await sql`
+    create table if not exists equipe_modulos (
+      equipe_id text not null references equipes (id) on delete cascade,
+      modulo text not null,
+      primary key (equipe_id, modulo)
+    )
+  `;
+  return sql;
+}
+
+async function mapaModulos() {
+  const sql = await garantirModulosEquipe();
+  const linhas = await sql<{ equipe_id: string; modulo: string }>`select equipe_id, modulo from equipe_modulos`;
+  const mapa = new Map<string, ModuloEquipe[]>();
+  for (const linha of linhas) {
+    if (linha.modulo !== "legislativo" && linha.modulo !== "administrativo") continue;
+    const atual = mapa.get(linha.equipe_id) ?? [];
+    atual.push(linha.modulo);
+    mapa.set(linha.equipe_id, atual);
+  }
+  return mapa;
 }
 
 async function aceitarConvites(userId: string) {
@@ -94,6 +126,7 @@ export async function equipesDaConta(userId: string) {
         papel: papelOk(linha.meu_papel),
         membros: [],
         convites: [],
+        modulos: ["legislativo", "administrativo"],
       };
       mapa.set(linha.equipe_id, equipe);
     }
@@ -110,6 +143,8 @@ export async function equipesDaConta(userId: string) {
       nome: convite.nome?.trim() || convite.email,
     });
   }
+  const modulos = await mapaModulos();
+  for (const equipe of mapa.values()) equipe.modulos = modulosOuAmbos(modulos.get(equipe.id));
   return [...mapa.values()];
 }
 
@@ -131,6 +166,9 @@ export const criarEquipe = createServerFn({ method: "POST" })
       insert into equipe_membros (equipe_id, user_id, papel)
       values (${id}, ${context.userId}, 'dono')
     `;
+    await garantirModulosEquipe();
+    await sql`insert into equipe_modulos (equipe_id, modulo) values (${id}, 'legislativo')`;
+    await sql`insert into equipe_modulos (equipe_id, modulo) values (${id}, 'administrativo')`;
     const { anotarUso } = await import("./gestao.server");
     void anotarUso(context.userId, "Criou equipe", nome).catch(() => undefined);
     return { id, nome };
@@ -271,3 +309,27 @@ export const removerDaEquipe = createServerFn({ method: "POST" })
     await cancelarConvitePendente(data.equipeId, data.email);
     return { ok: true };
   });
+
+export async function listarAtribuicaoModulos() {
+  const sql = await garantirModulosEquipe();
+  const equipes = await sql<{ id: string; nome: string }>`select id, nome from equipes order by nome`;
+  const mapa = await mapaModulos();
+  return equipes.map((equipe) => ({
+    id: equipe.id,
+    nome: equipe.nome,
+    modulos: modulosOuAmbos(mapa.get(equipe.id)),
+  }));
+}
+
+export async function definirModulosEquipe(equipeId: string, modulos: ModuloEquipe[]) {
+  const unicos = [...new Set(modulos)].filter((item): item is ModuloEquipe => item === "legislativo" || item === "administrativo");
+  if (!unicos.length) throw new Error("A equipe precisa ficar em pelo menos um módulo.");
+  const sql = await garantirModulosEquipe();
+  const existe = await sql<{ ok: number }>`select 1 as ok from equipes where id = ${equipeId}`;
+  if (!existe.length) throw new Error("Equipe não encontrada.");
+  await sql`delete from equipe_modulos where equipe_id = ${equipeId}`;
+  for (const modulo of unicos) {
+    await sql`insert into equipe_modulos (equipe_id, modulo) values (${equipeId}, ${modulo})`;
+  }
+  return { id: equipeId, modulos: unicos };
+}

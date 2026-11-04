@@ -644,3 +644,31 @@ export const cancelarConviteGestao = createServerFn({ method: "POST" })
     return cancelarConvitePendente(data.equipeId, data.email);
   });
 
+export const equipesPorModuloGestao = createServerFn({ method: "POST" })
+  .validator(tokenOk)
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao } = await import("./gestao.server");
+    await exigirGestao(data);
+    const { listarAtribuicaoModulos } = await import("./equipes.functions");
+    return listarAtribuicaoModulos();
+  });
+
+export const definirModulosEquipeGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; equipeId?: unknown; modulos?: unknown };
+    const equipeId = typeof bruto.equipeId === "string" ? bruto.equipeId.trim().slice(0, 80) : "";
+    const recebidos = Array.isArray(bruto.modulos) ? bruto.modulos : [];
+    const modulos = recebidos.filter((item): item is "legislativo" | "administrativo" => item === "legislativo" || item === "administrativo");
+    if (!equipeId || !modulos.length) throw new Error("A equipe precisa ficar em pelo menos um módulo.");
+    return { token: tokenOk(bruto.token), equipeId, modulos };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    const { definirModulosEquipe } = await import("./equipes.functions");
+    return definirModulosEquipe(data.equipeId, data.modulos);
+  });
+

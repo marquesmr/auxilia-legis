@@ -56,7 +56,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { apagarProcesso, listarProcessos, moverProcesso, salvarProcesso } from "@/lib/processos.functions";
 import { listarAdmin } from "@/lib/admin.functions";
 import { SoltarProcessoContext } from "@/components/soltar-processo";
-import { adicionarNaEquipe, criarEquipe, listarEquipes, removerDaEquipe, renomearEquipe, type Equipe } from "@/lib/equipes.functions";
+import { adicionarNaEquipe, criarEquipe, listarEquipes, modulosOuAmbos, removerDaEquipe, renomearEquipe, type Equipe } from "@/lib/equipes.functions";
 import { TelaConta } from "@/components/tela-conta";
 import { TrocaSenhaPerfil } from "@/components/troca-senha";
 import { Timbrado, TimbradoRodape } from "@/components/timbrado";
@@ -322,6 +322,8 @@ export function PrazosApp() {
   const meuNome = user?.displayName?.trim() || "Sem nome";
   const aberturaAplicada = useRef(false);
   const [pedirSenha, setPedirSenha] = useState(false);
+  const equipesModulo = equipes.filter((equipe) => modulosOuAmbos(equipe.modulos).includes(area));
+  const equipeVisivel = equipesModulo.some((equipe) => equipe.id === equipeAtual) ? equipeAtual : null;
 
   useEffect(() => {
     const guardado = sessionStorage.getItem("prazos.modulo");
@@ -494,10 +496,10 @@ export function PrazosApp() {
   useEffect(() => {
     if (!user?.id || !ready) return;
     const id = window.setInterval(() => {
-      void listarProcessos({ data: equipeAtual })
+      void listarProcessos({ data: equipeVisivel })
         .then((lista) => setProcessos(garantirAno(lista)))
         .catch(() => undefined);
-      void listarAdmin({ data: equipeAtual })
+      void listarAdmin({ data: equipeVisivel })
         .then((lista) => setAdminLista(lista))
         .catch(() => undefined);
       void listarEquipes()
@@ -505,7 +507,17 @@ export function PrazosApp() {
         .catch(() => undefined);
     }, 30_000);
     return () => window.clearInterval(id);
-  }, [user?.id, equipeAtual, ready]);
+  }, [user?.id, equipeVisivel, ready]);
+
+  useEffect(() => {
+    if (!user?.id || !ready) return;
+    void listarProcessos({ data: equipeVisivel })
+      .then((lista) => setProcessos(garantirAno(lista)))
+      .catch(() => undefined);
+    void listarAdmin({ data: equipeVisivel })
+      .then((lista) => setAdminLista(lista))
+      .catch(() => undefined);
+  }, [user?.id, equipeVisivel, ready]);
 
   useEffect(() => {
     if (!user?.id || !ready) return;
@@ -1072,8 +1084,8 @@ export function PrazosApp() {
       {area === "administrativo" ? (
         <Suspense fallback={<p className="mt-6 text-sm text-muted">Carregando…</p>}>
         <AdminPainel
-          equipeAtual={equipeAtual}
-          equipes={equipes}
+          equipeAtual={equipeVisivel}
+          equipes={equipesModulo}
           meuNome={meuNome}
           sinalNovo={0}
           onToast={setToast}
@@ -1082,8 +1094,8 @@ export function PrazosApp() {
           abasIniciais={abasAdm}
         >
           <PainelEquipe
-            equipes={equipes}
-            atual={equipeAtual}
+            equipes={equipesModulo}
+            atual={equipeVisivel}
             meuEmail={user.primaryEmail ?? ""}
             onEscolher={setEquipeAtual}
             onCriar={criarNovaEquipe}
@@ -1106,8 +1118,8 @@ export function PrazosApp() {
           </div>
 
           <PainelEquipe
-            equipes={equipes}
-            atual={equipeAtual}
+            equipes={equipesModulo}
+            atual={equipeVisivel}
             meuEmail={user.primaryEmail ?? ""}
             onEscolher={setEquipeAtual}
             onCriar={criarNovaEquipe}
@@ -1323,7 +1335,7 @@ export function PrazosApp() {
                 <ProcessoCard
                   key={p.id}
                   processo={p}
-                  equipes={equipes}
+                  equipes={equipesModulo}
                   onMover={moverLegislativo}
                   onEditar={() => abrirEdicao(p)}
                   onAndamento={() => {
