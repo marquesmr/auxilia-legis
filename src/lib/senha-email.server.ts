@@ -1,6 +1,6 @@
 import { randomBytes, randomInt, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
-import { getSql } from "@/lib/db";
+import { copiarBancoAgora, getSql, semPersistencia } from "@/lib/db";
 import { decifrarSenhaCaixa, botaoEmail, codigoEmail, emailHtml, enviarEmail, urlDoSite } from "@/lib/email.server";
 
 const scrypt = promisify(scryptCb);
@@ -48,20 +48,22 @@ export async function pedirCodigoSenha(email: string) {
     select id, name from "user" where lower(email) = ${email}
   `;
   if (!usuarios[0]) return { enviado: true };
-  const recente = await sql<{ recente: boolean }>`
-    select criado_em > now() - interval '40 seconds' as recente
-    from codigo_senha
-    where email = ${email}
-  `;
-  if (recente[0]?.recente) throw new Error("Aguarde 40 segundos para pedir outro código.");
   const codigo = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const hash = await hashCodigo(codigo);
-  await sql`
-    insert into codigo_senha (email, codigo_hash, expira_em, tentativas, criado_em)
-    values (${email}, ${hash}, now() + interval '5 minutes', 0, now())
-    on conflict (email) do update
-    set codigo_hash = excluded.codigo_hash, expira_em = excluded.expira_em, tentativas = 0, criado_em = now()
-  `;
+  await semPersistencia(async () => {
+    const recente = await sql<{ recente: boolean }>`
+      select criado_em > now() - interval '40 seconds' as recente
+      from codigo_senha
+      where email = ${email}
+    `;
+    if (recente[0]?.recente) throw new Error("Aguarde 40 segundos para pedir outro código.");
+    await sql`
+      insert into codigo_senha (email, codigo_hash, expira_em, tentativas, criado_em)
+      values (${email}, ${hash}, now() + interval '5 minutes', 0, now())
+      on conflict (email) do update
+      set codigo_hash = excluded.codigo_hash, expira_em = excluded.expira_em, tentativas = 0, criado_em = now()
+    `;
+  });
   const origem = await urlDoSite();
   const link = origem ? `${origem}/?senha=1&email=${encodeURIComponent(email)}&codigo=${codigo}` : "";
   await enviarEmail(
@@ -81,6 +83,11 @@ ${codigoEmail(codigo)}
     ),
     senhaCaixa,
   );
+  try {
+    await copiarBancoAgora();
+  } catch (err) {
+    console.error("[senha] banco não copiado depois do e-mail", err);
+  }
   return { enviado: true };
 }
 

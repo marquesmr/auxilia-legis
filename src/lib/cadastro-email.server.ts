@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, randomInt, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { idadeEm } from "@/lib/idade";
-import { copiarBancoAgora, getSql, puxarNuvem } from "@/lib/db";
+import { copiarBancoAgora, getSql, puxarNuvem, semPersistencia } from "@/lib/db";
 import { gravarTravaEmail, lerTravaEmail, lerTravaPeloHash, apagarTravaEmail } from "@/lib/banco-nuvem";
 import { botaoEmail, codigoEmail, emailHtml, enviarEmail, urlDoSite } from "@/lib/email.server";
 import { senhaDaCaixa } from "@/lib/senha-email.server";
@@ -127,20 +127,22 @@ export async function pedirCodigoCadastro(email: string, nome: string, nasciment
   if (!senhaCaixa) {
     throw new Error("A caixa auxilialegis@marquestecnologies.com ainda não tem senha. Guarde-a na área restrita.");
   }
-  const recente = await sql<{ recente: boolean }>`
-    select criado_em > now() - interval '40 seconds' as recente
-    from codigo_cadastro
-    where email = ${email}
-  `;
-  if (recente[0]?.recente) throw new Error("Aguarde 40 segundos para pedir outro código.");
   const codigo = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const hash = await hashCodigo(codigo);
-  await sql`
-    insert into codigo_cadastro (email, codigo_hash, expira_em, tentativas, criado_em)
-    values (${email}, ${hash}, now() + interval '24 hours', 0, now())
-    on conflict (email) do update
-    set codigo_hash = excluded.codigo_hash, expira_em = excluded.expira_em, tentativas = 0, criado_em = now()
-  `;
+  await semPersistencia(async () => {
+    const recente = await sql<{ recente: boolean }>`
+      select criado_em > now() - interval '40 seconds' as recente
+      from codigo_cadastro
+      where email = ${email}
+    `;
+    if (recente[0]?.recente) throw new Error("Aguarde 40 segundos para pedir outro código.");
+    await sql`
+      insert into codigo_cadastro (email, codigo_hash, expira_em, tentativas, criado_em)
+      values (${email}, ${hash}, now() + interval '24 hours', 0, now())
+      on conflict (email) do update
+      set codigo_hash = excluded.codigo_hash, expira_em = excluded.expira_em, tentativas = 0, criado_em = now()
+    `;
+  });
   await enviarEmail(
     email,
     "Quase lá! Confirme seu e-mail no Auxilia Legis",
@@ -156,6 +158,11 @@ ${codigoEmail(codigo)}
     ),
     senhaCaixa,
   );
+  try {
+    await copiarBancoAgora();
+  } catch (err) {
+    console.error("[cadastro] banco não copiado depois do e-mail", err);
+  }
   return { enviado: true as const };
 }
 

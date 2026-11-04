@@ -58,7 +58,7 @@ type RascunhoCadastro = { nome: string; email: string; senha: string; nascimento
 
 function lerRascunhoCadastro(): RascunhoCadastro | null {
   try {
-    const bruto = sessionStorage.getItem(CADASTRO_PENDENTE);
+    const bruto = localStorage.getItem(CADASTRO_PENDENTE) || sessionStorage.getItem(CADASTRO_PENDENTE);
     if (!bruto) return null;
     const dados = JSON.parse(bruto) as Partial<RascunhoCadastro>;
     if (!dados || typeof dados.email !== "string" || !dados.email.includes("@")) return null;
@@ -76,11 +76,40 @@ function lerRascunhoCadastro(): RascunhoCadastro | null {
 }
 
 function guardarRascunhoCadastro(dados: RascunhoCadastro) {
-  sessionStorage.setItem(CADASTRO_PENDENTE, JSON.stringify(dados));
+  const texto = JSON.stringify(dados);
+  localStorage.setItem(CADASTRO_PENDENTE, texto);
+  sessionStorage.setItem(CADASTRO_PENDENTE, texto);
 }
 
 function limparRascunhoCadastro() {
+  localStorage.removeItem(CADASTRO_PENDENTE);
   sessionStorage.removeItem(CADASTRO_PENDENTE);
+}
+
+const SENHA_PENDENTE = "prazos.senha-codigo";
+
+function lerSenhaPendente(): { email: string; codigo: string; esperaAte: number } | null {
+  try {
+    const bruto = localStorage.getItem(SENHA_PENDENTE);
+    if (!bruto) return null;
+    const dados = JSON.parse(bruto) as { email?: unknown; codigo?: unknown; esperaAte?: unknown };
+    if (typeof dados.email !== "string" || !dados.email.includes("@")) return null;
+    return {
+      email: dados.email,
+      codigo: typeof dados.codigo === "string" ? dados.codigo.replace(/\D/g, "").slice(0, 6) : "",
+      esperaAte: typeof dados.esperaAte === "number" ? dados.esperaAte : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function guardarSenhaPendente(dados: { email: string; codigo: string; esperaAte: number }) {
+  localStorage.setItem(SENHA_PENDENTE, JSON.stringify(dados));
+}
+
+function limparSenhaPendente() {
+  localStorage.removeItem(SENHA_PENDENTE);
 }
 
 const TRAVA_LOCAL = "prazos.emails-restritos";
@@ -124,7 +153,8 @@ function avisoPendente() {
 
 export function TelaConta() {
   const rascunho = lerRascunhoCadastro();
-  const [modo, setModo] = useState<Modo>(() => (rascunho ? "criar" : sessionStorage.getItem(AVISO_EXCLUSAO) === "1" ? "criar" : "entrar"));
+  const senhaPendente = lerSenhaPendente();
+  const [modo, setModo] = useState<Modo>(() => (rascunho ? "criar" : senhaPendente ? "esqueci" : sessionStorage.getItem(AVISO_EXCLUSAO) === "1" ? "criar" : "entrar"));
   const [nome, setNome] = useState(rascunho?.nome ?? "");
   const [nascimento, setNascimento] = useState(rascunho?.nascimento ?? "");
   const [email, setEmail] = useState(rascunho?.email ?? "");
@@ -153,6 +183,31 @@ export function TelaConta() {
     const id = window.setTimeout(() => setEsperaCodigo((valor) => valor - 1), 1000);
     return () => window.clearTimeout(id);
   }, [esperaCodigo]);
+
+  useEffect(() => {
+    function restaurar() {
+      const atual = lerRascunhoCadastro();
+      if (!atual) return;
+      setModo("criar");
+      setConfirmando(true);
+      setNome(atual.nome);
+      setEmail(atual.email);
+      setSenha(atual.senha);
+      setNascimento(atual.nascimento);
+      setCodigoCadastro(atual.codigo);
+      const falta = atual.esperaAte - Date.now();
+      setEsperaCodigo(falta > 0 ? Math.ceil(falta / 1000) : 0);
+    }
+    function aoVoltar() {
+      if (document.visibilityState === "visible") restaurar();
+    }
+    document.addEventListener("visibilitychange", aoVoltar);
+    window.addEventListener("pageshow", restaurar);
+    return () => {
+      document.removeEventListener("visibilitychange", aoVoltar);
+      window.removeEventListener("pageshow", restaurar);
+    };
+  }, []);
 
   useEffect(() => {
     if (!confirmando) return;
@@ -320,19 +375,22 @@ export function TelaConta() {
       return;
     }
     try {
+      const esperaAte = Date.now() + 40_000;
+      guardarRascunhoCadastro({ nome: nome.trim(), email: email.trim(), senha, nascimento, esperaAte, codigo: codigoCadastro });
+      setConfirmando(true);
+      setEsperaCodigo(40);
+      setAviso("Enviando o código para o seu e-mail…");
       const resultado = await pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim(), nascimento, liberacao } });
       if (!resultado || typeof resultado !== "object" || !("enviado" in resultado) || !resultado.enviado) {
         const mensagem = resultado && typeof resultado === "object" && "mensagem" in resultado ? String(resultado.mensagem) : "";
         setErro(mensagem || "Não foi possível enviar o código.");
+        setEsperaCodigo(0);
         return;
       }
-      const esperaAte = Date.now() + 40_000;
-      guardarRascunhoCadastro({ nome: nome.trim(), email: email.trim(), senha, nascimento, esperaAte, codigo: "" });
-      setConfirmando(true);
-      setEsperaCodigo(40);
       setAviso("Enviamos o código de confirmação para o seu e-mail.");
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Não foi possível enviar o código.");
+      setEsperaCodigo(0);
     } finally {
       setEnviando(false);
     }
@@ -500,9 +558,10 @@ export function TelaConta() {
           </form>
         ) : modo === "esqueci" ? (
           <RecuperarSenha
-            emailInicial={email}
-            codigoInicial={codigoLink}
+            emailInicial={senhaPendente?.email || email}
+            codigoInicial={senhaPendente?.codigo || codigoLink}
             onVoltar={() => {
+              limparSenhaPendente();
               setModo("entrar");
               setErro("");
             }}
@@ -696,15 +755,20 @@ function RecuperarSenha({
   onVoltar: () => void;
   onPronto: () => void;
 }) {
-  const [email, setEmail] = useState(emailInicial);
-  const [codigo, setCodigo] = useState(codigoInicial);
+  const pendente = codigoInicial.length === 6 ? null : lerSenhaPendente();
+  const [email, setEmail] = useState(pendente?.email || emailInicial);
+  const [codigo, setCodigo] = useState(codigoInicial || pendente?.codigo || "");
   const [senha, setSenha] = useState("");
   const [repete, setRepete] = useState("");
-  const [enviado, setEnviado] = useState(codigoInicial.length === 6);
+  const [enviado, setEnviado] = useState(codigoInicial.length === 6 || Boolean(pendente));
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const [espera, setEspera] = useState(codigoInicial.length === 6 ? 40 : 0);
+  const [espera, setEspera] = useState(() => {
+    const falta = (pendente?.esperaAte ?? 0) - Date.now();
+    if (falta > 0) return Math.ceil(falta / 1000);
+    return codigoInicial.length === 6 ? 40 : 0;
+  });
 
   useEffect(() => {
     if (espera <= 0) return;
@@ -712,14 +776,26 @@ function RecuperarSenha({
     return () => window.clearTimeout(id);
   }, [espera]);
 
+  useEffect(() => {
+    if (!enviado) return;
+    guardarSenhaPendente({
+      email: email.trim(),
+      codigo,
+      esperaAte: Date.now() + Math.max(espera, 0) * 1000,
+    });
+  }, [enviado, email, codigo, espera]);
+
   async function pedir() {
     setErro("");
     setAviso("");
     setEnviando(true);
     try {
-      await pedirCodigoSenha({ data: { email: email.trim() } });
+      const esperaAte = Date.now() + 40_000;
+      guardarSenhaPendente({ email: email.trim(), codigo, esperaAte });
       setEnviado(true);
       setEspera(40);
+      setAviso("Enviando o código para o seu e-mail…");
+      await pedirCodigoSenha({ data: { email: email.trim() } });
       setAviso("Se houver conta com este e-mail, o código foi enviado por auxilialegis@marquestecnologies.com.");
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Não foi possível enviar o código.");
@@ -742,6 +818,7 @@ function RecuperarSenha({
     setEnviando(true);
     try {
       await redefinirComCodigo({ data: { email: email.trim(), codigo, senha } });
+      limparSenhaPendente();
       onPronto();
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Não foi possível redefinir a senha.");
