@@ -705,6 +705,7 @@ export function AdminPainel({
     const problemas = validar(form);
     setErros(problemas);
     if (problemas.length) return;
+    setFormOpen(false);
     const nota = form.nota.trim();
     if (editing) {
       const texto = mudancas(editing, form);
@@ -718,8 +719,9 @@ export function AdminPainel({
         null,
         "Processo atualizado",
       );
-      if (ok === true) setFormOpen(false);
-      else setErros([ok]);
+      if (ok === true) return;
+      setFormOpen(true);
+      setErros([ok]);
       return;
     }
     const criado = montar(form, {
@@ -732,8 +734,9 @@ export function AdminPainel({
       autorNome: meuNome,
     });
     const ok = await persistir([criado, ...lista], criado, null, "Processo administrativo lançado");
-    if (ok === true) setFormOpen(false);
-    else setErros([ok]);
+    if (ok === true) return;
+    setFormOpen(true);
+    setErros([ok]);
   }
 
   async function registrarAndamento() {

@@ -681,6 +681,7 @@ export function PrazosApp() {
     const problemas = validar(form);
     setErros(problemas);
     if (problemas.length) return;
+    setFormOpen(false);
 
     const nota = form.nota.trim();
     if (editing) {
@@ -705,7 +706,7 @@ export function PrazosApp() {
         null,
         "Processo atualizado",
       );
-      if (ok) setFormOpen(false);
+      if (!ok) setFormOpen(true);
       return;
     }
 
@@ -733,7 +734,7 @@ export function PrazosApp() {
       apreciacaoPrazo: null,
     };
     const ok = await persistir([criado, ...processos], criado, null, "Processo lançado");
-    if (ok) setFormOpen(false);
+    if (!ok) setFormOpen(true);
   }
 
   async function registrarAndamento() {
