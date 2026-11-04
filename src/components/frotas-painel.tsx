@@ -365,7 +365,7 @@ function AbaCadastro({
           <li key={item.id} className={"flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 " + (indice % 2 ? "bg-sheet" : "bg-pine-soft/40")}>
             <div>
               <p className="text-sm font-medium text-ink">{item.nome}</p>
-              <p className="text-sm text-muted">CNH {item.cnh} · {item.categoria}{item.validade ? ` · até ${dataTexto(item.validade)}` : ""} · {item.pontuacao} pts</p>
+              <p className="text-sm text-muted">CNH {item.cnh} · {item.categoria}{item.validade ? ` · até ${dataTexto(item.validade)}` : ""}</p>
               {item.treinamentos && <p className="text-sm text-muted">Treinamentos: {item.treinamentos}</p>}
               {item.historico && <p className="text-sm text-muted">Histórico: {item.historico}</p>}
               {item.toxicologico && <p className="text-sm text-muted">Toxicológico: {dataTexto(item.toxicologico)}</p>}
@@ -425,9 +425,8 @@ function AbaCadastro({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Campo nome="Validade"><input type="date" value={condutor.validade} onChange={(evento) => setCondutor({ ...condutor, validade: evento.target.value })} className={campo} /></Campo>
-              <Campo nome="Pontuação"><input value={String(condutor.pontuacao)} onChange={(evento) => setCondutor({ ...condutor, pontuacao: Number(evento.target.value.replace(/\D/g, "") || 0) })} inputMode="numeric" className={campo} autoComplete="off" /></Campo>
+              <Campo nome="Toxicológico"><input type="date" value={condutor.toxicologico} onChange={(evento) => setCondutor({ ...condutor, toxicologico: evento.target.value })} className={campo} /></Campo>
             </div>
-            <Campo nome="Toxicológico"><input type="date" value={condutor.toxicologico} onChange={(evento) => setCondutor({ ...condutor, toxicologico: evento.target.value })} className={campo} /></Campo>
             <Campo nome="Treinamentos"><input value={condutor.treinamentos} onChange={(evento) => setCondutor({ ...condutor, treinamentos: evento.target.value })} className={campo} autoComplete="off" /></Campo>
             <Campo nome="Histórico de condução"><textarea value={condutor.historico} onChange={(evento) => setCondutor({ ...condutor, historico: evento.target.value })} className={campo + " h-20 py-2"} /></Campo>
             <button type="submit" className="mt-1 inline-flex h-11 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">Salvar</button>
