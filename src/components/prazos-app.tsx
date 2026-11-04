@@ -227,8 +227,6 @@ function EscolhaModulo({ nome, onEscolher }: { nome: string; onEscolher: (area: 
             <IconeLegislativo className="size-7" />
           </span>
           <span className="mt-5 font-display text-2xl leading-tight text-ink">Processos Legislativos</span>
-          <span className="mt-2 text-sm leading-relaxed text-muted">Requerimentos, indicações, projetos de lei e o andamento de cada matéria.</span>
-          <span className="mt-6 text-sm font-medium text-pine">Entrar</span>
         </button>
         <button
           type="button"
@@ -238,9 +236,7 @@ function EscolhaModulo({ nome, onEscolher }: { nome: string; onEscolher: (area: 
           <span className="grid size-14 place-items-center rounded-2xl bg-sheet/15">
             <PranchetaGrafico className="size-7" />
           </span>
-          <span className="mt-5 font-display text-2xl leading-tight">Controle e Estatística de Processos Administrativo</span>
-          <span className="mt-2 text-sm leading-relaxed text-sheet/80">Licitações, contratos, execução e os números do administrativo.</span>
-          <span className="mt-6 text-sm font-medium">Entrar</span>
+          <span className="mt-5 font-display text-2xl leading-tight">Processos Administrativo</span>
         </button>
       </div>
     </main>
