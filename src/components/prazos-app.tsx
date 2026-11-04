@@ -1013,7 +1013,7 @@ export function PrazosApp() {
     <div className="mx-auto min-h-screen max-w-[100rem] px-4 py-6 md:px-8 md:py-8 xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-x-6">
       <header className="flex flex-col gap-4 border-b border-line pb-6 md:flex-row md:items-center md:justify-between xl:col-start-1">
         <h1 className="font-display text-2xl leading-tight text-ink sm:text-3xl">
-          {area === "administrativo" ? "Controle e Estatística de Processos Administrativo" : "Processos Legislativos"}
+          {area === "administrativo" ? "Processos Administrativo" : "Processos Legislativos"}
         </h1>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <UserButton />
