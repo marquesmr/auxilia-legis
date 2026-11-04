@@ -11,12 +11,17 @@ export type MembroEquipe = {
   papel: PapelEquipe;
 };
 
+export type ConviteEquipe = {
+  email: string;
+  nome: string;
+};
+
 export type Equipe = {
   id: string;
   nome: string;
   papel: PapelEquipe;
   membros: MembroEquipe[];
-  convites: string[];
+  convites: ConviteEquipe[];
 };
 
 function emailOk(value: unknown): string {
@@ -72,8 +77,8 @@ export async function equipesDaConta(userId: string) {
     where meu.user_id = ${userId}
     order by e.nome, u.name
   `;
-  const convites = await sql<{ equipe_id: string; email: string }>`
-    select c.equipe_id, c.email
+  const convites = await sql<{ equipe_id: string; email: string; nome: string | null }>`
+    select c.equipe_id, c.email, c.nome
     from equipe_convites c
     join equipe_membros meu on meu.equipe_id = c.equipe_id
     where meu.user_id = ${userId} and meu.papel = 'dono'
@@ -100,7 +105,10 @@ export async function equipesDaConta(userId: string) {
     });
   }
   for (const convite of convites) {
-    mapa.get(convite.equipe_id)?.convites.push(convite.email);
+    mapa.get(convite.equipe_id)?.convites.push({
+      email: convite.email,
+      nome: convite.nome?.trim() || convite.email,
+    });
   }
   return [...mapa.values()];
 }
@@ -151,9 +159,14 @@ export const renomearEquipe = createServerFn({ method: "POST" })
 export const adicionarNaEquipe = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
-    const bruto = input as { equipeId?: unknown; email?: unknown };
+    const bruto = input as { equipeId?: unknown; email?: unknown; nome?: unknown };
     if (typeof bruto.equipeId !== "string" || !bruto.equipeId.trim()) throw new Error("Dados inválidos");
-    return { equipeId: bruto.equipeId.trim().slice(0, 80), email: emailOk(bruto.email) };
+    if (typeof bruto.nome !== "string" || bruto.nome.trim().length < 2) throw new Error("Informe o nome da pessoa.");
+    return {
+      equipeId: bruto.equipeId.trim().slice(0, 80),
+      email: emailOk(bruto.email),
+      nome: bruto.nome.trim().slice(0, 80),
+    };
   })
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
@@ -176,6 +189,10 @@ export const adicionarNaEquipe = createServerFn({ method: "POST" })
       select id, name from "user" where lower(email) = ${data.email}
     `;
     if (alvo.length) {
+      const nomeConta = alvo[0].name?.trim() ?? "";
+      if (nomeConta.length < 2) {
+        await sql`update "user" set name = ${data.nome} where id = ${alvo[0].id}`;
+      }
       await sql`
         insert into equipe_membros (equipe_id, user_id, papel)
         values (${data.equipeId}, ${alvo[0].id}, 'membro')
@@ -185,14 +202,14 @@ export const adicionarNaEquipe = createServerFn({ method: "POST" })
         delete from equipe_convites
         where equipe_id = ${data.equipeId} and lower(email) = ${data.email}
       `;
-      return { entrou: true, nome: alvo[0].name };
+      return { entrou: true, nome: nomeConta.length < 2 ? data.nome : nomeConta };
     }
     await sql`
-      insert into equipe_convites (equipe_id, email)
-      values (${data.equipeId}, ${data.email})
-      on conflict (equipe_id, email) do nothing
+      insert into equipe_convites (equipe_id, email, nome)
+      values (${data.equipeId}, ${data.email}, ${data.nome})
+      on conflict (equipe_id, email) do update set nome = excluded.nome
     `;
-    return { entrou: false, nome: null };
+    return { entrou: false, nome: data.nome };
   });
 
 export const removerDaEquipe = createServerFn({ method: "POST" })

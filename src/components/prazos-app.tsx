@@ -806,15 +806,15 @@ export function PrazosApp() {
     }
   }
 
-  async function incluirNaEquipe(email: string) {
+  async function incluirNaEquipe(email: string, nome: string) {
     if (!equipeAtual) return;
     try {
-      const resultado = await adicionarNaEquipe({ data: { equipeId: equipeAtual, email } });
+      const resultado = await adicionarNaEquipe({ data: { equipeId: equipeAtual, email, nome } });
       setEquipes(await listarEquipes());
       setToast(
         resultado.entrou
           ? `${resultado.nome} agora vê os processos desta equipe.`
-          : "Convite guardado. A pessoa entra quando criar a conta com este e-mail.",
+          : `Convite de ${resultado.nome} guardado. A pessoa entra quando criar a conta com este e-mail.`,
       );
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Não foi possível adicionar.");
@@ -2052,11 +2052,12 @@ function PainelEquipe({
   meuEmail: string;
   onEscolher: (id: string | null) => void;
   onCriar: (nome: string) => Promise<void>;
-  onAdicionar: (email: string) => Promise<void>;
+  onAdicionar: (email: string, nome: string) => Promise<void>;
   onRemover: (email: string) => Promise<void>;
   onRenomear: (equipeId: string, nome: string) => Promise<void>;
 }) {
   const [nome, setNome] = useState("");
+  const [nomePessoa, setNomePessoa] = useState("");
   const [email, setEmail] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [sobre, setSobre] = useState<string | null>(null);
@@ -2256,12 +2257,15 @@ function PainelEquipe({
               </li>
             ))}
             {selecionada.convites.map((convite) => (
-              <li key={convite} className="flex items-center justify-between gap-2 text-sm text-muted">
-                <span className="min-w-0 truncate">{convite} · convite</span>
+              <li key={convite.email} className="flex items-center justify-between gap-2 text-sm text-muted">
+                <span className="min-w-0 truncate">
+                  {convite.nome}
+                  <span> · {convite.email} · convite</span>
+                </span>
                 {selecionada.papel === "dono" && (
                   <button
                     type="button"
-                    onClick={() => exclusao.pedir(`Cancelar o convite de ${convite}?`, () => void onRemover(convite))}
+                    onClick={() => exclusao.pedir(`Cancelar o convite de ${convite.nome}?`, () => void onRemover(convite.email))}
                     className="inline-flex h-11 items-center text-sm font-medium text-seal"
                   >
                     Remover
@@ -2275,16 +2279,26 @@ function PainelEquipe({
               className="flex flex-col gap-2"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (ocupado || !email.trim()) return;
+                if (ocupado || nomePessoa.trim().length < 2 || !email.trim()) return;
                 setOcupado(true);
-                void onAdicionar(email.trim()).finally(() => {
+                void onAdicionar(email.trim(), nomePessoa.trim()).finally(() => {
                   setEmail("");
+                  setNomePessoa("");
                   setOcupado(false);
                 });
               }}
             >
               <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                Adicionar por e-mail
+                Nome da pessoa
+                <input
+                  value={nomePessoa}
+                  onChange={(event) => setNomePessoa(event.target.value)}
+                  placeholder="Nome completo"
+                  className="h-11 rounded-xl border border-line bg-paper px-3 text-sm font-normal"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                E-mail
                 <input
                   type="email"
                   value={email}
