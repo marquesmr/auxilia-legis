@@ -131,6 +131,15 @@ html[data-tema="escuro"] {
   }
 }
 
+html {
+  --color-comp: hsl(from var(--color-pine) calc(h + 180) s l);
+  --color-comp-soft: hsl(from var(--color-pine) calc(h + 180) 42% 93%);
+}
+
+html[data-tema="escuro"] {
+  --color-comp-soft: hsl(from var(--color-pine) calc(h + 180) 34% 20%);
+}
+
 html[data-cor="azul"] {
   --color-pine: #1a4e86;
   --color-pine-soft: #e4eef8;
@@ -193,6 +202,10 @@ html[data-tema="escuro"][data-cor="roxo"] {
 }
 
 @media (prefers-color-scheme: dark) {
+  html[data-tema="auto"] {
+    --color-comp-soft: hsl(from var(--color-pine) calc(h + 180) 34% 20%);
+  }
+
   html[data-tema="auto"][data-cor="verde"] {
     --color-pine: #8fceb4;
     --color-pine-soft: #1a332b;

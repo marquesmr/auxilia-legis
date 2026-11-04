@@ -127,7 +127,7 @@ const TOM: Record<UrgenciaAdmin, { badge: string; bar: string }> = {
   hoje: { badge: "bg-seal-soft text-seal", bar: "bg-seal" },
   proximo: { badge: "bg-brass-soft text-brass", bar: "bg-brass" },
   ok: { badge: "bg-pine-soft text-pine", bar: "bg-pine" },
-  encerrado: { badge: "bg-line text-muted", bar: "bg-line" },
+  encerrado: { badge: "bg-[var(--color-comp-soft)] text-[var(--color-comp)]", bar: "bg-[var(--color-comp)]" },
   cancelado: { badge: "bg-line text-muted", bar: "bg-line" },
 };
 
