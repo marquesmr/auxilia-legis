@@ -3166,6 +3166,14 @@ function ResultadoConsulta({ consulta }: { consulta: ConsultaDocumento }) {
           ) : null}
         </dl>
         <p className="mt-3 text-justify text-sm text-muted">{consulta.aviso}</p>
+        <a
+          href="https://servicos.receita.fazenda.gov.br/servicos/cpf/consultasituacao/ConsultaPublica.asp"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex h-10 items-center rounded-xl bg-pine px-3 text-sm font-medium text-sheet"
+        >
+          Abrir comprovante na Receita
+        </a>
       </div>
     );
   }

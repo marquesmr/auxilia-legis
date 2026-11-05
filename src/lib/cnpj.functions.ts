@@ -291,7 +291,7 @@ async function consultarCpf(digitos: string, nascimento: string): Promise<Consul
     cpf: formatarCpf(digitos),
     valido: true,
     regiao,
-    aviso: "A consulta usou a data de nascimento informada no lançamento. A Receita Federal não devolve nome nem situação cadastral numa consulta automática.",
+    aviso: "Nome e situação cadastral só saem no comprovante da Receita Federal, depois da verificação anti-robô.",
   };
 }
 
