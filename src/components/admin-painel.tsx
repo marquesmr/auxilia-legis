@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, FilePen, FileText, Link2, Megaphone, Pencil, Plus, Trash2, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, FilePen, FileText, Link2, Megaphone, MoreVertical, Pencil, Plus, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -39,7 +39,7 @@ import {
   type UrgenciaAdmin,
   type LinhaControle,
 } from "@/lib/admin";
-import { apagarAdmin, listarAdmin, moverAdmin, salvarAdmin } from "@/lib/admin.functions";
+import { apagarAdmin, inutilizarCi, listarAdmin, listarCiInutilizadas, moverAdmin, salvarAdmin } from "@/lib/admin.functions";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { CampoMes } from "@/components/campo-mes";
 import { SoltarProcessoContext } from "@/components/soltar-processo";
@@ -525,6 +525,13 @@ export function AdminPainel({
   const [modoRelatorio, setModoRelatorio] = useState<ModoRelatorio>("processos");
   const [anoPecas, setAnoPecas] = useState("todos");
   const [relatorioPecas, setRelatorioPecas] = useState<{ rotulo: string; itens: ProcessoAdmin[] } | null>(null);
+  const [inutilizadas, setInutilizadas] = useState<{ ano: number; numero: number }[]>([]);
+  const [editorCi, setEditorCi] = useState(false);
+  const [rascunhosCi, setRascunhosCi] = useState<{ processoId: string; numero: string; ano: string; destinoId: string }[]>([]);
+  const [salvandoCi, setSalvandoCi] = useState(false);
+  const [inutilizarAberto, setInutilizarAberto] = useState(false);
+  const [numeroInutilizar, setNumeroInutilizar] = useState("");
+  const [anoInutilizar, setAnoInutilizar] = useState(new Date().getFullYear());
   const sinalVisto = useRef(sinalNovo);
   const listaGeracao = useRef(0);
   const cargaVista = useRef(0);
@@ -565,6 +572,13 @@ export function AdminPainel({
       window.clearInterval(id);
     };
   }, [user?.id, equipeAtual, cargaId]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    void listarCiInutilizadas()
+      .then(setInutilizadas)
+      .catch(() => undefined);
+  }, [user?.id, lista]);
 
   useEffect(() => {
     setParte(0);
@@ -659,8 +673,9 @@ export function AdminPainel({
             referencia: item.referencia,
             processo: rotuloNumero(item.numero, item.numeroAno),
           })),
+        inutilizadas,
       ),
-    [lista],
+    [lista, inutilizadas],
   );
   const linhasParecer = useMemo(
     () =>
@@ -697,6 +712,109 @@ export function AdminPainel({
         itens: itens.sort((a, b) => b.ano - a.ano || a.numero - b.numero),
       }));
   }, [lista]);
+
+  function comunicacoesGerencia() {
+    return lista
+      .filter((item) => item.ciNumero != null && item.ciAno != null && daGerenciaAdministrativa(item.ciOrigem))
+      .sort((a, b) => (b.ciAno ?? 0) - (a.ciAno ?? 0) || (a.ciNumero ?? 0) - (b.ciNumero ?? 0));
+  }
+
+  function abrirEditorCi() {
+    setRascunhosCi(
+      comunicacoesGerencia().map((item) => ({
+        processoId: item.id,
+        numero: String(item.ciNumero),
+        ano: String(item.ciAno),
+        destinoId: item.id,
+      })),
+    );
+    setEditorCi(true);
+  }
+
+  async function salvarEditorCi() {
+    const destinos = new Set<string>();
+    const numeros = new Set<string>();
+    const prontos: { origem: ProcessoAdmin; destino: ProcessoAdmin; numero: number; ano: number }[] = [];
+    for (const linha of rascunhosCi) {
+      const numero = numeroPeca(linha.numero);
+      const ano = Number(linha.ano);
+      if (numero == null || !Number.isInteger(ano) || ano < 2000 || ano > 2100) {
+        onToast("Informe número e ano válidos em todas as comunicações.");
+        return;
+      }
+      const chave = `${numero}/${ano}`;
+      if (numeros.has(chave)) {
+        onToast(`A comunicação ${formatarPeca(numero, ano)} está repetida.`);
+        return;
+      }
+      numeros.add(chave);
+      if (destinos.has(linha.destinoId)) {
+        onToast("Cada comunicação precisa ir para um processo diferente.");
+        return;
+      }
+      destinos.add(linha.destinoId);
+      const origem = lista.find((item) => item.id === linha.processoId);
+      const destino = lista.find((item) => item.id === linha.destinoId);
+      if (!origem || !destino) return;
+      prontos.push({ origem, destino, numero, ano });
+    }
+    for (const item of prontos) {
+      if (!destinos.has(item.origem.id)) {
+        onToast(`${rotuloNumero(item.origem.numero, item.origem.numeroAno)} ficaria sem comunicação. Escolha outro destino.`);
+        return;
+      }
+    }
+    const atualizados = prontos.flatMap((item) => {
+      if (item.origem.id === item.destino.id && item.origem.ciNumero === item.numero && item.origem.ciAno === item.ano) return [];
+      return [
+        {
+          ...item.destino,
+          ciNumero: item.numero,
+          ciAno: item.ano,
+          ciOrigem: item.origem.ciOrigem || item.destino.ciOrigem,
+          historico: [
+            ...item.destino.historico,
+            evento(`Comunicação interna definida como ${formatarPeca(item.numero, item.ano)}.`, meuNome),
+          ],
+        },
+      ];
+    });
+    if (!atualizados.length) {
+      setEditorCi(false);
+      return;
+    }
+    setSalvandoCi(true);
+    try {
+      for (const item of atualizados) await salvarAdmin({ data: item });
+      const frescos = await listarAdmin({ data: equipeAtual });
+      setLista(frescos);
+      setEditorCi(false);
+      onToast("Comunicações atualizadas.");
+    } catch (err) {
+      onToast(mensagemErro(err));
+    } finally {
+      setSalvandoCi(false);
+    }
+  }
+
+  async function confirmarInutilizar() {
+    const numero = numeroPeca(numeroInutilizar);
+    if (numero == null) {
+      onToast("Informe o número da comunicação.");
+      return;
+    }
+    setSalvandoCi(true);
+    try {
+      await inutilizarCi({ data: { ano: anoInutilizar, numero } });
+      setInutilizadas(await listarCiInutilizadas());
+      setInutilizarAberto(false);
+      onToast(`Comunicação ${formatarPeca(numero, anoInutilizar)} inutilizada.`);
+    } catch (err) {
+      onToast(mensagemErro(err));
+    } finally {
+      setSalvandoCi(false);
+    }
+  }
 
   async function persistir(proximo: ProcessoAdmin[], salvo: ProcessoAdmin | null, apagado: string | null, ok: string) {
     const anterior = lista;
@@ -1005,6 +1123,7 @@ export function AdminPainel({
             titulo="Comunicações Internas"
             nota="Entram só as comunicações feitas pela Gerência Administrativa."
             linhas={linhasCi}
+            acoes={{ onEditar: abrirEditorCi, onInutilizar: () => { setNumeroInutilizar(""); setAnoInutilizar(new Date().getFullYear()); setInutilizarAberto(true); } }}
           />
         ) : guia === "setores" ? (
           <ControleSetores grupos={gruposSetores} />
@@ -1831,6 +1950,134 @@ export function AdminPainel({
         </Dialog.Portal>
       </Dialog.Root>
 
+      <Dialog.Root open={editorCi} onOpenChange={(open) => !salvandoCi && setEditorCi(open)}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-4 bottom-4 z-20 flex flex-col overflow-hidden rounded-2xl border border-line bg-sheet md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[90vh] md:w-full md:max-w-2xl md:-translate-x-1/2 md:-translate-y-1/2">
+            <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+              <div>
+                <Dialog.Title className="font-display text-2xl text-ink">Editar comunicações</Dialog.Title>
+                <Dialog.Description className="mt-1 text-sm text-muted">
+                  Cada comunicação pode ir para um processo diferente. O processo de origem precisa continuar com uma comunicação.
+                </Dialog.Description>
+              </div>
+              <Dialog.Close className="grid size-10 place-items-center rounded-lg text-muted" aria-label="Fechar">
+                <X className="size-4" />
+              </Dialog.Close>
+            </div>
+            <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
+              {rascunhosCi.length === 0 ? (
+                <p className="text-sm text-muted">Nenhuma comunicação da Gerência Administrativa.</p>
+              ) : (
+                rascunhosCi.map((linha, indice) => {
+                  const atual = lista.find((item) => item.id === linha.processoId);
+                  return (
+                    <div key={linha.processoId} className="grid gap-3 rounded-2xl border border-line bg-paper p-3 sm:grid-cols-[7rem_6rem_1fr]">
+                      <Campo label="Número">
+                        <input
+                          value={linha.numero}
+                          onChange={(evento) =>
+                            setRascunhosCi((listaAtual) => listaAtual.map((item, posicao) => (posicao === indice ? { ...item, numero: evento.target.value.replace(/\D/g, "").slice(0, 6) } : item)))
+                          }
+                          inputMode="numeric"
+                          className={inputCls}
+                        />
+                      </Campo>
+                      <Campo label="Ano">
+                        <input
+                          value={linha.ano}
+                          onChange={(evento) =>
+                            setRascunhosCi((listaAtual) => listaAtual.map((item, posicao) => (posicao === indice ? { ...item, ano: evento.target.value.replace(/\D/g, "").slice(0, 4) } : item)))
+                          }
+                          inputMode="numeric"
+                          className={inputCls}
+                        />
+                      </Campo>
+                      <Campo label={atual ? `Destino · hoje ${rotuloNumero(atual.numero, atual.numeroAno)}` : "Destino"}>
+                        <select
+                          value={linha.destinoId}
+                          onChange={(evento) =>
+                            setRascunhosCi((listaAtual) => listaAtual.map((item, posicao) => (posicao === indice ? { ...item, destinoId: evento.target.value } : item)))
+                          }
+                          className={inputCls}
+                        >
+                          {rascunhosCi.map((opcao) => {
+                            const processo = lista.find((item) => item.id === opcao.processoId);
+                            if (!processo) return null;
+                            return (
+                              <option key={opcao.processoId} value={opcao.processoId}>
+                                {rotuloNumero(processo.numero, processo.numeroAno)} · {processo.referencia || "Sem referência"}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </Campo>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="flex gap-2 border-t border-line px-5 py-4">
+              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink">
+                Cancelar
+              </Dialog.Close>
+              <button
+                type="button"
+                onClick={() => void salvarEditorCi()}
+                disabled={salvandoCi || rascunhosCi.length === 0}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
+              >
+                Salvar
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root open={inutilizarAberto} onOpenChange={(open) => !salvandoCi && setInutilizarAberto(open)}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-20 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Inutilizar comunicação</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted">
+              O número fica na sequência como inutilizado e deixa de aparecer como não lançado. Não vale para um número que já está em um processo.
+            </Dialog.Description>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <Campo label="Número">
+                <input
+                  value={numeroInutilizar}
+                  onChange={(evento) => setNumeroInutilizar(evento.target.value.replace(/\D/g, "").slice(0, 6))}
+                  inputMode="numeric"
+                  className={inputCls}
+                  autoComplete="off"
+                />
+              </Campo>
+              <Campo label="Ano">
+                <input
+                  value={anoInutilizar}
+                  onChange={(evento) => setAnoInutilizar(Number(evento.target.value.replace(/\D/g, "").slice(0, 4)) || anoInutilizar)}
+                  inputMode="numeric"
+                  className={inputCls}
+                />
+              </Campo>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink">
+                Cancelar
+              </Dialog.Close>
+              <button
+                type="button"
+                onClick={() => void confirmarInutilizar()}
+                disabled={salvandoCi}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
+              >
+                Inutilizar
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
       <Dialog.Root open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-10 bg-ink/40" />
@@ -2067,15 +2314,67 @@ function CardAdmin({
   );
 }
 
-function ControlePecas({ titulo, nota, linhas }: { titulo: string; nota: string; linhas: LinhaControle[] }) {
+function ControlePecas({
+  titulo,
+  nota,
+  linhas,
+  acoes,
+}: {
+  titulo: string;
+  nota: string;
+  linhas: LinhaControle[];
+  acoes?: { onEditar: () => void; onInutilizar: () => void };
+}) {
   const anos = [...new Set(linhas.map((linha) => linha.ano))].sort((a, b) => b - a);
   const [anoEscolhido, setAnoEscolhido] = useState<number | null>(null);
+  const [menuAberto, setMenuAberto] = useState(false);
   const ano = anoEscolhido != null && anos.includes(anoEscolhido) ? anoEscolhido : anos[0];
   const visiveis = linhas.filter((linha) => linha.ano === ano);
   return (
     <div className="rounded-2xl border border-line bg-sheet p-4">
-      <h2 className="font-display text-2xl text-ink">{titulo}</h2>
-      <p className="mt-1 text-sm text-muted">{nota}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-2xl text-ink">{titulo}</h2>
+          <p className="mt-1 text-sm text-muted">{nota}</p>
+        </div>
+        {acoes && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuAberto((valor) => !valor)}
+              className="grid size-10 place-items-center rounded-xl border border-line text-ink"
+              aria-label="Ações das comunicações"
+              aria-expanded={menuAberto}
+            >
+              <MoreVertical className="size-4" />
+            </button>
+            {menuAberto && (
+              <div className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-xl border border-line bg-sheet shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuAberto(false);
+                    acoes.onEditar();
+                  }}
+                  className="block w-full px-3 py-2 text-left text-sm text-ink hover:bg-paper"
+                >
+                  Editar comunicações
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuAberto(false);
+                    acoes.onInutilizar();
+                  }}
+                  className="block w-full px-3 py-2 text-left text-sm text-ink hover:bg-paper"
+                >
+                  Inutilizar
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       {anos.length > 1 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {anos.map((opcao) => (
@@ -2104,8 +2403,8 @@ function ControlePecas({ titulo, nota, linhas }: { titulo: string; nota: string;
                   {linha.falta && <TriangleAlert className="size-4 shrink-0 text-brass" aria-label="Não lançada" />}
                   {formatarPeca(linha.numero, linha.ano)}
                 </p>
-                <p className="mt-1 text-ink">{linha.falta ? "Não lançada" : linha.referencia || "Sem referência"}</p>
-                {!linha.falta && <p className="mt-1 text-muted">Processo {linha.processo}</p>}
+                <p className="mt-1 text-ink">{linha.inutilizada ? "Inutilizada" : linha.falta ? "Não lançada" : linha.referencia || "Sem referência"}</p>
+                {!linha.falta && !linha.inutilizada && <p className="mt-1 text-muted">Processo {linha.processo}</p>}
               </li>
             ))}
           </ul>
@@ -2127,7 +2426,7 @@ function ControlePecas({ titulo, nota, linhas }: { titulo: string; nota: string;
                         {formatarPeca(linha.numero, linha.ano)}
                       </span>
                     </td>
-                    <td className="py-2 pr-3 text-ink">{linha.falta ? "Não lançada" : linha.referencia || "Sem referência"}</td>
+                    <td className="py-2 pr-3 text-ink">{linha.inutilizada ? "Inutilizada" : linha.falta ? "Não lançada" : linha.referencia || "Sem referência"}</td>
                     <td className="py-2 text-ink">{linha.falta ? "—" : linha.processo}</td>
                   </tr>
                 ))}

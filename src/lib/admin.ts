@@ -275,6 +275,7 @@ export type LinhaControle = {
   numero: number;
   ano: number;
   falta: boolean;
+  inutilizada: boolean;
   referencia: string;
   processo: string;
 };
@@ -282,6 +283,7 @@ export type LinhaControle = {
 /** Do 1 até o maior número do ano. O que não foi lançado fica marcado. */
 export function sequenciaControle(
   itens: { numero: number; ano: number; referencia: string; processo: string }[],
+  inutilizadas: { numero: number; ano: number }[] = [],
 ): LinhaControle[] {
   const porAno = new Map<number, Map<number, { referencias: string[]; processos: string[] }>>();
   for (const item of itens) {
@@ -294,19 +296,28 @@ export function sequenciaControle(
     if (item.processo && !atual.processos.includes(item.processo)) atual.processos.push(item.processo);
     mapa.set(item.numero, atual);
   }
+  for (const vaga of inutilizadas) {
+    if (!Number.isInteger(vaga.numero) || vaga.numero < 1 || !Number.isInteger(vaga.ano)) continue;
+    if (!porAno.has(vaga.ano)) porAno.set(vaga.ano, new Map());
+  }
   const linhas: LinhaControle[] = [];
   for (const ano of [...porAno.keys()].sort((a, b) => b - a)) {
     const mapa = porAno.get(ano);
     if (!mapa) continue;
-    const maximo = Math.max(...mapa.keys());
+    const vagas = new Set(inutilizadas.filter((vaga) => vaga.ano === ano).map((vaga) => vaga.numero));
+    const numeros = [...mapa.keys(), ...vagas];
+    if (!numeros.length) continue;
+    const maximo = Math.max(...numeros);
     for (let numero = 1; numero <= maximo; numero += 1) {
       const achado = mapa.get(numero);
+      const inutilizada = !achado && vagas.has(numero);
       linhas.push({
         numero,
         ano,
-        falta: !achado,
-        referencia: achado?.referencias.join(" · ") ?? "",
-        processo: achado?.processos.join(" · ") ?? "",
+        falta: !achado && !inutilizada,
+        inutilizada,
+        referencia: inutilizada ? "Inutilizada" : (achado?.referencias.join(" · ") ?? ""),
+        processo: inutilizada ? "—" : (achado?.processos.join(" · ") ?? ""),
       });
     }
   }
