@@ -831,7 +831,7 @@ export function AdminPainel({
     if (aplicados.some((item) => item.campo === "linkHomologacao")) atualizado.linkHomologacaoNa = false;
     if (aplicados.some((item) => item.campo === "linkPncp")) atualizado.linkPncpNa = false;
     if (aplicados.some((item) => item.campo === "linkCancelamento")) atualizado.linkCancelamentoNa = false;
-    if (statusAndamento === "cancelado" && !atualizado.linkCancelamento && !atualizado.linkCancelamentoNa) {
+    if (statusMudou && statusAndamento === "cancelado" && !atualizado.linkCancelamento && !atualizado.linkCancelamentoNa) {
       onToast("Informe o link de cancelamento.");
       setLinksAndamento((previo) => ({ ...previo, cancelamento: previo.cancelamento ?? "" }));
       return;

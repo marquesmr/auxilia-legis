@@ -115,7 +115,7 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
   const linkPncp = linkPncpNa ? "" : linkCampo(bruto.linkPncp, "link do PNCP", false);
   const linkRetificacao = bruto.linkRetificacao ? linkCampo(bruto.linkRetificacao, "link da retificação", true) : "";
   const linkCancelamentoNa = bruto.linkCancelamentoNa === true;
-  const linkCancelamento = linkCancelamentoNa ? "" : linkCampo(bruto.linkCancelamento, "link de cancelamento", status === "cancelado" && !linkCancelamentoNa);
+  const linkCancelamento = linkCancelamentoNa ? "" : linkCampo(bruto.linkCancelamento, "link de cancelamento", false);
   if (tipo !== "Outros" && tipoPeca.numero == null) throw new Error("Informe o número do tipo.");
   if (ci.numero == null) throw new Error("Informe o número da comunicação interna.");
   if (!ciOrigem) throw new Error("Informe de onde veio a comunicação interna.");
