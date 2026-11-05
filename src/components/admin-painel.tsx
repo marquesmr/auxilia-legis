@@ -2139,8 +2139,19 @@ function ControlePecas({
                   <NumeroControle linha={linha} />
                   {onAnotar && <MenuComunicacao linha={linha} onAnotar={onAnotar} />}
                 </div>
-                <p className="mt-1 text-ink">{linha.falta ? "Não lançada" : linha.referencia || "Sem referência"}</p>
-                {linha.destino ? <p className="mt-1 text-muted">Para: {linha.destino}</p> : null}
+                <p className="mt-1 text-ink">
+                  {linha.falta && linha.destino ? (
+                    <>
+                      <span className="font-medium">{linha.destino}</span>
+                      <span className="mt-0.5 block text-xs text-muted">Não lançada em processo administrativo</span>
+                    </>
+                  ) : linha.falta ? (
+                    "Não lançada"
+                  ) : (
+                    linha.referencia || "Sem referência"
+                  )}
+                </p>
+                {linha.destino && !linha.falta ? <p className="mt-1 text-muted">Para: {linha.destino}</p> : null}
                 {!linha.falta && <p className="mt-1 text-muted">Processo {linha.processo}</p>}
               </li>
             ))}
@@ -2162,8 +2173,17 @@ function ControlePecas({
                       <NumeroControle linha={linha} />
                     </td>
                     <td className="py-2 pr-3 text-ink">
-                      {linha.falta ? "Não lançada" : linha.referencia || "Sem referência"}
-                      {linha.destino ? <span className="block text-xs text-muted">Para: {linha.destino}</span> : null}
+                      {linha.falta && linha.destino ? (
+                        <>
+                          <span className="font-medium">{linha.destino}</span>
+                          <span className="mt-0.5 block text-xs font-normal text-muted">Não lançada em processo administrativo</span>
+                        </>
+                      ) : (
+                        <>
+                          {linha.falta ? "Não lançada" : linha.referencia || "Sem referência"}
+                          {linha.destino ? <span className="block text-xs text-muted">Para: {linha.destino}</span> : null}
+                        </>
+                      )}
                     </td>
                     <td className="py-2 pr-3 text-ink">{linha.falta ? "—" : linha.processo}</td>
                     {onAnotar ? (
@@ -2187,7 +2207,7 @@ function NumeroControle({ linha }: { linha: LinhaControle }) {
     <span className="inline-flex items-center gap-2">
       {linha.desativada ? (
         <Ban className="size-4 shrink-0 text-seal" aria-label="Desativada" />
-      ) : linha.falta ? (
+      ) : linha.falta && !linha.destino ? (
         <TriangleAlert className="size-4 shrink-0 text-brass" aria-label="Não lançada" />
       ) : null}
       {formatarPeca(linha.numero, linha.ano)}
