@@ -3,6 +3,17 @@ import { authMiddleware } from "@/lib/auth/middleware";
 
 export type SocioCnpj = { nome: string; qualificacao: string };
 
+export type ConsultaCpf = {
+  cpf: string;
+  valido: boolean;
+  regiao: string;
+  aviso: string;
+};
+
+export type ConsultaDocumento =
+  | ({ tipo: "cnpj" } & ConsultaCnpj)
+  | ({ tipo: "cpf" } & ConsultaCpf);
+
 export type ConsultaCnpj = {
   cnpj: string;
   razaoSocial: string;
@@ -20,6 +31,20 @@ export type ConsultaCnpj = {
   socios: SocioCnpj[];
 };
 
+function cpfValido(digitos: string): boolean {
+  if (!/^\d{11}$/.test(digitos) || /^(\d)\1+$/.test(digitos)) return false;
+  const digito = (tamanho: number) => {
+    let soma = 0;
+    for (let indice = 0; indice < tamanho; indice++) soma += Number(digitos[indice]) * (tamanho + 1 - indice);
+    const resto = (soma * 10) % 11;
+    return resto === 10 ? 0 : resto;
+  };
+  return digito(9) === Number(digitos[9]) && digito(10) === Number(digitos[10]);
+}
+
+function formatarCpf(digitos: string): string {
+  return digitos.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+}
 function cnpjValido(digitos: string): boolean {
   if (!/^\d{14}$/.test(digitos) || /^(\d)\1+$/.test(digitos)) return false;
   const digito = (base: string, pesos: number[]) => {
@@ -223,14 +248,48 @@ async function buscarJson(url: string): Promise<Record<string, unknown> | "ausen
   return item;
 }
 
-export const consultarCnpj = createServerFn({ method: "POST" })
+export const consultarDocumento = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     const digitos = typeof input === "string" ? input.replace(/\D/g, "") : "";
-    if (!cnpjValido(digitos)) throw new Error("Informe um CNPJ válido.");
-    return digitos;
+    if (digitos.length === 11) {
+      if (!cpfValido(digitos)) throw new Error("Informe um CPF válido.");
+      return { tipo: "cpf" as const, digitos };
+    }
+    if (!cnpjValido(digitos)) throw new Error("Informe um CPF ou CNPJ válido.");
+    return { tipo: "cnpj" as const, digitos };
   })
   .middleware([authMiddleware])
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<ConsultaDocumento> => {
+    if (data.tipo === "cpf") return consultarCpf(data.digitos);
+    const empresa = await consultarEmpresa(data.digitos);
+    return { tipo: "cnpj", ...empresa };
+  });
+
+async function consultarCpf(digitos: string): Promise<ConsultaDocumento> {
+  let regiao = "";
+  try {
+    const resposta = await fetch(`https://brasilapi.com.br/api/cpf/v1/${digitos}`, {
+      headers: { accept: "application/json", "user-agent": "AuxiliaLegis/1.0" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (resposta.ok) {
+      const json = objeto(await resposta.json());
+      const ufs = json && Array.isArray(json.ufs) ? json.ufs.filter((item): item is string => typeof item === "string") : [];
+      regiao = ufs.join(", ");
+    }
+  } catch {
+    regiao = "";
+  }
+  return {
+    tipo: "cpf",
+    cpf: formatarCpf(digitos),
+    valido: true,
+    regiao,
+    aviso: "A Receita Federal não informa nome, situação nem endereço do CPF sem a data de nascimento do titular. O que aparece aqui é a conferência do número.",
+  };
+}
+
+async function consultarEmpresa(data: string): Promise<ConsultaCnpj> {
     const fontes = [
       `https://open.cnpja.com/office/${data}`,
       `https://publica.cnpj.ws/cnpj/${data}`,
@@ -255,4 +314,4 @@ export const consultarCnpj = createServerFn({ method: "POST" })
     }
     if (ausente) throw new Error("CNPJ não encontrado na Receita Federal.");
     throw new Error("Não foi possível consultar o CNPJ agora. Tente de novo.");
-  });
+}

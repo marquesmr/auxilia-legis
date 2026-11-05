@@ -41,7 +41,7 @@ import {
   type LinhaControle,
 } from "@/lib/admin";
 import { apagarAdmin, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao } from "@/lib/admin.functions";
-import { consultarCnpj, type ConsultaCnpj } from "@/lib/cnpj.functions";
+import { consultarDocumento, type ConsultaDocumento } from "@/lib/cnpj.functions";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { CampoMes } from "@/components/campo-mes";
 import { SoltarProcessoContext } from "@/components/soltar-processo";
@@ -1038,7 +1038,7 @@ export function AdminPainel({
           </GuiaBotao>
           <GuiaBotao ativo={guia === "cnpj"} onClick={() => setGuia("cnpj")}>
             <Search className="size-4" />
-            Consulta CNPJ
+            Consulta CPF/CNPJ
           </GuiaBotao>
           <button
             type="button"
@@ -1053,7 +1053,7 @@ export function AdminPainel({
         {!pronto && guia !== "cnpj" ? (
           <p className="text-sm text-muted">Carregando processos administrativos…</p>
         ) : guia === "cnpj" ? (
-          <ConsultaCnpj />
+          <PainelConsulta />
         ) : guia === "estatisticas" ? (
           <GraficoAdmin processos={lista} />
         ) : guia === "comunicacoes" ? (
@@ -1626,11 +1626,9 @@ export function AdminPainel({
                       />
                     </Campo>
                     <Campo label="CPF ou CNPJ">
-                      <input
+                      <DocumentoComConsulta
                         value={form.documento}
-                        onChange={(e) => setForm({ ...form, documento: mascaraDocumento(e.target.value) })}
-                        className={inputCls}
-                        inputMode="numeric"
+                        onChange={(documento) => setForm({ ...form, documento })}
                         placeholder="000.000.000-00"
                         required
                       />
@@ -1675,11 +1673,9 @@ export function AdminPainel({
                       />
                     </Campo>
                     <Campo label="CPF ou CNPJ">
-                      <input
+                      <DocumentoComConsulta
                         value={form.documento}
-                        onChange={(e) => setForm({ ...form, documento: mascaraDocumento(e.target.value) })}
-                        className={inputCls}
-                        inputMode="numeric"
+                        onChange={(documento) => setForm({ ...form, documento })}
                         placeholder="000.000.000-00"
                       />
                     </Campo>
@@ -1835,7 +1831,12 @@ export function AdminPainel({
                             <input value={contratadoAnd} onChange={(e) => setContratadoAnd(e.target.value)} className={inputCls} placeholder="Nome ou razão social" required />
                           </Campo>
                           <Campo label="CPF ou CNPJ">
-                            <input value={documentoAnd} onChange={(e) => setDocumentoAnd(mascaraDocumento(e.target.value))} className={inputCls} inputMode="numeric" placeholder="000.000.000-00" required />
+                            <DocumentoComConsulta
+                              value={documentoAnd}
+                              onChange={setDocumentoAnd}
+                              placeholder="000.000.000-00"
+                              required
+                            />
                           </Campo>
                           {atual && permiteDoisContratados(atual.tipo) && (
                             <SegundoContratado
@@ -2890,13 +2891,10 @@ function SegundoContratado({ nome, documento, onChange }: { nome: string; docume
         />
       </Campo>
       <Campo label="CPF ou CNPJ do segundo">
-        <input
+        <DocumentoComConsulta
           value={documento}
-          onChange={(e) => onChange(nome, mascaraDocumento(e.target.value))}
-          className={inputCls}
-          inputMode="numeric"
+          onChange={(valor) => onChange(nome, valor)}
           placeholder="Opcional"
-          autoComplete="off"
         />
       </Campo>
     </>
@@ -2990,114 +2988,189 @@ function PecaCampos({
   );
 }
 
-function mascaraCnpj(texto: string) {
-  const d = texto.replace(/\D/g, "").slice(0, 14);
-  if (d.length <= 2) return d;
-  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
-  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
-  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
-  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
-}
-
-function ConsultaCnpj() {
-  const [numero, setNumero] = useState("");
-  const [consulta, setConsulta] = useState<ConsultaCnpj | null>(null);
+function PainelConsulta({ numeroInicial, embutido }: { numeroInicial?: string; embutido?: boolean }) {
+  const [numero, setNumero] = useState(numeroInicial ?? "");
+  const [consulta, setConsulta] = useState<ConsultaDocumento | null>(null);
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
 
-  async function consultar() {
-    const digitos = numero.replace(/\D/g, "");
-    if (digitos.length !== 14) {
-      setErro("Informe o CNPJ completo.");
+  const consultar = useCallback(async (valor: string) => {
+    const digitos = valor.replace(/\D/g, "");
+    if (digitos.length !== 11 && digitos.length !== 14) {
+      setErro("Informe o CPF ou o CNPJ completo.");
       setConsulta(null);
       return;
     }
     setOcupado(true);
     setErro("");
     try {
-      const resultado = await consultarCnpj({ data: digitos });
-      setConsulta(resultado);
+      setConsulta(await consultarDocumento({ data: digitos }));
     } catch (err) {
       setConsulta(null);
       setErro(mensagemErro(err));
     } finally {
       setOcupado(false);
     }
-  }
+  }, []);
 
-  const campos = consulta
-    ? [
-        ["Razão social", consulta.razaoSocial],
-        ["Nome fantasia", consulta.nomeFantasia],
-        ["Situação", consulta.situacao],
-        ["Abertura", consulta.abertura],
-        ["Natureza jurídica", consulta.natureza],
-        ["Porte", consulta.porte],
-        ["Capital social", consulta.capital],
-        ["CNAE", consulta.cnae],
-        ["Endereço", consulta.endereco],
-        ["CEP", consulta.cep],
-        ["Telefone", consulta.telefone],
-        ["E-mail", consulta.email],
-      ].filter(([, valor]) => valor)
-    : [];
+  useEffect(() => {
+    const digitos = (numeroInicial ?? "").replace(/\D/g, "");
+    if (digitos.length === 11 || digitos.length === 14) void consultar(numeroInicial ?? "");
+  }, [numeroInicial, consultar]);
 
   return (
     <div>
-      <h2 className="font-display text-2xl text-ink">Consulta CNPJ</h2>
-      <p className="mt-1 text-sm text-muted">Consulta a situação cadastral na Receita Federal sem sair do Auxilia Legis.</p>
-      <form
-        className="mt-4 flex flex-col gap-2 sm:flex-row"
-        onSubmit={(evento) => {
-          evento.preventDefault();
-          void consultar();
-        }}
-      >
+      {!embutido && (
+        <>
+          <h2 className="font-display text-2xl text-ink">Consulta CPF/CNPJ</h2>
+          <p className="mt-1 text-sm text-muted">Consulta o CNPJ e confere o CPF sem sair do Auxilia Legis.</p>
+        </>
+      )}
+      <div className={(embutido ? "" : "mt-4 ") + "flex flex-col gap-2 sm:flex-row"}>
         <input
           value={numero}
-          onChange={(evento) => setNumero(mascaraCnpj(evento.target.value))}
+          onChange={(evento) => setNumero(mascaraDocumento(evento.target.value))}
           inputMode="numeric"
           autoComplete="off"
-          placeholder="00.000.000/0000-00"
-          className={inputCls + " sm:max-w-xs"}
+          placeholder="CPF ou CNPJ"
+          className={inputCls + (embutido ? "" : " sm:max-w-xs")}
+          onKeyDown={(evento) => {
+            if (evento.key !== "Enter") return;
+            evento.preventDefault();
+            evento.stopPropagation();
+            void consultar(numero);
+          }}
         />
         <button
-          type="submit"
+          type="button"
           disabled={ocupado}
+          onClick={() => void consultar(numero)}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-pine px-4 text-sm font-medium text-sheet disabled:opacity-60"
         >
           <Search className="size-4" />
           {ocupado ? "Consultando…" : "Consultar"}
         </button>
-      </form>
+      </div>
       {erro ? <p className="mt-3 text-sm text-seal">{erro}</p> : null}
-      {consulta ? (
-        <div className="mt-4 rounded-2xl border border-line bg-sheet p-4">
-          <p className="text-xs text-muted">{consulta.cnpj}</p>
-          <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-            {campos.map(([rotulo, valor]) => (
-              <div key={rotulo} className={rotulo === "Endereço" || rotulo === "Razão social" || rotulo === "CNAE" ? "sm:col-span-2" : undefined}>
-                <dt className="text-xs text-muted">{rotulo}</dt>
-                <dd className="text-sm text-ink">{valor}</dd>
-              </div>
-            ))}
-          </dl>
-          {consulta.socios.length > 0 && (
-            <div className="mt-4">
-              <h3 className="text-sm font-medium text-ink">Quadro societário</h3>
-              <ul className="mt-2 flex flex-col gap-2">
-                {consulta.socios.map((socio) => (
-                  <li key={socio.nome + socio.qualificacao} className="text-sm text-ink">
-                    {socio.nome}
-                    {socio.qualificacao ? <span className="text-muted"> · {socio.qualificacao}</span> : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      ) : null}
+      {consulta ? <ResultadoConsulta consulta={consulta} /> : null}
     </div>
+  );
+}
+
+function ResultadoConsulta({ consulta }: { consulta: ConsultaDocumento }) {
+  if (consulta.tipo === "cpf") {
+    return (
+      <div className="mt-4 rounded-2xl border border-line bg-paper p-4">
+        <p className="text-xs text-muted">{consulta.cpf}</p>
+        <dl className="mt-3 grid gap-3">
+          <div>
+            <dt className="text-xs text-muted">Número</dt>
+            <dd className="text-sm text-ink">Válido</dd>
+          </div>
+          {consulta.regiao ? (
+            <div>
+              <dt className="text-xs text-muted">Região fiscal do número</dt>
+              <dd className="text-sm text-ink">{consulta.regiao}</dd>
+            </div>
+          ) : null}
+        </dl>
+        <p className="mt-3 text-justify text-sm text-muted">{consulta.aviso}</p>
+      </div>
+    );
+  }
+  const campos = [
+    ["Razão social", consulta.razaoSocial],
+    ["Nome fantasia", consulta.nomeFantasia],
+    ["Situação", consulta.situacao],
+    ["Abertura", consulta.abertura],
+    ["Natureza jurídica", consulta.natureza],
+    ["Porte", consulta.porte],
+    ["Capital social", consulta.capital],
+    ["CNAE", consulta.cnae],
+    ["Endereço", consulta.endereco],
+    ["CEP", consulta.cep],
+    ["Telefone", consulta.telefone],
+    ["E-mail", consulta.email],
+  ].filter(([, valor]) => valor);
+  return (
+    <div className="mt-4 rounded-2xl border border-line bg-paper p-4">
+      <p className="text-xs text-muted">{consulta.cnpj}</p>
+      <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+        {campos.map(([rotulo, valor]) => (
+          <div key={rotulo} className={rotulo === "Endereço" || rotulo === "Razão social" || rotulo === "CNAE" ? "sm:col-span-2" : undefined}>
+            <dt className="text-xs text-muted">{rotulo}</dt>
+            <dd className="text-sm text-ink">{valor}</dd>
+          </div>
+        ))}
+      </dl>
+      {consulta.socios.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-sm font-medium text-ink">Quadro societário</h3>
+          <ul className="mt-2 flex flex-col gap-2">
+            {consulta.socios.map((socio) => (
+              <li key={socio.nome + socio.qualificacao} className="text-sm text-ink">
+                {socio.nome}
+                {socio.qualificacao ? <span className="text-muted"> · {socio.qualificacao}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DocumentoComConsulta({
+  value,
+  onChange,
+  placeholder,
+  required,
+}: {
+  value: string;
+  onChange: (valor: string) => void;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <>
+      <div className="relative">
+        <input
+          value={value}
+          onChange={(evento) => onChange(mascaraDocumento(evento.target.value))}
+          className={inputCls + " pr-12"}
+          inputMode="numeric"
+          placeholder={placeholder}
+          required={required}
+          autoComplete="off"
+        />
+        <button
+          type="button"
+          onClick={() => setAberto(true)}
+          className="absolute top-1.5 right-1.5 grid size-8 place-items-center rounded-full bg-pine text-sheet"
+          aria-label="Consultar CPF ou CNPJ"
+        >
+          <Search className="size-4" />
+        </button>
+      </div>
+      <Dialog.Root open={aberto} onOpenChange={setAberto}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-ink/50" />
+          <Dialog.Content
+            className="fixed inset-x-3 top-1/2 z-50 max-h-[90vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2"
+            onClick={(evento) => evento.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <Dialog.Title className="font-display text-2xl text-ink">Consulta</Dialog.Title>
+              <Dialog.Close type="button" className="grid size-9 place-items-center rounded-lg text-muted" aria-label="Fechar">
+                <X className="size-4" />
+              </Dialog.Close>
+            </div>
+            {aberto ? <PainelConsulta numeroInicial={value} embutido /> : null}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </>
   );
 }
 
