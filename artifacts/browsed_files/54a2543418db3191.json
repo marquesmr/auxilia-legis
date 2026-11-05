@@ -1,0 +1,274 @@
+[
+  {
+    "name": "2010.json",
+    "path": "dados/feriados/municipal/json/2010.json",
+    "sha": "ab4add6343581ce3fd7ce86ee3838b9531e09ada",
+    "size": 1669868,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2010.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2010.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/ab4add6343581ce3fd7ce86ee3838b9531e09ada",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2010.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2010.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/ab4add6343581ce3fd7ce86ee3838b9531e09ada",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2010.json"
+    }
+  },
+  {
+    "name": "2011.json",
+    "path": "dados/feriados/municipal/json/2011.json",
+    "sha": "99cd4f6f91d2ff8265582641e042e20e4cb54ae9",
+    "size": 1670098,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2011.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2011.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/99cd4f6f91d2ff8265582641e042e20e4cb54ae9",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2011.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2011.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/99cd4f6f91d2ff8265582641e042e20e4cb54ae9",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2011.json"
+    }
+  },
+  {
+    "name": "2012.json",
+    "path": "dados/feriados/municipal/json/2012.json",
+    "sha": "4e79b0ede2df12e634f8b8bedc3757aad7881f81",
+    "size": 1670152,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2012.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2012.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/4e79b0ede2df12e634f8b8bedc3757aad7881f81",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2012.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2012.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/4e79b0ede2df12e634f8b8bedc3757aad7881f81",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2012.json"
+    }
+  },
+  {
+    "name": "2013.json",
+    "path": "dados/feriados/municipal/json/2013.json",
+    "sha": "6d10ed885c3a8644d42be5d385d7fc5a9bab33e0",
+    "size": 1667838,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2013.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2013.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/6d10ed885c3a8644d42be5d385d7fc5a9bab33e0",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2013.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2013.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/6d10ed885c3a8644d42be5d385d7fc5a9bab33e0",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2013.json"
+    }
+  },
+  {
+    "name": "2014.json",
+    "path": "dados/feriados/municipal/json/2014.json",
+    "sha": "ca798712359eece86c65fa575e8075400ce7a58b",
+    "size": 1699085,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2014.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2014.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/ca798712359eece86c65fa575e8075400ce7a58b",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2014.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2014.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/ca798712359eece86c65fa575e8075400ce7a58b",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2014.json"
+    }
+  },
+  {
+    "name": "2015.json",
+    "path": "dados/feriados/municipal/json/2015.json",
+    "sha": "b22c5f7e0efa8cd52f947c7f9653905aba15e2a1",
+    "size": 1669928,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2015.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2015.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/b22c5f7e0efa8cd52f947c7f9653905aba15e2a1",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2015.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2015.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/b22c5f7e0efa8cd52f947c7f9653905aba15e2a1",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2015.json"
+    }
+  },
+  {
+    "name": "2016.json",
+    "path": "dados/feriados/municipal/json/2016.json",
+    "sha": "5ff732572c475280f732d469612008ca9e2f9af3",
+    "size": 1669654,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2016.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2016.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/5ff732572c475280f732d469612008ca9e2f9af3",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2016.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2016.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/5ff732572c475280f732d469612008ca9e2f9af3",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2016.json"
+    }
+  },
+  {
+    "name": "2017.json",
+    "path": "dados/feriados/municipal/json/2017.json",
+    "sha": "e328c105c2bd2fcbda33f898c02caf43f1a07637",
+    "size": 1674517,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2017.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2017.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/e328c105c2bd2fcbda33f898c02caf43f1a07637",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2017.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2017.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/e328c105c2bd2fcbda33f898c02caf43f1a07637",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2017.json"
+    }
+  },
+  {
+    "name": "2018.json",
+    "path": "dados/feriados/municipal/json/2018.json",
+    "sha": "d10a176dc930083c24cc116aac955a564ad3f391",
+    "size": 1672951,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2018.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2018.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/d10a176dc930083c24cc116aac955a564ad3f391",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2018.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2018.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/d10a176dc930083c24cc116aac955a564ad3f391",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2018.json"
+    }
+  },
+  {
+    "name": "2019.json",
+    "path": "dados/feriados/municipal/json/2019.json",
+    "sha": "f6f0147dfc6294ea8fd3187b768dda09c69f6a75",
+    "size": 1669202,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2019.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2019.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/f6f0147dfc6294ea8fd3187b768dda09c69f6a75",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2019.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2019.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/f6f0147dfc6294ea8fd3187b768dda09c69f6a75",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2019.json"
+    }
+  },
+  {
+    "name": "2020.json",
+    "path": "dados/feriados/municipal/json/2020.json",
+    "sha": "b97f924fe0829536577807551dae6231152c6aa4",
+    "size": 1670113,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2020.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2020.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/b97f924fe0829536577807551dae6231152c6aa4",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2020.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2020.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/b97f924fe0829536577807551dae6231152c6aa4",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2020.json"
+    }
+  },
+  {
+    "name": "2021.json",
+    "path": "dados/feriados/municipal/json/2021.json",
+    "sha": "8cdbb83836a94faf52d32fdab1a95519bc7e61d3",
+    "size": 1669868,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2021.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2021.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/8cdbb83836a94faf52d32fdab1a95519bc7e61d3",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2021.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2021.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/8cdbb83836a94faf52d32fdab1a95519bc7e61d3",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2021.json"
+    }
+  },
+  {
+    "name": "2022.json",
+    "path": "dados/feriados/municipal/json/2022.json",
+    "sha": "75c6049d801e50beee1343ef4e97b19d44e9555a",
+    "size": 1670337,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2022.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2022.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/75c6049d801e50beee1343ef4e97b19d44e9555a",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2022.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2022.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/75c6049d801e50beee1343ef4e97b19d44e9555a",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2022.json"
+    }
+  },
+  {
+    "name": "2023.json",
+    "path": "dados/feriados/municipal/json/2023.json",
+    "sha": "27ede3f40ca8b8091e3feb1dd9f749207343943e",
+    "size": 1669950,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2023.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2023.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/27ede3f40ca8b8091e3feb1dd9f749207343943e",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2023.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2023.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/27ede3f40ca8b8091e3feb1dd9f749207343943e",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2023.json"
+    }
+  },
+  {
+    "name": "2024.json",
+    "path": "dados/feriados/municipal/json/2024.json",
+    "sha": "e2a32db0f4f65744857906c94877d5905e684f38",
+    "size": 1667862,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2024.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2024.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/e2a32db0f4f65744857906c94877d5905e684f38",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2024.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2024.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/e2a32db0f4f65744857906c94877d5905e684f38",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2024.json"
+    }
+  },
+  {
+    "name": "2025.json",
+    "path": "dados/feriados/municipal/json/2025.json",
+    "sha": "4ec85388cedc793e70d44d4edb64b3041a8f59e6",
+    "size": 1581058,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2025.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2025.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/4ec85388cedc793e70d44d4edb64b3041a8f59e6",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2025.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2025.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/4ec85388cedc793e70d44d4edb64b3041a8f59e6",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2025.json"
+    }
+  },
+  {
+    "name": "2026.json",
+    "path": "dados/feriados/municipal/json/2026.json",
+    "sha": "93e4ede690dfa032fe014db6ddd6912b8982e782",
+    "size": 1671323,
+    "url": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2026.json?ref=master",
+    "html_url": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2026.json",
+    "git_url": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/93e4ede690dfa032fe014db6ddd6912b8982e782",
+    "download_url": "https://raw.githubusercontent.com/joaopbini/feriados-brasil/master/dados/feriados/municipal/json/2026.json",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/joaopbini/feriados-brasil/contents/dados/feriados/municipal/json/2026.json?ref=master",
+      "git": "https://api.github.com/repos/joaopbini/feriados-brasil/git/blobs/93e4ede690dfa032fe014db6ddd6912b8982e782",
+      "html": "https://github.com/joaopbini/feriados-brasil/blob/master/dados/feriados/municipal/json/2026.json"
+    }
+  }
+]
