@@ -61,9 +61,9 @@ export function linksEmFalta(processo: ProcessoAdmin): string[] {
   if (processo.tipo === "Pronto Pagamento" || processo.tipo === "Doação" || processo.tipo === "Outros") return [];
   const falta: string[] = [];
   if (!processo.linkAberturaNa && !processo.linkAbertura.trim()) falta.push("Publicação");
-  if (!processo.linkHomologacao.trim()) falta.push("Homologação");
-  if (!processo.linkPncp.trim()) falta.push("PNCP");
-  if (processo.status === "cancelado" && !processo.linkCancelamento.trim()) falta.push("Cancelamento");
+  if (!processo.linkHomologacaoNa && !processo.linkHomologacao.trim()) falta.push("Homologação");
+  if (!processo.linkPncpNa && !processo.linkPncp.trim()) falta.push("PNCP");
+  if (processo.status === "cancelado" && !processo.linkCancelamentoNa && !processo.linkCancelamento.trim()) falta.push("Cancelamento");
   return falta;
 }
 
@@ -150,9 +150,12 @@ export type ProcessoAdmin = {
   linkAbertura: string;
   linkAberturaNa: boolean;
   linkHomologacao: string;
+  linkHomologacaoNa: boolean;
   linkPncp: string;
+  linkPncpNa: boolean;
   linkRetificacao: string;
   linkCancelamento: string;
+  linkCancelamentoNa: boolean;
   parecerNumero: number | null;
   parecerAno: number | null;
   parecerNa: boolean;

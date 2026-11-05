@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, permiteDoisContratados, permitePublicacaoNa, tipoSimples, type ProcessoAdmin } from "@/lib/admin";
+import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, permiteDoisContratados, tipoSimples, type ProcessoAdmin } from "@/lib/admin";
 import { todayIso, type Andamento } from "@/lib/prazos";
 
 function dataOk(value: unknown): value is string {
@@ -107,12 +107,15 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
   const parecerNa = bruto.parecerNa === true;
   const parecer = parecerNa ? { numero: null, ano: null } : pecaOpcional(bruto.parecerNumero, bruto.parecerAno, "parecer");
   const ciOrigem = typeof bruto.ciOrigem === "string" ? bruto.ciOrigem.trim() : "";
-  const linkAberturaNa = permitePublicacaoNa(tipo) && bruto.linkAberturaNa === true;
+  const linkAberturaNa = bruto.linkAberturaNa === true;
   const linkAbertura = linkAberturaNa ? "" : linkCampo(bruto.linkAbertura, "link de publicação", exigeLinks(tipo) && !linkAberturaNa);
-  const linkHomologacao = linkCampo(bruto.linkHomologacao, "link de homologação", false);
-  const linkPncp = linkCampo(bruto.linkPncp, "link do PNCP", false);
+  const linkHomologacaoNa = bruto.linkHomologacaoNa === true;
+  const linkHomologacao = linkHomologacaoNa ? "" : linkCampo(bruto.linkHomologacao, "link de homologação", false);
+  const linkPncpNa = bruto.linkPncpNa === true;
+  const linkPncp = linkPncpNa ? "" : linkCampo(bruto.linkPncp, "link do PNCP", false);
   const linkRetificacao = bruto.linkRetificacao ? linkCampo(bruto.linkRetificacao, "link da retificação", true) : "";
-  const linkCancelamento = linkCampo(bruto.linkCancelamento, "link de cancelamento", status === "cancelado");
+  const linkCancelamentoNa = bruto.linkCancelamentoNa === true;
+  const linkCancelamento = linkCancelamentoNa ? "" : linkCampo(bruto.linkCancelamento, "link de cancelamento", status === "cancelado" && !linkCancelamentoNa);
   if (tipo !== "Outros" && tipoPeca.numero == null) throw new Error("Informe o número do tipo.");
   if (ci.numero == null) throw new Error("Informe o número da comunicação interna.");
   if (!ciOrigem) throw new Error("Informe de onde veio a comunicação interna.");
@@ -189,9 +192,12 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     linkAbertura,
     linkAberturaNa,
     linkHomologacao,
+    linkHomologacaoNa,
     linkPncp,
+    linkPncpNa,
     linkRetificacao,
     linkCancelamento,
+    linkCancelamentoNa,
     parecerNumero: simples || status === "cancelado" || parecerNa ? null : parecer.numero,
     parecerAno: simples || status === "cancelado" || parecerNa ? null : parecer.ano,
     parecerNa: !simples && status !== "cancelado" && parecerNa,
@@ -232,9 +238,12 @@ type Linha = {
   link_abertura: string | null;
   link_abertura_na: boolean | number | string | null;
   link_homologacao: string | null;
+  link_homologacao_na: boolean | number | string | null;
   link_pncp: string | null;
+  link_pncp_na: boolean | number | string | null;
   link_retificacao: string | null;
   link_cancelamento: string | null;
+  link_cancelamento_na: boolean | number | string | null;
   parecer_numero: number | null;
   parecer_ano: number | null;
   parecer_na: boolean | number | string | null;
@@ -301,9 +310,12 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
     linkAbertura: linha.link_abertura ?? "",
     linkAberturaNa: bool(linha.link_abertura_na ?? false),
     linkHomologacao: linha.link_homologacao ?? "",
+    linkHomologacaoNa: bool(linha.link_homologacao_na ?? false),
     linkPncp: linha.link_pncp ?? "",
+    linkPncpNa: bool(linha.link_pncp_na ?? false),
     linkRetificacao: linha.link_retificacao ?? "",
     linkCancelamento: linha.link_cancelamento ?? "",
+    linkCancelamentoNa: bool(linha.link_cancelamento_na ?? false),
     parecerNumero: inteiroOuNulo(linha.parecer_numero),
     parecerAno: inteiroOuNulo(linha.parecer_ano),
     parecerNa: bool(linha.parecer_na ?? false),
@@ -316,7 +328,7 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
 }
 
 let schemaPronto: { versao: number; pendente: Promise<void> } | null = null;
-const SCHEMA_ADMIN = 14;
+const SCHEMA_ADMIN = 15;
 
 /** Garante as colunas novas mesmo se a migração ainda não tiver rodado nesta instância. */
 async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
@@ -337,9 +349,12 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
         "alter table processos_admin add column if not exists link_abertura text not null default ''",
         "alter table processos_admin add column if not exists link_abertura_na boolean not null default false",
         "alter table processos_admin add column if not exists link_homologacao text not null default ''",
+        "alter table processos_admin add column if not exists link_homologacao_na boolean not null default false",
         "alter table processos_admin add column if not exists link_pncp text not null default ''",
+        "alter table processos_admin add column if not exists link_pncp_na boolean not null default false",
         "alter table processos_admin add column if not exists link_retificacao text not null default ''",
         "alter table processos_admin add column if not exists link_cancelamento text not null default ''",
+        "alter table processos_admin add column if not exists link_cancelamento_na boolean not null default false",
         "alter table processos_admin add column if not exists contratado text not null default ''",
         "alter table processos_admin add column if not exists documento text not null default ''",
         "alter table processos_admin add column if not exists contratado_2 text not null default ''",
@@ -364,7 +379,7 @@ const SELECT_ADMIN = `
   p.id, p.numero, p.numero_ano, p.referencia, p.objeto, p.tipo, p.tipo_numero, p.tipo_ano, p.data_inicio, p.previsao_etapa, p.encerramento,
   p.alerta_dias, p.possui_contrato, p.vigencia_inicio, p.vigencia_fim,
   p.contratado, p.documento, p.contratado_2, p.documento_2, p.valor_total_centavos, p.valor_mensal_centavos, p.valor_estimado_centavos,
-  p.ci_numero, p.ci_ano, p.ci_origem, p.link_abertura, p.link_abertura_na, p.link_homologacao, p.link_pncp, p.link_retificacao, p.link_cancelamento, p.parecer_numero, p.parecer_ano, p.parecer_na,
+  p.ci_numero, p.ci_ano, p.ci_origem, p.link_abertura, p.link_abertura_na, p.link_homologacao, p.link_homologacao_na, p.link_pncp, p.link_pncp_na, p.link_retificacao, p.link_cancelamento, p.link_cancelamento_na, p.parecer_numero, p.parecer_ano, p.parecer_na,
   p.status, p.historico, p.team_id,
   coalesce(nullif(p.autor_id, ''), p.user_id) as autor_id,
   coalesce(nullif(p.autor_nome, ''), u.name, '') as autor_nome
@@ -546,9 +561,12 @@ export const salvarAdmin = createServerFn({ method: "POST" })
             link_abertura = ${data.linkAbertura},
             link_abertura_na = ${data.linkAberturaNa},
             link_homologacao = ${data.linkHomologacao},
+            link_homologacao_na = ${data.linkHomologacaoNa},
             link_pncp = ${data.linkPncp},
+            link_pncp_na = ${data.linkPncpNa},
             link_retificacao = ${data.linkRetificacao},
             link_cancelamento = ${data.linkCancelamento},
+            link_cancelamento_na = ${data.linkCancelamentoNa},
             parecer_numero = ${data.parecerNumero},
             parecer_ano = ${data.parecerAno},
             parecer_na = ${data.parecerNa},
@@ -567,14 +585,14 @@ export const salvarAdmin = createServerFn({ method: "POST" })
             id, user_id, team_id, numero, numero_ano, referencia, objeto, tipo, tipo_numero, tipo_ano, data_inicio, previsao_etapa, encerramento,
             alerta_dias, possui_contrato, vigencia_inicio, vigencia_fim, contratado, documento, contratado_2, documento_2,
             valor_total_centavos, valor_mensal_centavos, valor_estimado_centavos, ci_numero, ci_ano, ci_origem,
-            link_abertura, link_abertura_na, link_homologacao, link_pncp, link_retificacao, link_cancelamento,
+            link_abertura, link_abertura_na, link_homologacao, link_homologacao_na, link_pncp, link_pncp_na, link_retificacao, link_cancelamento, link_cancelamento_na,
             parecer_numero, parecer_ano, parecer_na, status, status_em, historico, autor_id, autor_nome, em_manutencao
           ) values (
             ${data.id}, ${context.userId}, ${data.equipeId}, ${data.numero}, ${data.numeroAno}, ${data.referencia},
             ${data.objeto}, ${data.tipo}, ${data.tipoNumero}, ${data.tipoAno}, ${data.dataInicio}, ${data.previsaoEtapa}, ${data.encerramento}, ${data.alertaDias},
             ${data.possuiContrato}, ${data.vigenciaInicio}, ${data.vigenciaFim}, ${data.contratado},
             ${data.documento}, ${data.contratado2}, ${data.documento2}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos},
-            ${data.ciNumero}, ${data.ciAno}, ${data.ciOrigem}, ${data.linkAbertura}, ${data.linkAberturaNa}, ${data.linkHomologacao}, ${data.linkPncp}, ${data.linkRetificacao}, ${data.linkCancelamento}, ${data.parecerNumero}, ${data.parecerAno}, ${data.parecerNa},
+            ${data.ciNumero}, ${data.ciAno}, ${data.ciOrigem}, ${data.linkAbertura}, ${data.linkAberturaNa}, ${data.linkHomologacao}, ${data.linkHomologacaoNa}, ${data.linkPncp}, ${data.linkPncpNa}, ${data.linkRetificacao}, ${data.linkCancelamento}, ${data.linkCancelamentoNa}, ${data.parecerNumero}, ${data.parecerAno}, ${data.parecerNa},
             ${data.status}, current_date,
             ${historicoJson}, ${context.userId}, ${autorNome}, false
           )

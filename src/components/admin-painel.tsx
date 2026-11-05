@@ -84,10 +84,13 @@ type FormAdmin = {
   linkAbertura: string;
   linkAberturaNa: boolean;
   linkHomologacao: string;
+  linkHomologacaoNa: boolean;
   linkPncp: string;
+  linkPncpNa: boolean;
   houveRetificacao: boolean;
   linkRetificacao: string;
   linkCancelamento: string;
+  linkCancelamentoNa: boolean;
   parecerNumero: string;
   parecerAno: number;
   parecerNa: boolean;
@@ -191,10 +194,13 @@ function vazio(): FormAdmin {
     linkAbertura: "",
     linkAberturaNa: false,
     linkHomologacao: "",
+    linkHomologacaoNa: false,
     linkPncp: "",
+    linkPncpNa: false,
     houveRetificacao: false,
     linkRetificacao: "",
     linkCancelamento: "",
+    linkCancelamentoNa: false,
     parecerNumero: "",
     parecerAno: new Date().getFullYear(),
     parecerNa: false,
@@ -240,10 +246,13 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
     linkAbertura: p.linkAbertura,
     linkAberturaNa: p.linkAberturaNa,
     linkHomologacao: p.linkHomologacao,
+    linkHomologacaoNa: p.linkHomologacaoNa,
     linkPncp: p.linkPncp,
+    linkPncpNa: p.linkPncpNa,
     houveRetificacao: Boolean(p.linkRetificacao),
     linkRetificacao: p.linkRetificacao,
     linkCancelamento: p.linkCancelamento,
+    linkCancelamentoNa: p.linkCancelamentoNa,
     parecerNumero: p.parecerNa ? "" : p.parecerNumero != null ? String(p.parecerNumero) : "",
     parecerAno: p.parecerAno ?? new Date().getFullYear(),
     parecerNa: p.parecerNa,
@@ -255,12 +264,12 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
 function errosDeLinks(form: FormAdmin): string[] {
   const erros: string[] = [];
   const campos = [
-    ["link de publicação", form.linkAbertura, exigeLinks(form.tipo) && !(permitePublicacaoNa(form.tipo) && form.linkAberturaNa)],
+    ["link de publicação", form.linkAbertura, exigeLinks(form.tipo) && !form.linkAberturaNa],
     ["link de homologação", form.linkHomologacao, false],
     ["link do PNCP", form.linkPncp, false],
   ] as const;
   for (const [nome, valor, obrigatorio] of campos) {
-    if (!valor.trim() || (nome === "link de publicação" && permitePublicacaoNa(form.tipo) && form.linkAberturaNa)) {
+    if (!valor.trim() || (nome === "link de publicação" && form.linkAberturaNa)) {
       if (obrigatorio) erros.push(`Informe o ${nome}.`);
       continue;
     }
@@ -270,7 +279,7 @@ function errosDeLinks(form: FormAdmin): string[] {
     if (!form.linkRetificacao.trim()) erros.push("Informe o link da retificação.");
     else if (!normalizarLink(form.linkRetificacao)) erros.push("O link da retificação está inválido.");
   }
-  if (form.status === "cancelado") {
+  if (form.status === "cancelado" && !form.linkCancelamentoNa) {
     if (!form.linkCancelamento.trim()) erros.push("Informe o link de cancelamento.");
     else if (!normalizarLink(form.linkCancelamento)) erros.push("O link de cancelamento está inválido.");
   }
@@ -348,15 +357,17 @@ function mudancas(antes: ProcessoAdmin, form: FormAdmin): string | null {
   const parecerNovo = form.parecerNa ? "N/A" : formatarPeca(numeroPeca(form.parecerNumero), form.parecerAno);
   if (formatarPeca(antes.ciNumero, antes.ciAno) !== ciNova) partes.push(`a comunicação interna para ${ciNova}`);
   if (antes.ciOrigem !== form.ciOrigem.trim()) partes.push("a origem da comunicação interna");
-  const publicacaoNa = permitePublicacaoNa(form.tipo) && form.linkAberturaNa;
+  const publicacaoNa = form.linkAberturaNa;
   const aberturaNova = publicacaoNa ? "N/A" : normalizarLink(form.linkAbertura) || "";
   if ((antes.linkAberturaNa ? "N/A" : antes.linkAbertura || "") !== aberturaNova) partes.push(publicacaoNa ? "a publicação para N/A" : "o link de publicação");
-  if ((antes.linkHomologacao || "") !== (normalizarLink(form.linkHomologacao) || "")) partes.push("o link de homologação");
-  if ((antes.linkPncp || "") !== (normalizarLink(form.linkPncp) || "")) partes.push("o link do PNCP");
+  const homologacaoNova = form.linkHomologacaoNa ? "N/A" : normalizarLink(form.linkHomologacao) || "";
+  if ((antes.linkHomologacaoNa ? "N/A" : antes.linkHomologacao || "") !== homologacaoNova) partes.push(form.linkHomologacaoNa ? "a homologação para N/A" : "o link de homologação");
+  const pncpNovo = form.linkPncpNa ? "N/A" : normalizarLink(form.linkPncp) || "";
+  if ((antes.linkPncpNa ? "N/A" : antes.linkPncp || "") !== pncpNovo) partes.push(form.linkPncpNa ? "o PNCP para N/A" : "o link do PNCP");
   const retificacaoNova = form.houveRetificacao ? normalizarLink(form.linkRetificacao) || "" : "";
   if ((antes.linkRetificacao || "") !== retificacaoNova) partes.push(retificacaoNova ? "o link da retificação" : "a retificação");
-  const cancelamentoNovo = form.status === "cancelado" ? normalizarLink(form.linkCancelamento) || "" : "";
-  if ((antes.linkCancelamento || "") !== cancelamentoNovo) partes.push(cancelamentoNovo ? "o link de cancelamento" : "o cancelamento");
+  const cancelamentoNovo = form.status === "cancelado" ? (form.linkCancelamentoNa ? "N/A" : normalizarLink(form.linkCancelamento) || "") : "";
+  if ((antes.linkCancelamentoNa ? "N/A" : antes.linkCancelamento || "") !== cancelamentoNovo) partes.push(form.linkCancelamentoNa ? "o cancelamento para N/A" : cancelamentoNovo ? "o link de cancelamento" : "o cancelamento");
   if ((antes.parecerNa ? "N/A" : formatarPeca(antes.parecerNumero, antes.parecerAno)) !== parecerNovo) partes.push(`o parecer para ${parecerNovo}`);
   if (!partes.length) return null;
   if (partes.length === 1) return `Alterou ${partes[0]}.`;
@@ -397,9 +408,12 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
       linkAbertura: "",
       linkAberturaNa: false,
       linkHomologacao: normalizarLink(form.linkHomologacao) || "",
+      linkHomologacaoNa: form.linkHomologacaoNa,
       linkPncp: normalizarLink(form.linkPncp) || "",
+      linkPncpNa: form.linkPncpNa,
       linkRetificacao: form.houveRetificacao ? normalizarLink(form.linkRetificacao) || "" : "",
-      linkCancelamento: form.status === "cancelado" ? normalizarLink(form.linkCancelamento) || "" : "",
+      linkCancelamento: form.status === "cancelado" && !form.linkCancelamentoNa ? normalizarLink(form.linkCancelamento) || "" : "",
+      linkCancelamentoNa: form.status === "cancelado" && form.linkCancelamentoNa,
       parecerNumero: null,
       parecerAno: null,
       parecerNa: false,
@@ -447,12 +461,15 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     ciNumero: numeroPeca(form.ciNumero),
     ciAno: form.ciAno,
     ciOrigem: form.ciOrigem.trim(),
-    linkAbertura: permitePublicacaoNa(form.tipo) && form.linkAberturaNa ? "" : normalizarLink(form.linkAbertura) || "",
-    linkAberturaNa: permitePublicacaoNa(form.tipo) && form.linkAberturaNa,
-    linkHomologacao: normalizarLink(form.linkHomologacao) || "",
-    linkPncp: normalizarLink(form.linkPncp) || "",
+    linkAbertura: form.linkAberturaNa ? "" : normalizarLink(form.linkAbertura) || "",
+    linkAberturaNa: form.linkAberturaNa,
+    linkHomologacao: form.linkHomologacaoNa ? "" : normalizarLink(form.linkHomologacao) || "",
+    linkHomologacaoNa: form.linkHomologacaoNa,
+    linkPncp: form.linkPncpNa ? "" : normalizarLink(form.linkPncp) || "",
+    linkPncpNa: form.linkPncpNa,
     linkRetificacao: form.houveRetificacao ? normalizarLink(form.linkRetificacao) || "" : "",
-    linkCancelamento: form.status === "cancelado" ? normalizarLink(form.linkCancelamento) || "" : "",
+    linkCancelamento: form.status === "cancelado" && !form.linkCancelamentoNa ? normalizarLink(form.linkCancelamento) || "" : "",
+    linkCancelamentoNa: form.status === "cancelado" && form.linkCancelamentoNa,
     parecerNumero: cancelado || form.parecerNa ? null : numeroPeca(form.parecerNumero),
     parecerAno: cancelado || form.parecerNa ? null : form.parecerAno,
     parecerNa: !cancelado && form.parecerNa,
@@ -811,7 +828,10 @@ export function AdminPainel({
     const atualizado: ProcessoAdmin = { ...atual, status: statusAndamento };
     for (const item of aplicados) atualizado[item.campo] = item.url;
     if (aplicados.some((item) => item.campo === "linkAbertura")) atualizado.linkAberturaNa = false;
-    if (statusAndamento === "cancelado" && !atualizado.linkCancelamento) {
+    if (aplicados.some((item) => item.campo === "linkHomologacao")) atualizado.linkHomologacaoNa = false;
+    if (aplicados.some((item) => item.campo === "linkPncp")) atualizado.linkPncpNa = false;
+    if (aplicados.some((item) => item.campo === "linkCancelamento")) atualizado.linkCancelamentoNa = false;
+    if (statusAndamento === "cancelado" && !atualizado.linkCancelamento && !atualizado.linkCancelamentoNa) {
       onToast("Informe o link de cancelamento.");
       setLinksAndamento((previo) => ({ ...previo, cancelamento: previo.cancelamento ?? "" }));
       return;
@@ -1047,11 +1067,15 @@ export function AdminPainel({
         ) : guia === "links" ? (
           <LinksFaltando
             processos={lista}
-            onLancar={(item) => {
-              setEditing(item);
-              setForm(doProcesso(item));
-              setErros([]);
-              setFormOpen(true);
+            autorNome={meuNome}
+            onSalvar={async (atualizado) => {
+              const ok = await persistir(
+                lista.map((item) => (item.id === atualizado.id ? atualizado : item)),
+                atualizado,
+                null,
+                "Link lançado",
+              );
+              return ok === true;
             }}
           />
         ) : guia === "relatorio" ? (
@@ -2055,21 +2079,27 @@ function CardAdmin({
                     <FilePen className="size-4" />
                   </BotaoLink>
                 )}
-                {processo.linkCancelamento && (
+                {processo.linkCancelamentoNa ? (
+                  <p className="inline-flex h-11 items-center rounded-xl border border-line bg-paper px-3 text-sm font-medium text-ink">Cancelamento: N/A</p>
+                ) : processo.linkCancelamento ? (
                   <BotaoLink href={processo.linkCancelamento} texto="Cancelamento">
                     <Ban className="size-4" />
                   </BotaoLink>
-                )}
-                {processo.linkHomologacao && (
+                ) : null}
+                {processo.linkHomologacaoNa ? (
+                  <p className="inline-flex h-11 items-center rounded-xl border border-line bg-paper px-3 text-sm font-medium text-ink">Homologação: N/A</p>
+                ) : processo.linkHomologacao ? (
                   <BotaoLink href={processo.linkHomologacao} texto="Homologação">
                     <BadgeCheck className="size-4" />
                   </BotaoLink>
-                )}
-                {processo.linkPncp && (
+                ) : null}
+                {processo.linkPncpNa ? (
+                  <p className="inline-flex h-11 items-center rounded-xl border border-line bg-paper px-3 text-sm font-medium text-ink">PNCP: N/A</p>
+                ) : processo.linkPncp ? (
                   <BotaoLink href={processo.linkPncp} texto="PNCP">
                     <BandeiraBrasil />
                   </BotaoLink>
-                )}
+                ) : null}
               </div>
               <h3 className="mt-5 font-display text-xl text-ink">Histórico</h3>
               {processo.historico.length === 0 ? (
@@ -2489,11 +2519,66 @@ function compararNumeroProcesso(a: ProcessoAdmin, b: ProcessoAdmin) {
   return a.numero.localeCompare(b.numero, "pt-BR", { numeric: true });
 }
 
-function LinksFaltando({ processos, onLancar }: { processos: ProcessoAdmin[]; onLancar: (processo: ProcessoAdmin) => void }) {
+const LINKS_LANCAMENTO = [
+  { id: "publicacao", falta: "Publicação", rotulo: "Link de publicação" },
+  { id: "homologacao", falta: "Homologação", rotulo: "Link de homologação" },
+  { id: "pncp", falta: "PNCP", rotulo: "Link do PNCP" },
+  { id: "cancelamento", falta: "Cancelamento", rotulo: "Link de cancelamento" },
+] as const;
+
+type LinkLancamento = (typeof LINKS_LANCAMENTO)[number]["id"];
+
+function aplicarLink(processo: ProcessoAdmin, id: LinkLancamento, url: string, na: boolean, autorNome: string): ProcessoAdmin {
+  const atualizado: ProcessoAdmin = { ...processo };
+  const opcao = LINKS_LANCAMENTO.find((item) => item.id === id);
+  if (id === "publicacao") {
+    atualizado.linkAbertura = na ? "" : url;
+    atualizado.linkAberturaNa = na;
+  } else if (id === "homologacao") {
+    atualizado.linkHomologacao = na ? "" : url;
+    atualizado.linkHomologacaoNa = na;
+  } else if (id === "pncp") {
+    atualizado.linkPncp = na ? "" : url;
+    atualizado.linkPncpNa = na;
+  } else {
+    atualizado.linkCancelamento = na ? "" : url;
+    atualizado.linkCancelamentoNa = na;
+  }
+  const texto = na ? `Marcou ${opcao?.falta.toLowerCase() ?? "o link"} como N/A.` : `Adicionou o link de ${opcao?.falta.toLowerCase() ?? "processo"}.`;
+  atualizado.historico = [...processo.historico, evento(texto, autorNome, na ? undefined : url)];
+  return atualizado;
+}
+
+function LinksFaltando({
+  processos,
+  autorNome,
+  onSalvar,
+}: {
+  processos: ProcessoAdmin[];
+  autorNome: string;
+  onSalvar: (processo: ProcessoAdmin) => Promise<boolean>;
+}) {
+  const [alvo, setAlvo] = useState<ProcessoAdmin | null>(null);
+  const [escolhido, setEscolhido] = useState<LinkLancamento | null>(null);
+  const [url, setUrl] = useState("");
+  const [na, setNa] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+  const [erroLink, setErroLink] = useState("");
   const linhas = processos
     .map((processo) => ({ processo, falta: linksEmFalta(processo) }))
     .filter((item) => item.falta.length > 0)
     .sort((a, b) => compararNumeroProcesso(a.processo, b.processo));
+  const opcoes = alvo ? LINKS_LANCAMENTO.filter((item) => linksEmFalta(alvo).includes(item.falta)) : [];
+  const opcao = opcoes.find((item) => item.id === escolhido) ?? null;
+
+  function fechar() {
+    setAlvo(null);
+    setEscolhido(null);
+    setUrl("");
+    setNa(false);
+    setErroLink("");
+  }
+
   return (
     <div>
       <h2 className="font-display text-2xl text-ink">Links</h2>
@@ -2507,36 +2592,140 @@ function LinksFaltando({ processos, onLancar }: { processos: ProcessoAdmin[]; on
           <table className="w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-line text-muted">
-                <th className="w-12 py-2 pr-2 font-medium"><span className="sr-only">Ações</span></th>
                 <th className="py-2 pr-3 font-medium">Processo</th>
                 <th className="py-2 pr-3 font-medium">Tipo</th>
                 <th className="py-2 pr-3 font-medium">Número do tipo</th>
-                <th className="py-2 font-medium">Faltando</th>
+                <th className="py-2 pr-3 font-medium">Faltando</th>
+                <th className="w-12 py-2 font-medium"><span className="sr-only">Ações</span></th>
               </tr>
             </thead>
             <tbody>
               {linhas.map((item, indice) => (
                 <tr key={item.processo.id} className={"border-b border-line " + (indice % 2 === 0 ? "bg-pine/5" : "")}>
-                  <td className="py-2 pr-2">
-                    <MenuLancamento processo={item.processo} onLancar={onLancar} />
-                  </td>
                   <td className="py-2 pr-3 font-medium text-ink">{rotuloNumero(item.processo.numero, item.processo.numeroAno)}</td>
                   <td className="py-2 pr-3 text-ink">{item.processo.tipo}</td>
                   <td className="py-2 pr-3 text-ink">
                     {item.processo.tipoNumero != null ? `${String(item.processo.tipoNumero).padStart(2, "0")}/${item.processo.tipoAno ?? ""}` : "—"}
                   </td>
-                  <td className="py-2 text-ink">{item.falta.join(", ")}</td>
+                  <td className="py-2 pr-3 text-ink">{item.falta.join(", ")}</td>
+                  <td className="py-2 text-right">
+                    <MenuLancamento
+                      processo={item.processo}
+                      onLancar={() => {
+                        setAlvo(item.processo);
+                        setEscolhido(null);
+                        setUrl("");
+                        setNa(false);
+                      }}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+      <Dialog.Root open={alvo !== null} onOpenChange={(aberto) => !aberto && fechar()}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/50" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 max-h-[90vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-sm md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Qual link?</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted">
+              {alvo ? `${rotuloNumero(alvo.numero, alvo.numeroAno)} · ${alvo.tipo}` : "Escolha o link."}
+            </Dialog.Description>
+            {!opcao ? (
+              <div className="mt-4 flex flex-col gap-2">
+                {opcoes.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setEscolhido(item.id);
+                      setUrl("");
+                      setNa(false);
+                    }}
+                    className="inline-flex h-11 items-center rounded-xl border border-line px-3 text-left text-sm font-medium text-ink"
+                  >
+                    {item.rotulo}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <form
+                className="mt-4 flex flex-col gap-3"
+                onSubmit={(eventoForm) => {
+                  eventoForm.preventDefault();
+                  if (!alvo || ocupado) return;
+                  const endereco = na ? "" : normalizarLink(url) || "";
+                  if (!na && !endereco) {
+                    setErroLink(url.trim() ? "O link está inválido." : "Informe o link ou marque N/A.");
+                    return;
+                  }
+                  setErroLink("");
+                  const atualizado = aplicarLink(alvo, opcao.id, endereco, na, autorNome);
+                  setOcupado(true);
+                  void onSalvar(atualizado).then((ok) => {
+                    setOcupado(false);
+                    if (ok) fechar();
+                  });
+                }}
+              >
+                <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                  <input
+                    type="checkbox"
+                    checked={na}
+                    onChange={(evento) => {
+                      setNa(evento.target.checked);
+                      if (evento.target.checked) setUrl("");
+                    }}
+                  />
+                  N/A
+                </label>
+                {na ? (
+                  <p className="text-xs text-muted">Fica como N/A.</p>
+                ) : (
+                  <input
+                    type="url"
+                    inputMode="url"
+                    value={url}
+                    onChange={(evento) => setUrl(evento.target.value)}
+                    className={inputCls}
+                    placeholder="https://"
+                    autoComplete="off"
+                    required
+                  />
+                )}
+                {erroLink ? <p className="text-sm text-seal">{erroLink}</p> : null}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEscolhido(null);
+                      setUrl("");
+                      setNa(false);
+                    }}
+                    className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={ocupado}
+                    className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-60"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </form>
+            )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }
 
-function MenuLancamento({ processo, onLancar }: { processo: ProcessoAdmin; onLancar: (processo: ProcessoAdmin) => void }) {
+function MenuLancamento({ processo, onLancar }: { processo: ProcessoAdmin; onLancar: () => void }) {
   const [aberto, setAberto] = useState(false);
   return (
     <div className="relative">
@@ -2550,12 +2739,12 @@ function MenuLancamento({ processo, onLancar }: { processo: ProcessoAdmin; onLan
         <MoreVertical className="size-4" />
       </button>
       {aberto && (
-        <div className="absolute left-0 z-20 mt-1 w-44 rounded-xl border border-line bg-sheet p-1 shadow-lg">
+        <div className="absolute right-0 z-20 mt-1 w-44 rounded-xl border border-line bg-sheet p-1 shadow-lg">
           <button
             type="button"
             onClick={() => {
               setAberto(false);
-              onLancar(processo);
+              onLancar();
             }}
             className="flex h-9 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-ink hover:bg-paper"
           >
@@ -2632,7 +2821,7 @@ function CamposLinks({ form, onChange }: { form: FormAdmin; onChange: (form: For
           type="url"
           inputMode="url"
           value={form.linkHomologacao}
-          onChange={(e) => onChange({ ...form, linkHomologacao: e.target.value })}
+          onChange={(e) => onChange({ ...form, linkHomologacao: e.target.value, linkHomologacaoNa: false })}
           className={inputCls}
           placeholder="https://"
         />
@@ -2642,7 +2831,7 @@ function CamposLinks({ form, onChange }: { form: FormAdmin; onChange: (form: For
           type="url"
           inputMode="url"
           value={form.linkPncp}
-          onChange={(e) => onChange({ ...form, linkPncp: e.target.value })}
+          onChange={(e) => onChange({ ...form, linkPncp: e.target.value, linkPncpNa: false })}
           className={inputCls}
           placeholder="https://"
         />
@@ -2653,7 +2842,7 @@ function CamposLinks({ form, onChange }: { form: FormAdmin; onChange: (form: For
             type="url"
             inputMode="url"
             value={form.linkCancelamento}
-            onChange={(e) => onChange({ ...form, linkCancelamento: e.target.value })}
+            onChange={(e) => onChange({ ...form, linkCancelamento: e.target.value, linkCancelamentoNa: false })}
             className={inputCls}
             placeholder="https://"
             required
