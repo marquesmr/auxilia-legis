@@ -316,7 +316,7 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
 }
 
 let schemaPronto: { versao: number; pendente: Promise<void> } | null = null;
-const SCHEMA_ADMIN = 13;
+const SCHEMA_ADMIN = 14;
 
 /** Garante as colunas novas mesmo se a migração ainda não tiver rodado nesta instância. */
 async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
@@ -347,6 +347,8 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
         "alter table processos_admin add column if not exists em_manutencao boolean not null default false",
         "alter table processos_admin add column if not exists status_em date",
         "create table if not exists ci_inutilizada (ano integer not null, numero integer not null, primary key (ano, numero))",
+        "alter table ci_inutilizada add column if not exists destino text not null default ''",
+        "alter table ci_inutilizada add column if not exists desativada boolean not null default false",
       ];
       for (const comando of comandos) await sql.query(comando);
     })().catch((err) => {
@@ -584,9 +586,6 @@ export const salvarAdmin = createServerFn({ method: "POST" })
           returning id
         `;
     if (!salvos.length) throw new Error("Não foi possível salvar");
-    if (data.ciNumero != null && data.ciAno != null) {
-      await sql`delete from ci_inutilizada where ano = ${data.ciAno} and numero = ${data.ciNumero}`;
-    }
     if (!existente.length) {
       const { backupAoLancar } = await import("./gestao.server");
       await backupAoLancar();
@@ -595,32 +594,46 @@ export const salvarAdmin = createServerFn({ method: "POST" })
     return { id: salvos[0].id };
   });
 
-export const listarCiInutilizadas = createServerFn({ method: "GET" })
+export const listarCiAnotacoes = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async () => {
     const sql = await getSql();
     await garantirColunas(sql);
-    const linhas = await sql<{ ano: number; numero: number }>`select ano, numero from ci_inutilizada order by ano desc, numero asc`;
-    return linhas.map((linha) => ({ ano: Number(linha.ano), numero: Number(linha.numero) }));
+    const linhas = await sql<{ ano: number; numero: number; destino: string | null; desativada: boolean | number | string | null }>`
+      select ano, numero, destino, desativada from ci_inutilizada order by ano desc, numero asc
+    `;
+    return linhas.map((linha) => ({
+      ano: Number(linha.ano),
+      numero: Number(linha.numero),
+      destino: linha.destino ?? "",
+      desativada: linha.desativada === true || linha.desativada === 1 || linha.desativada === "t" || linha.desativada === "true",
+    }));
   });
 
-export const inutilizarCi = createServerFn({ method: "POST" })
+export const salvarCiAnotacao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
-    const bruto = input as { ano?: unknown; numero?: unknown };
+    const bruto = input as { ano?: unknown; numero?: unknown; destino?: unknown; desativada?: unknown };
     const ano = Number(bruto.ano);
     const numero = Number(bruto.numero);
     if (!Number.isInteger(ano) || ano < 2000 || ano > 2100) throw new Error("Ano inválido.");
     if (!Number.isInteger(numero) || numero < 1 || numero > 999999) throw new Error("Número inválido.");
-    return { ano, numero };
+    const destino = typeof bruto.destino === "string" ? bruto.destino.trim().slice(0, 160) : "";
+    return { ano, numero, destino, desativada: bruto.desativada === true };
   })
   .middleware([authMiddleware])
   .handler(async ({ data }) => {
     const sql = await getSql();
     await garantirColunas(sql);
-    const usada = await sql<{ id: string }>`select id from processos_admin where ci_ano = ${data.ano} and ci_numero = ${data.numero} limit 1`;
-    if (usada.length) throw new Error("Esse número já está em um processo. Edite as comunicações antes de inutilizar.");
-    await sql`insert into ci_inutilizada (ano, numero) values (${data.ano}, ${data.numero}) on conflict do nothing`;
+    if (!data.destino && !data.desativada) {
+      await sql`delete from ci_inutilizada where ano = ${data.ano} and numero = ${data.numero}`;
+      return { ok: true as const };
+    }
+    await sql`
+      insert into ci_inutilizada (ano, numero, destino, desativada)
+      values (${data.ano}, ${data.numero}, ${data.destino}, ${data.desativada})
+      on conflict (ano, numero) do update set destino = ${data.destino}, desativada = ${data.desativada}
+    `;
     return { ok: true as const };
   });
 
