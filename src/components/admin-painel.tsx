@@ -1045,7 +1045,15 @@ export function AdminPainel({
             linhas={linhasParecer}
           />
         ) : guia === "links" ? (
-          <LinksFaltando processos={lista} />
+          <LinksFaltando
+            processos={lista}
+            onLancar={(item) => {
+              setEditing(item);
+              setForm(doProcesso(item));
+              setErros([]);
+              setFormOpen(true);
+            }}
+          />
         ) : guia === "relatorio" ? (
           <div className="flex flex-col gap-4">
             <div className="no-print flex flex-wrap gap-2">
@@ -2475,38 +2483,84 @@ function RelatorioPecas({
   );
 }
 
-function LinksFaltando({ processos }: { processos: ProcessoAdmin[] }) {
+function compararNumeroProcesso(a: ProcessoAdmin, b: ProcessoAdmin) {
+  const ano = (a.numeroAno ?? 0) - (b.numeroAno ?? 0);
+  if (ano !== 0) return ano;
+  return a.numero.localeCompare(b.numero, "pt-BR", { numeric: true });
+}
+
+function LinksFaltando({ processos, onLancar }: { processos: ProcessoAdmin[]; onLancar: (processo: ProcessoAdmin) => void }) {
   const linhas = processos
     .map((processo) => ({ processo, falta: linksEmFalta(processo) }))
-    .filter((item) => item.falta.length > 0);
+    .filter((item) => item.falta.length > 0)
+    .sort((a, b) => compararNumeroProcesso(a.processo, b.processo));
   return (
     <div>
       <h2 className="font-display text-2xl text-ink">Links</h2>
       <p className="mt-1 text-sm text-muted">
-        Processos com link em branco. Pronto pagamento, doações e outros não entram.
+        Processos com link em branco, do menor número para o maior. Quando todos os links estão lançados, o processo sai da lista. Pronto pagamento, doações e outros não entram.
       </p>
       {linhas.length === 0 ? (
         <p className="mt-4 text-sm text-muted">Nenhum link faltando.</p>
       ) : (
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-4">
           <table className="w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-line text-muted">
+                <th className="w-12 py-2 pr-2 font-medium"><span className="sr-only">Ações</span></th>
                 <th className="py-2 pr-3 font-medium">Processo</th>
                 <th className="py-2 pr-3 font-medium">Tipo</th>
+                <th className="py-2 pr-3 font-medium">Número do tipo</th>
                 <th className="py-2 font-medium">Faltando</th>
               </tr>
             </thead>
             <tbody>
               {linhas.map((item, indice) => (
                 <tr key={item.processo.id} className={"border-b border-line " + (indice % 2 === 0 ? "bg-pine/5" : "")}>
+                  <td className="py-2 pr-2">
+                    <MenuLancamento processo={item.processo} onLancar={onLancar} />
+                  </td>
                   <td className="py-2 pr-3 font-medium text-ink">{rotuloNumero(item.processo.numero, item.processo.numeroAno)}</td>
-                  <td className="py-2 pr-3 text-ink">{rotuloTipo(item.processo.tipo, item.processo.tipoNumero, item.processo.tipoAno)}</td>
+                  <td className="py-2 pr-3 text-ink">{item.processo.tipo}</td>
+                  <td className="py-2 pr-3 text-ink">
+                    {item.processo.tipoNumero != null ? `${String(item.processo.tipoNumero).padStart(2, "0")}/${item.processo.tipoAno ?? ""}` : "—"}
+                  </td>
                   <td className="py-2 text-ink">{item.falta.join(", ")}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuLancamento({ processo, onLancar }: { processo: ProcessoAdmin; onLancar: (processo: ProcessoAdmin) => void }) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setAberto((valor) => !valor)}
+        className="grid size-9 place-items-center rounded-lg text-muted"
+        aria-label={`Ações do processo ${rotuloNumero(processo.numero, processo.numeroAno)}`}
+        aria-expanded={aberto}
+      >
+        <MoreVertical className="size-4" />
+      </button>
+      {aberto && (
+        <div className="absolute left-0 z-20 mt-1 w-44 rounded-xl border border-line bg-sheet p-1 shadow-lg">
+          <button
+            type="button"
+            onClick={() => {
+              setAberto(false);
+              onLancar(processo);
+            }}
+            className="flex h-9 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-ink hover:bg-paper"
+          >
+            Lançamento
+          </button>
         </div>
       )}
     </div>
