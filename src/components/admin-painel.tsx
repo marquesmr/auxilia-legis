@@ -3060,6 +3060,102 @@ function PecaCampos({
   );
 }
 
+function CertidoesLei({ consulta }: { consulta: ConsultaDocumento }) {
+  const cnpj = consulta.tipo === "cnpj";
+  const uf = cnpj ? consulta.uf.toUpperCase() : "";
+  const inscricao = cnpj ? consulta.situacao || "Consultada" : "Número válido";
+  const fazenda = uf ? FAZENDA_ESTADUAL[uf] : "";
+  const itens: { nome: string; fundamento: string; situacao: string; url?: string }[] = [
+    {
+      nome: cnpj ? "Inscrição no CNPJ" : "Inscrição no CPF",
+      fundamento: "Art. 68, I",
+      situacao: inscricao,
+    },
+    {
+      nome: "Certidão conjunta da Fazenda Nacional",
+      fundamento: "Art. 68, III · Receita Federal e PGFN",
+      situacao: "Emitida no órgão",
+      url: cnpj ? "https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj" : "https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cpf",
+    },
+    {
+      nome: "Certificado de regularidade do FGTS",
+      fundamento: "Art. 68, IV · Caixa",
+      situacao: cnpj ? "Emitido no órgão" : "Não se aplica à pessoa física, salvo se for empregadora",
+      url: cnpj ? "https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf" : undefined,
+    },
+    {
+      nome: "Certidão de débitos trabalhistas",
+      fundamento: "Art. 68, V · Justiça do Trabalho",
+      situacao: "Emitida no órgão",
+      url: "https://cndt-certidao.tst.jus.br/gerarCertidao",
+    },
+    {
+      nome: uf ? `Regularidade estadual · ${uf}` : "Regularidade estadual da sede",
+      fundamento: "Art. 68, VI",
+      situacao: cnpj ? (uf ? "Emitida na fazenda do estado" : "A sede não veio na consulta") : "Depende do domicílio do titular",
+      url: fazenda || undefined,
+    },
+    {
+      nome: cnpj && consulta.municipio ? `Regularidade municipal · ${consulta.municipio}` : "Regularidade municipal da sede",
+      fundamento: "Art. 68, VI",
+      situacao: "Emitida pela prefeitura da sede",
+    },
+  ];
+  return (
+    <section className="mt-6">
+      <h3 className="font-display text-xl text-ink">Certidões da Lei 14.133/2021</h3>
+      <p className="mt-1 text-sm text-muted">Art. 68. A inscrição já foi consultada aqui. As outras certidões são emitidas no órgão, e o botão abre a página para baixar o PDF.</p>
+      <ul className="mt-3 overflow-hidden rounded-2xl border border-line">
+        {itens.map((item, indice) => (
+          <li key={item.nome} className={"flex flex-col gap-2 border-b border-line px-3 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between " + (indice % 2 === 0 ? "bg-pine/5" : "bg-sheet")}>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-ink">{item.nome}</p>
+              <p className="text-xs text-muted">{item.fundamento}</p>
+              <p className="text-sm text-ink">{item.situacao}</p>
+            </div>
+            {item.url ? (
+              <a href={item.url} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl bg-pine px-3 text-sm font-medium text-sheet">
+                <FileText className="size-4" />
+                Emitir e baixar
+              </a>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+const FAZENDA_ESTADUAL: Record<string, string> = {
+  AC: "https://sefaz.ac.gov.br",
+  AL: "https://www.sefaz.al.gov.br",
+  AM: "https://online.sefaz.am.gov.br",
+  AP: "https://www.sefaz.ap.gov.br",
+  BA: "https://www.sefaz.ba.gov.br",
+  CE: "https://www.sefaz.ce.gov.br",
+  DF: "https://www.receita.fazenda.df.gov.br",
+  ES: "https://sefaz.es.gov.br",
+  GO: "https://www.sefaz.go.gov.br",
+  MA: "https://sistemas.sefaz.ma.gov.br",
+  MG: "https://www2.fazenda.mg.gov.br/sol/ctrl/SOL/CDT/SERVICO_829?ACAO=INICIAR",
+  MS: "https://www.sefaz.ms.gov.br",
+  MT: "https://www.sefaz.mt.gov.br",
+  PA: "https://www.sefa.pa.gov.br",
+  PB: "https://www.sefaz.pb.gov.br",
+  PE: "https://www.sefaz.pe.gov.br",
+  PI: "https://www.sefaz.pi.gov.br",
+  PR: "https://www.fazenda.pr.gov.br",
+  RJ: "https://www4.fazenda.rj.gov.br/certidao-fiscal-web/emitirCertidao.jsf",
+  RN: "https://www.set.rn.gov.br",
+  RO: "https://www.sefin.ro.gov.br",
+  RR: "https://www.sefaz.rr.gov.br",
+  RS: "https://www.sefaz.rs.gov.br/SAT/CertidaoSitFiscalSolic.aspx",
+  SC: "https://sat.sef.sc.gov.br/tax.NET/Sat.CtaCte.Web/CertidaoNegativa.aspx",
+  SE: "https://www.sefaz.se.gov.br",
+  SP: "https://www10.fazenda.sp.gov.br/CertidaoNegativaDeb/Pages/EmissaoCertidaoNegativa.aspx",
+  TO: "https://www.sefaz.to.gov.br",
+};
+
 function PainelConsulta({
   numeroInicial,
   nascimentoInicial,
@@ -3146,6 +3242,7 @@ function PainelConsulta({
       </div>
       {erro ? <p className="mt-3 text-sm text-seal">{erro}</p> : null}
       {consulta ? <ResultadoConsulta consulta={consulta} /> : null}
+      {!embutido && consulta ? <CertidoesLei consulta={consulta} /> : null}
     </div>
   );
 }

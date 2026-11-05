@@ -25,6 +25,8 @@ export type ConsultaCnpj = {
   capital: string;
   cnae: string;
   endereco: string;
+  uf: string;
+  municipio: string;
   cep: string;
   telefone: string;
   email: string;
@@ -123,6 +125,8 @@ function montarBrasil(bruto: Record<string, unknown>, digitos: string): Consulta
     capital: formatarCapital(bruto.capital_social),
     cnae: [bruto.cnae_fiscal == null ? "" : String(bruto.cnae_fiscal), texto(bruto.cnae_fiscal_descricao)].filter(Boolean).join(" — "),
     endereco: juntarEndereco([texto(bruto.descricao_tipo_de_logradouro), texto(bruto.logradouro), texto(bruto.numero), texto(bruto.complemento), texto(bruto.bairro), texto(bruto.municipio), texto(bruto.uf)]),
+    uf: texto(bruto.uf),
+    municipio: texto(bruto.municipio),
     cep: formatarCep(texto(bruto.cep)),
     telefone: formatarTelefone("", texto(bruto.ddd_telefone_1)),
     email: texto(bruto.email),
@@ -154,6 +158,8 @@ function montarCnpjWs(bruto: Record<string, unknown>, digitos: string): Consulta
     capital: formatarCapital(bruto.capital_social),
     cnae: [atividade ? texto(atividade.subclasse) || texto(atividade.id) : "", atividade ? texto(atividade.descricao) : ""].filter(Boolean).join(" — "),
     endereco: juntarEndereco([texto(estabelecimento.tipo_logradouro), texto(estabelecimento.logradouro), texto(estabelecimento.numero), texto(estabelecimento.complemento), texto(estabelecimento.bairro), cidade ? texto(cidade.nome) : "", estado ? texto(estado.sigla) : ""]),
+    uf: estado ? texto(estado.sigla) : "",
+    municipio: cidade ? texto(cidade.nome) : "",
     cep: formatarCep(texto(estabelecimento.cep)),
     telefone: formatarTelefone(texto(estabelecimento.ddd1), texto(estabelecimento.telefone1)),
     email: texto(estabelecimento.email),
@@ -188,6 +194,8 @@ function montarCnpja(bruto: Record<string, unknown>, digitos: string): ConsultaC
     capital: formatarCapital(empresa?.equity),
     cnae: [atividade?.id == null ? "" : String(atividade.id), atividade ? texto(atividade.text) : ""].filter(Boolean).join(" — "),
     endereco: endereco ? juntarEndereco([texto(endereco.street), texto(endereco.number), texto(endereco.details), texto(endereco.district), texto(endereco.city), texto(endereco.state)]) : "",
+    uf: endereco ? texto(endereco.state) : "",
+    municipio: endereco ? texto(endereco.city) : "",
     cep: endereco ? formatarCep(texto(endereco.zip)) : "",
     telefone: primeiroTelefone ? formatarTelefone(texto(primeiroTelefone.area), texto(primeiroTelefone.number)) : "",
     email: primeiroEmail ? texto(primeiroEmail.address) : "",
@@ -218,6 +226,8 @@ function montarReceitaWs(bruto: Record<string, unknown>, digitos: string): Consu
     capital: formatarCapital(bruto.capital_social),
     cnae: [atividade ? texto(atividade.code) : "", atividade ? texto(atividade.text) : ""].filter(Boolean).join(" — "),
     endereco: juntarEndereco([texto(bruto.logradouro), texto(bruto.numero), texto(bruto.complemento), texto(bruto.bairro), texto(bruto.municipio), texto(bruto.uf)]),
+    uf: texto(bruto.uf),
+    municipio: texto(bruto.municipio),
     cep: formatarCep(texto(bruto.cep)),
     telefone: texto(bruto.telefone),
     email: texto(bruto.email),
