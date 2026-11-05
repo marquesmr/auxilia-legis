@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, FilePen, FileText, Link2, Megaphone, MoreVertical, Pencil, Plus, Trash2, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, FilePen, FileText, Link2, Megaphone, MoreVertical, Pencil, Plus, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -41,6 +41,7 @@ import {
   type LinhaControle,
 } from "@/lib/admin";
 import { apagarAdmin, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao } from "@/lib/admin.functions";
+import { consultarCnpj, type ConsultaCnpj } from "@/lib/cnpj.functions";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { CampoMes } from "@/components/campo-mes";
 import { SoltarProcessoContext } from "@/components/soltar-processo";
@@ -52,7 +53,7 @@ import { encerraStatus, listaCodigos } from "@/lib/status-catalogo";
 
 type FiltroAdmin = string;
 type OrdemAdmin = "numero" | "tipo" | "encerramento";
-type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres" | "links";
+type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres" | "links" | "cnpj";
 type StatusRelatorio = "todos" | StatusAdmin;
 type ModoRelatorio = "processos" | "pecas";
 
@@ -1035,6 +1036,10 @@ export function AdminPainel({
             <Link2 className="size-4" />
             Links
           </GuiaBotao>
+          <GuiaBotao ativo={guia === "cnpj"} onClick={() => setGuia("cnpj")}>
+            <Search className="size-4" />
+            Consulta CNPJ
+          </GuiaBotao>
           <button
             type="button"
             onClick={abrirFormulario}
@@ -1045,8 +1050,10 @@ export function AdminPainel({
           </button>
         </div>
 
-        {!pronto ? (
+        {!pronto && guia !== "cnpj" ? (
           <p className="text-sm text-muted">Carregando processos administrativos…</p>
+        ) : guia === "cnpj" ? (
+          <ConsultaCnpj />
         ) : guia === "estatisticas" ? (
           <GraficoAdmin processos={lista} />
         ) : guia === "comunicacoes" ? (
@@ -2979,6 +2986,117 @@ function PecaCampos({
         </div>
       )}
       <p className="text-xs text-muted">Fica como {previa}.</p>
+    </div>
+  );
+}
+
+function mascaraCnpj(texto: string) {
+  const d = texto.replace(/\D/g, "").slice(0, 14);
+  if (d.length <= 2) return d;
+  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
+  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+}
+
+function ConsultaCnpj() {
+  const [numero, setNumero] = useState("");
+  const [consulta, setConsulta] = useState<ConsultaCnpj | null>(null);
+  const [erro, setErro] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+
+  async function consultar() {
+    const digitos = numero.replace(/\D/g, "");
+    if (digitos.length !== 14) {
+      setErro("Informe o CNPJ completo.");
+      setConsulta(null);
+      return;
+    }
+    setOcupado(true);
+    setErro("");
+    try {
+      const resultado = await consultarCnpj({ data: digitos });
+      setConsulta(resultado);
+    } catch (err) {
+      setConsulta(null);
+      setErro(mensagemErro(err));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  const campos = consulta
+    ? [
+        ["Razão social", consulta.razaoSocial],
+        ["Nome fantasia", consulta.nomeFantasia],
+        ["Situação", consulta.situacao],
+        ["Abertura", consulta.abertura],
+        ["Natureza jurídica", consulta.natureza],
+        ["Porte", consulta.porte],
+        ["Capital social", consulta.capital],
+        ["CNAE", consulta.cnae],
+        ["Endereço", consulta.endereco],
+        ["CEP", consulta.cep],
+        ["Telefone", consulta.telefone],
+        ["E-mail", consulta.email],
+      ].filter(([, valor]) => valor)
+    : [];
+
+  return (
+    <div>
+      <h2 className="font-display text-2xl text-ink">Consulta CNPJ</h2>
+      <p className="mt-1 text-sm text-muted">Consulta a situação cadastral na Receita Federal sem sair do Auxilia Legis.</p>
+      <form
+        className="mt-4 flex flex-col gap-2 sm:flex-row"
+        onSubmit={(evento) => {
+          evento.preventDefault();
+          void consultar();
+        }}
+      >
+        <input
+          value={numero}
+          onChange={(evento) => setNumero(mascaraCnpj(evento.target.value))}
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="00.000.000/0000-00"
+          className={inputCls + " sm:max-w-xs"}
+        />
+        <button
+          type="submit"
+          disabled={ocupado}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-pine px-4 text-sm font-medium text-sheet disabled:opacity-60"
+        >
+          <Search className="size-4" />
+          {ocupado ? "Consultando…" : "Consultar"}
+        </button>
+      </form>
+      {erro ? <p className="mt-3 text-sm text-seal">{erro}</p> : null}
+      {consulta ? (
+        <div className="mt-4 rounded-2xl border border-line bg-sheet p-4">
+          <p className="text-xs text-muted">{consulta.cnpj}</p>
+          <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+            {campos.map(([rotulo, valor]) => (
+              <div key={rotulo} className={rotulo === "Endereço" || rotulo === "Razão social" || rotulo === "CNAE" ? "sm:col-span-2" : undefined}>
+                <dt className="text-xs text-muted">{rotulo}</dt>
+                <dd className="text-sm text-ink">{valor}</dd>
+              </div>
+            ))}
+          </dl>
+          {consulta.socios.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-ink">Quadro societário</h3>
+              <ul className="mt-2 flex flex-col gap-2">
+                {consulta.socios.map((socio) => (
+                  <li key={socio.nome + socio.qualificacao} className="text-sm text-ink">
+                    {socio.nome}
+                    {socio.qualificacao ? <span className="text-muted"> · {socio.qualificacao}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
