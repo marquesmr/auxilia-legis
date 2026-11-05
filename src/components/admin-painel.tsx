@@ -3101,6 +3101,14 @@ function CertidoesLei({ consulta }: { consulta: ConsultaDocumento }) {
       situacao: "Emitida pela prefeitura da sede",
     },
   ];
+  if (uf === "" || uf === "MG") {
+    itens.push({
+      nome: "Falência e concordata · Minas Gerais",
+      fundamento: "Art. 69, II · TJMG",
+      situacao: "No tribunal, escolha a certidão de falência e concordata",
+      url: "https://rupe.tjmg.jus.br/rupe/justica/publico/certidoes/criarSolicitacaoCertidao.rupe?solicitacaoPublica=true",
+    });
+  }
   return (
     <section className="mt-6">
       <h3 className="font-display text-xl text-ink">Certidões da Lei 14.133/2021</h3>
