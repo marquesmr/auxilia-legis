@@ -49,7 +49,7 @@ export function resolveParentEmbedderOrigin(
         return url.origin;
       }
     } catch {
-      // try next candidate
+      /* tenta o próximo candidato */
     }
   }
   return null;

@@ -1,41 +1,25 @@
 #!/usr/bin/env node
 /**
- * Fail loudly when the running dev server and the next build disagree about
- * `VITE_AUTH_ENABLED`.
+ * Falha alto se o dev em execução e o próximo build discordarem de
+ * `VITE_AUTH_ENABLED`. `npm run dev/build/preview` passam pelo wrapper e
+ * concordam; `npx vite dev` não — o login aparece no preview e some no build,
+ * ou o contrário.
  *
- * `npm run dev`, `npm run build` and `npm run preview` all get the flag from
- * `scripts/with-app-env.mjs`, so they agree by construction — but a dev server
- * started outside npm (`npx vite dev`) does not, and the result is sign-in
- * visible in the live preview and absent from the built output, or the reverse.
- *
- * The two sides compared:
- *  - **dev**: what the running server resolved, read from the `/__app-env`
- *    endpoint the template's dev-only `appEnvPlugin` serves.
- *  - **build**: what the wrapper hands `vite build` / `vite preview`.
- *
- * The built bundle is not read: Vite inlines the flag and the minifier folds
- * `"false" !== "false"` away, so the built client JS carries no marker to
- * compare against unless the app is made to emit one.
- *
- * `scripts/browser-smoke.mjs` runs the comparison on every smoke; run it
- * standalone against a live dev server with `npm run check:auth` (exit 0 agree,
- * 1 diverged, 2 could not observe). Callers comparing the flag should use
- * `compareAuthInvariant()` rather than re-deriving it.
+ * O bundle não é lido: o Vite embute a flag e o minificador some com
+ * `"false" !== "false"`, então não sobra marcador para comparar.
+ * Exit: 0 concorda, 1 divergiu, 2 não observou. Use `compareAuthInvariant()`.
  */
 import { APP_ENV_ROUTE } from "./app-env-plugin.mjs";
 import { isMainModule, mergeAppEnv, projectRoot, readAppEnv } from "./with-app-env.mjs";
 
 const DEFAULT_DEV_URL = "http://127.0.0.1:8080";
 
-/** The predicate `src/lib/auth/{client,server}.ts` apply to the flag. */
+/** O mesmo predicado de `src/lib/auth/{client,server}.ts`. */
 export function authEnabledFromEnvValue(value) {
   return value !== "false";
 }
 
-/**
- * Compare the two resolved values. `null` means "could not observe" — reported
- * as indeterminate rather than as agreement.
- */
+/** `null` é "não deu para observar" — indeterminado, não acordo. */
 export function compareAuthInvariant({ devAuthEnabled, buildAuthEnabled }) {
   const label = (value) => (value ? "on" : "off");
   if (devAuthEnabled === null || devAuthEnabled === undefined) {
@@ -60,11 +44,7 @@ export function compareAuthInvariant({ devAuthEnabled, buildAuthEnabled }) {
   };
 }
 
-/**
- * Ask the dev server which env it resolved. Anything but a JSON object from
- * `/__app-env` (no server, a built-output preview, an older workspace without
- * the plugin) is "could not observe".
- */
+/** Qualquer coisa que não seja um JSON de `/__app-env` é "não observável". */
 export async function probeDevAuthEnabled(devUrl, fetchImpl = fetch) {
   let env;
   try {
@@ -78,12 +58,12 @@ export async function probeDevAuthEnabled(devUrl, fetchImpl = fetch) {
   return authEnabledFromEnvValue(env.VITE_AUTH_ENABLED);
 }
 
-/** The smoke-verdict warnings for a comparison: a real divergence only. */
+/** Avisos do smoke: só divergência real. */
 export function authInvariantWarnings(result) {
   return result.status === "diverged" ? [result.message] : [];
 }
 
-/** What `vite build` / `vite preview` will resolve, via the same wrapper. */
+/** O que `vite build` / `vite preview` vão resolver, pelo mesmo wrapper. */
 export function buildAuthEnabled(root = projectRoot(), processEnv = process.env) {
   const env = mergeAppEnv(readAppEnv(root), processEnv);
   return authEnabledFromEnvValue(env.VITE_AUTH_ENABLED);

@@ -16,8 +16,8 @@ import { projectRoot } from "./with-app-env.mjs";
 const AUTH_MIGRATION = "0001_auth.sql";
 
 /**
- * The auth-on copy of the Better Auth schema and its source, or null when the
- * app has not turned sign-in on (the shipped state).
+ * Cópia do schema Better Auth e a origem, ou null se o login não foi ligado
+ * (estado de fábrica).
  */
 function authSchemaCopy(root) {
   const copy = join(root, "migrations", AUTH_MIGRATION);
@@ -33,8 +33,8 @@ test("_migrations keys on basename, not path", () => {
 });
 
 test("a file already applied from another directory does not re-apply", () => {
-  // The auth-on path copies migrations/auth/0001_auth.sql into the globbed
-  // directory; a database that already has it must not run it twice.
+  // Ligar o login copia migrations/auth/0001_auth.sql para a pasta globada;
+  // um banco que já tem o arquivo não pode rodá-lo de novo.
   assert.deepEqual(pendingMigrations(["/migrations/0001_auth.sql"], ["0001_auth.sql"]), []);
 });
 
@@ -63,10 +63,10 @@ test("the auth schema ships outside the globbed directory", () => {
 });
 
 test("this workspace's auth schema copy is byte-identical to its source", () => {
-  // An edited copy diverges silently: basename keying skips it on a database
-  // that already ran the original, and applies it on a fresh PGLite preview.
+  // Cópia editada diverge em silêncio: a chave por basename pula no banco
+  // que já rodou o original e aplica num preview PGLite novo.
   const pair = authSchemaCopy(projectRoot());
-  if (pair === null) return; // sign-in off — nothing has been copied up
+  if (pair === null) return; // login desligado — nada foi copiado para cima
   assert.equal(
     pair.copy,
     pair.source,

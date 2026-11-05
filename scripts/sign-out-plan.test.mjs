@@ -15,15 +15,15 @@ const hangs = () => new Promise(() => {});
 const rejects = () => Promise.reject(new Error("network down"));
 
 /**
- * Drain pending microtasks without advancing mocked time, so "has it finished
- * yet?" is answered by the mocked clock rather than by wall-clock luck.
- * `setImmediate` stays real — only `setTimeout` is mocked.
+ * Esvazia microtasks sem avançar o relógio mockado, para "já terminou?"
+ * depender do relógio e não da sorte do relógio de parede.
+ * `setImmediate` continua real — só `setTimeout` é mockado.
  */
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 /**
- * A `runSignOut` call with the browser effects replaced by recorders, so each
- * test asserts on what actually happened rather than on how it was written.
+ * Um `runSignOut` com os efeitos do browser trocados por gravadores, para o
+ * teste afirmar o que aconteceu e não como foi escrito.
  */
 function harness(overrides = {}) {
   /** @type {string[]} */
@@ -50,13 +50,11 @@ function harness(overrides = {}) {
   };
 }
 
-/** Live preview: the bearer is the session, so the local clear always wins. */
+/** Preview ao vivo: o bearer é a sessão, então a limpeza local sempre ganha. */
 const preview = (overrides = {}) => harness({ livePreview: true, ...overrides });
 
-/** Deployed: only the server can clear the `__Host-` cookie. */
+/** Publicado: só o servidor apaga o cookie `__Host-`. */
 const deployed = (overrides = {}) => harness({ livePreview: false, ...overrides });
-
-// ── Live preview ─────────────────────────────────────────────────────────────
 
 test("preview: a successful sign-out clears the token, then redirects", async () => {
   const h = preview();
@@ -108,9 +106,8 @@ test("preview: a stored bearer is still invalidated server-side", async () => {
   assert.equal(h.requests, 1);
 });
 
-// ── Deployed ─────────────────────────────────────────────────────────────────
-// JS cannot delete the HttpOnly `__Host-` cookie and `cookieCache` keeps
-// serving the cached session, so an unconfirmed sign-out must NOT look like one.
+// O JS não apaga o cookie HttpOnly `__Host-` e o `cookieCache` continua
+// servindo a sessão em cache, então um logout não confirmado não pode parecer um.
 
 test("deployed: a confirmed sign-out clears the token, then redirects", async () => {
   const h = deployed();
@@ -135,7 +132,7 @@ test("deployed: the timeout is distinguishable from a rejection", async () => {
   await assert.rejects(deployed({ requestSignOut: rejects }).run(), /Sign-out failed/);
 });
 
-// ── Bounded wait (also used by `signIn`'s pre-sign-in session clear) ──────────
+// Espera com teto (também usada pela limpeza de sessão antes do `signIn`).
 
 test("settleWithin reports the outcome and never rejects", async () => {
   assert.equal(await settleWithin(() => Promise.resolve(), TEST_TIMEOUT_MS), "ok");
@@ -157,11 +154,10 @@ test("settleWithin waits its full window, then gives up rather than hanging", as
   assert.equal(outcome, "timeout", "the caller is never left waiting on a wedged request");
 });
 
-// ── Pre-sign-in session clear (`signIn`) ─────────────────────────────────────
-// Same per-environment bound as sign-out, but best effort: it also runs when
-// there is no prior session, so a failure must never block sign-in.
+// Mesmo teto por ambiente do logout, mas melhor esforço: também roda sem
+// sessão anterior, então uma falha nunca pode bloquear o login.
 
-/** A pre-sign-in clear whose request never settles. */
+/** Limpeza pré-login cujo pedido nunca resolve. */
 function preSignIn(livePreview, overrides = {}) {
   let cleared = 0;
   const done = runPreSignInSignOut({
@@ -210,7 +206,7 @@ test("pre-sign-in: a deployed session gets the deployed window, not the preview 
 });
 
 test("pre-sign-in: a failed clear never blocks sign-in", async () => {
-  // Best effort by design: this also runs with no prior session to clear.
+  // Melhor esforço de propósito: também roda sem sessão anterior para limpar.
   await preSignIn(false, { requestSignOut: rejects, timeoutMs: TEST_TIMEOUT_MS }).done;
   await preSignIn(true, { requestSignOut: rejects, timeoutMs: TEST_TIMEOUT_MS }).done;
 });

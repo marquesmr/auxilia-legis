@@ -1,11 +1,6 @@
 import type { LocationRewrite } from "@tanstack/react-router";
 
-/**
- * Path-based preview hosts serve the dev server under `/{port_id}/` and strip
- * that prefix before forwarding, so SSR sees `/` while the browser URL keeps the
- * prefix. TanStack Start resets `basepath` on hydration, so a `rewrite` keeps
- * client routing and generated links aligned with the public URL.
- */
+/** Prévia por caminho: o host serve `/{porta}/` e o SSR vê `/`. O rewrite mantém os links no endereço público. */
 const PATH_BASED_PREVIEW_HOSTS = new Set([
   "preview.grok.genai.mil",
   "preview.grok.mil",

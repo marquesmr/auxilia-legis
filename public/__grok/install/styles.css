@@ -2,10 +2,10 @@
   --bg: #000000;
   --title: #fcfcfc;
   --white: #ffffff;
-  --text-footnote: 0.9375rem; /* 15 — iOS Subhead */
-  --text-body: 1.0625rem; /* 17 — iOS Body */
-  --text-title: 1.25rem; /* 20 — iOS Title 3 */
-  --text-title-tablet: 1.5rem; /* 24 */
+  --text-footnote: 0.9375rem; /* 15 — Subhead do iOS */
+  --text-body: 1.0625rem; /* 17 — Body do iOS */
+  --text-title: 1.25rem; /* 20 — Title 3 do iOS */
+  --text-title-tablet: 1.5rem;
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
@@ -127,7 +127,7 @@ img {
   padding-top: 28px;
 }
 
-/* The desktop fallback is opt-in: hidden unless the device is a desktop. */
+/* Fallback de desktop é opt-in: fica oculto fora de desktop. */
 .content-desktop {
   display: none;
 }
@@ -270,8 +270,7 @@ html.device-tablet .step-ios-legacy {
   display: flex;
 }
 
-/* Desktop (also the no-JS default): swap the tutorial for a visible fallback
-   that links back to the app instead of hiding everything. */
+/* Desktop (e o padrão sem JS): mostra um fallback que volta ao app, em vez de esconder tudo. */
 html.device-desktop .content {
   display: none;
 }

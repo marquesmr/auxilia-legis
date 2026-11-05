@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 /**
- * Owns :8081, the built-output QA preview.
+ * Dono da :8081, o preview de QA do build.
  *
- * `vite preview` is strictPort, so a preview left over from an earlier turn
- * both fails the next start and keeps serving the previous build's output.
- * Every restart therefore kills the current port owner first, whoever started
- * it. Owners come from /proc, so this runs only inside the Linux sandbox.
- *
- *   node scripts/preview.mjs stop|restart
+ * `vite preview` é strictPort, então um preview de um turno anterior falha
+ * o próximo start e continua servindo o build velho. Todo restart mata o
+ * dono atual da porta, quem quer que tenha subido. Os donos vêm de /proc,
+ * então isto só roda no sandbox Linux.
  */
 import { spawn } from "node:child_process";
 import {
@@ -45,15 +43,14 @@ export function parsePreviewArgs(argv) {
 
 export function parsePid(text) {
   const pid = Number.parseInt(String(text ?? "").trim(), 10);
-  // pid 1 is the sandbox init — never the preview, and dangerous to signal.
+  // pid 1 é o init do sandbox — nunca é o preview, e é perigoso sinalizar.
   return Number.isInteger(pid) && pid > 1 ? pid : null;
 }
 
-/** pgid of a process from its /proc/<pid>/stat line. */
 export function parsePgid(stat) {
   const line = String(stat ?? "");
-  // The comm field is parenthesised and may itself contain spaces; state, ppid
-  // and pgrp are the three fields after it.
+  // O campo comm vai entre parênteses e pode ter espaços; state, ppid
+  // e pgrp são os três campos seguintes.
   const end = line.lastIndexOf(") ");
   if (end === -1) return null;
   const pgid = Number.parseInt(line.slice(end + 2).split(/\s+/)[2], 10);
@@ -62,7 +59,7 @@ export function parsePgid(stat) {
 
 const TCP_LISTEN = "0A";
 
-/** Socket inodes of the LISTEN sockets on `port` in a /proc/net/tcp{,6} dump. */
+/** Inodes LISTEN da `port` num dump de /proc/net/tcp{,6}. */
 export function parseListenerInodes(procNetTcp, port) {
   const wanted = `:${port.toString(16).toUpperCase().padStart(4, "0")}`;
   const inodes = [];
@@ -75,25 +72,25 @@ export function parseListenerInodes(procNetTcp, port) {
 }
 
 export function looksLikePreviewProcess(cmdline) {
-  // /proc/<pid>/cmdline is NUL-separated.
+  // /proc/<pid>/cmdline é separado por NUL.
   const argv = String(cmdline ?? "")
     .split("\0")
     .filter(Boolean)
     .join(" ");
-  // The sandbox service runs scripts/preview-thumbnail.mjs in this box, and
-  // this script can be running concurrently: neither is ever a target.
+  // O serviço do sandbox roda scripts/preview-thumbnail.mjs nesta caixa, e
+  // este script pode estar rodando junto: nenhum dos dois é alvo.
   if (/\bpreview[\w-]*\.mjs\b/.test(argv)) return false;
-  // The `npm run preview` wrapper (`npm-cli.js run preview`) and its vite child.
-  // `preview` must be the whole script name: `run preview:stop`/`preview:restart`
-  // are this tooling's own wrappers, and `vite build --outDir preview-dist` is
-  // not a server.
+  // O wrapper `npm run preview` (`npm-cli.js run preview`) e o filho vite.
+  // `preview` tem de ser o nome inteiro do script: `run preview:stop` /
+  // `preview:restart` são os próprios wrappers desta ferramenta, e
+  // `vite build --outDir preview-dist` não é um servidor.
   return /\brun\s+preview(?:\s|$)/.test(argv) || /\bvite\b\s+preview\b/.test(argv);
 }
 
 /**
- * Pids to signal. Port owners are owners by definition; the pidfile pid is only
- * a claim left by an earlier run — pids are re-used across hibernate/revive, so
- * signal it only when its command line still looks like the preview.
+ * Pids a sinalizar. Dono da porta é dono por definição; o pid do pidfile é
+ * só um palpite de uma execução anterior — pids são reusados no
+ * hibernate/revive, então só sinalize se a linha de comando ainda parecer o preview.
  */
 export function previewOwners({ portPids, pidFilePid, cmdlineOf }) {
   const owners = new Set(portPids);
@@ -117,9 +114,8 @@ async function waitForExit(pids, { isAlive, sleep, timeoutMs, pollMs }) {
 }
 
 /**
- * SIGTERM every live pid, then SIGKILL whatever outlives the grace period.
- * Returns `{ signalled, killed, stubborn }` — `stubborn` is still alive after
- * the SIGKILL wait, which means the port is not reliably free.
+ * SIGTERM em todo pid vivo, depois SIGKILL no que passar da folga.
+ * `stubborn` ainda está vivo depois da espera do SIGKILL: a porta não está livre de verdade.
  */
 export async function terminatePids(
   pids,
@@ -134,9 +130,9 @@ export async function terminatePids(
 }
 
 /**
- * What `stop` reports. `after` is the post-kill port check: `unattributed: true`
- * means a listener exists whose pid could not be resolved, so it may not claim
- * the port is free.
+ * O que `stop` reporta. `after` é a checagem da porta depois do kill:
+ * `unattributed: true` significa um listener cujo pid não deu para resolver,
+ * então não pode afirmar que a porta está livre.
  */
 export function stopOutcome({ signalled, stubborn, after }) {
   const held = [...new Set([...stubborn, ...after.pids])];
@@ -176,21 +172,21 @@ function pgidOf(pid) {
 }
 
 function killPid(pid, signal) {
-  // restart() detaches the server into its own process group, so signal the
-  // group to reach `vite` under the `npm` wrapper. Only for a leader: `-pid` on
-  // a pid that leads no group still reaches any unrelated group numbered pid.
+  // restart() solta o servidor no próprio grupo, então sinalize o grupo
+  // para alcançar o `vite` sob o wrapper `npm`. Só se for líder: `-pid` num
+  // pid que não lidera grupo ainda alcança qualquer grupo com esse número.
   if (pgidOf(pid) === pid) {
     try {
       process.kill(-pid, signal);
       return;
     } catch {
-      // The group exited between the pgid read and the signal.
+      // O grupo saiu entre a leitura do pgid e o sinal.
     }
   }
   try {
     process.kill(pid, signal);
   } catch {
-    // Exited between the liveness check and the signal.
+    // Saiu entre a checagem de vida e o sinal.
   }
 }
 
@@ -198,7 +194,7 @@ function cmdlineOf(pid) {
   try {
     return readFileSync(`/proc/${pid}/cmdline`, "utf8");
   } catch {
-    // Usually a dead pid — the stale pidfile this corroboration exists for.
+    // Em geral um pid morto — o pidfile velho que esta checagem existe para pegar.
     return "";
   }
 }
@@ -221,7 +217,7 @@ function pidsForSocketInodes(inodes) {
     try {
       fds = readdirSync(`/proc/${pid}/fd`);
     } catch {
-      // Exited mid-scan, or owned by another user.
+      // Saiu no meio da varredura, ou é de outro usuário.
       continue;
     }
     for (const fd of fds) {
@@ -231,7 +227,7 @@ function pidsForSocketInodes(inodes) {
           break;
         }
       } catch {
-        // fd closed mid-scan.
+        // fd fechou no meio da varredura.
       }
     }
   }
@@ -239,8 +235,8 @@ function pidsForSocketInodes(inodes) {
 }
 
 /**
- * `{ pids, unattributed }` — `unattributed: true` when the port has a listener
- * whose owning pid could not be resolved (an fd dir we may not read).
+ * `{ pids, unattributed }` — `unattributed: true` quando a porta tem um
+ * listener cujo pid não deu para resolver (um dir de fd que não podemos ler).
  */
 function portOwners() {
   const inodes = new Set();
@@ -249,7 +245,7 @@ function portOwners() {
     try {
       dump = readFileSync(file, "utf8");
     } catch {
-      // tcp6 is absent when the box has no IPv6.
+      // tcp6 não existe se a caixa não tem IPv6.
       continue;
     }
     for (const inode of parseListenerInodes(dump, PREVIEW_PORT)) inodes.add(inode);
@@ -268,8 +264,8 @@ async function stop(announce = true) {
 
   const outcome = stopOutcome({ signalled, stubborn, after: portOwners() });
   if (!outcome.ok) {
-    // Keep the pidfile: a survivor the port scan cannot attribute leaves it as
-    // the only record a retry could use.
+    // Guarda o pidfile: um sobrevivente que a varredura da porta não atribui
+    // deixa ele como o único registro que uma nova tentativa pode usar.
     console.error(`[preview] ${outcome.error}`);
     return false;
   }
@@ -282,7 +278,7 @@ async function waitForReady(failure) {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   while (Date.now() < deadline && failure() === null) {
     try {
-      // Any HTTP response means the server is bound; a 404 is still ready.
+      // Qualquer resposta HTTP significa que o servidor subiu; 404 ainda é pronto.
       await fetch(PREVIEW_URL, { signal: AbortSignal.timeout(2000) });
       return true;
     } catch {
@@ -320,8 +316,8 @@ async function restart() {
       `nothing answered on ${PREVIEW_URL} within ${secs}s — check that vite.config.ts ` +
         `still sets preview.port ${PREVIEW_PORT}`;
     console.error(`[preview] ${why} — see ${LOG_FILE}`);
-    // A server that binds a few seconds later would serve a build the agent has
-    // already been told to distrust.
+    // Um servidor que subisse segundos depois serviria um build que o agente
+    // já foi mandado desconfiar.
     await stop(false);
     return 1;
   }

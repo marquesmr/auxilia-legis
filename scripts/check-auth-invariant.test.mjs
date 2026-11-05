@@ -15,9 +15,8 @@ import {
 import { projectRoot } from "./with-app-env.mjs";
 
 /**
- * The JSON body `/__app-env` would serve. Do not start a real Vite server —
- * `import { createServer } from "vite"` loads rolldown native bindings that
- * SIGSEGV the test worker under qemu-user (amd64 image builds).
+ * O JSON que `/__app-env` serviria. Não suba um Vite de verdade:
+ * `createServer` carrega o rolldown nativo e dá SIGSEGV no worker sob qemu-user.
  */
 function appEnvFetch(env) {
   return async () => ({
@@ -96,8 +95,8 @@ test("the build side resolves the template's shipped app-env", () => {
 });
 
 test("the CLI reports rather than silently passing when run via a symlink", async () => {
-  // A check whose exit code is the whole signal must never no-op to 0 because
-  // process.argv[1] came in through a symlinked path.
+  // O exit code é o sinal inteiro: nunca pode virar no-op 0 só porque
+  // process.argv[1] chegou por link simbólico.
   const link = join(mkdtempSync(join(tmpdir(), "auth-invariant-link-")), "scripts");
   symlinkSync(join(projectRoot(), "scripts"), link);
   const error = await promisify(execFile)(process.execPath, [

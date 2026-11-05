@@ -1,22 +1,18 @@
 import { useMemo } from "react";
 import { authClient, authEnabled } from "./client";
 
-/** Normalized user shape used across the app, auth on or off. */
 export type AppUser = {
   id: string;
   displayName: string | null;
   primaryEmail: string | null;
   profileImageUrl: string | null;
-  /** True when this is the sandbox/dev fallback (auth not configured). */
+  /** Fallback de dev/sandbox (auth desligado). */
   isDevFallback: boolean;
 };
 
 /**
- * Stable fallback user, used ONLY when auth is disabled
- * (`VITE_AUTH_ENABLED=false`, the shipped default). With auth on, the sandbox
- * live preview does real sign-in via the baked preview client. Its id is
- * `"dev-user"` — the SAME id `verify.server.ts` returns server-side — so per-user
- * rows written in that mode belong to one consistent owner.
+ * Só com auth desligado (`VITE_AUTH_ENABLED=false`). Com auth ligado, o preview faz login real.
+ * O id `"dev-user"` é o mesmo de `verify.server.ts`, para as linhas terem um dono só.
  */
 export const DEV_USER: AppUser = {
   id: "dev-user",
@@ -26,40 +22,26 @@ export const DEV_USER: AppUser = {
   isDevFallback: true,
 };
 
-/** `useCurrentUserState()` result: the user plus the session-loading flag. */
 export type CurrentUserState = {
-  /** The user — `null` BOTH while the session loads and when signed out. */
+  /** `null` enquanto carrega E quando deslogado. */
   user: AppUser | null;
-  /** True while the session is still resolving — don't treat `user: null` as signed out yet. */
+  /** Sessão ainda resolvendo — não trate `user: null` como deslogado. */
   isPending: boolean;
 };
 
 const DEV_STATE: CurrentUserState = { user: DEV_USER, isPending: false };
 
 /**
- * Current user + loading state. Same behavior in live preview and when deployed:
- *   - Auth enabled -> the real signed-in user; `user` is `null` while
- *                            the session resolves (`isPending: true`) and when
- *                            signed out (`isPending: false`). Session comes from
- *                            Better Auth `useSession()` → `/api/auth/get-session`
- *                            (cookie when deployed; bearer in live preview).
- *   - Auth disabled (`VITE_AUTH_ENABLED=false`) -> `DEV_USER`, never pending.
- *
- * Protect a route by waiting out `isPending` before acting on `user` —
- * redirecting on `user: null` alone bounces signed-in visitors to sign-in on
- * every hard reload:
- *
- *   import { RedirectToSignIn } from "@/lib/auth/gates";
- *   const { user, isPending } = useCurrentUserState();
- *   if (isPending) return null;              // still resolving — don't redirect yet
- *   if (!user) return <RedirectToSignIn />;  // definitely signed out
- *
- * `authEnabled` is a module-level constant fixed at load, so the guarded hook
- * call keeps a stable hook order across every render of a given component.
+ * Usuário + loading, igual no preview e no deploy.
+ * Auth ligado: usuário real; `user` é `null` carregando (`isPending`) ou deslogado.
+ * Sessão via `useSession()` (cookie no deploy, bearer no preview).
+ * Auth desligado: `DEV_USER`, nunca pending.
+ * Espere `isPending` antes de redirecionar: `user: null` sozinho manda o logado ao login no reload.
+ * `authEnabled` é constante no load, então o hook condicional não quebra a ordem.
  */
 export function useCurrentUserState(): CurrentUserState {
   if (!authEnabled) return DEV_STATE;
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- authEnabled is constant for the app's lifetime
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- authEnabled é constante enquanto o app vive
   return useSessionUserState();
 }
 
@@ -77,11 +59,7 @@ function useSessionUserState(): CurrentUserState {
   return useMemo(() => ({ user, isPending }), [user, isPending]);
 }
 
-/**
- * Convenience view of `useCurrentUserState().user` for display (e.g.
- * `user?.displayName ?? "Guest"`). NOTE: `null` means *loading OR signed out* —
- * for redirects/guards use `useCurrentUserState()` and check `isPending`.
- */
+/** Atalho de `.user` para exibir. `null` é carregando OU deslogado — em guardas use `useCurrentUserState()` e `isPending`. */
 export function useCurrentUser(): AppUser | null {
   return useCurrentUserState().user;
 }

@@ -105,8 +105,8 @@ try {
       if (msg.type() === "error") errors.consoleErrors.push(msg.text());
     });
     page.on("pageerror", (err) => errors.pageErrors.push(String(err?.message || err)));
-    // `domcontentloaded`, not `networkidle`: Vite keeps an HMR websocket open, so
-    // networkidle never settles and would burn the whole timeout.
+    // `domcontentloaded`, não `networkidle`: o websocket de HMR do Vite nunca
+    // sossega e queimaria o timeout inteiro.
     const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
     const status = resp?.status() ?? 0;
     await page.waitForTimeout(1000);
@@ -141,8 +141,8 @@ try {
   }
 
   const brandWarnings = computeBrandWarnings({ hasCanvas: viewports.desktop.hasCanvas });
-  // Only a dev server answers /__app-env, so smoking the built output reads as
-  // indeterminate — report a divergence, never the absence of an observation.
+  // Só o dev responde /__app-env; o build fica indeterminado — avise divergência,
+  // nunca a ausência de observação.
   const authWarnings = authInvariantWarnings(
     compareAuthInvariant({
       devAuthEnabled: await probeDevAuthEnabled(url),
@@ -159,9 +159,8 @@ try {
   writeFileSync(outJson, JSON.stringify(verdict, null, 2));
   console.log(JSON.stringify(verdict, null, 2));
   for (const w of [...brandWarnings, ...authWarnings]) console.error(w);
-  // Set the code rather than aborting the process so the `finally` browser
-  // teardown always runs (agents typically smoke twice per turn; leaking
-  // Chromium accumulates across retries).
+  // Marca o código em vez de abortar, para o `finally` fechar o Chromium
+  // (o smoke roda duas vezes por turno; vazar o browser acumula).
   process.exitCode = exitCodeFor(viewports);
 } catch (err) {
   const failure = { ok: false, url, error: String(err?.message || err) };

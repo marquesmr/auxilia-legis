@@ -1,8 +1,7 @@
 /**
- * Dev/preview (Vite) half of the platform PWA chrome: serves the ?install=1
- * tutorial and the per-app manifest, and injects missing PWA head tags into
- * app documents. The deployed-app half lives in server/middleware/grok-pwa.ts;
- * both share scripts/grok-pwa-shared.mjs.
+ * Metade Vite (dev/preview) do chrome PWA: serve `?install=1`, o manifest
+ * do app e injeta tags de head que faltam. A metade publicada está em
+ * server/middleware/grok-pwa.ts; as duas compartilham grok-pwa-shared.mjs.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -78,11 +77,10 @@ function serveGrokPwa(middlewares) {
 }
 
 /**
- * Wrap res.write/res.end on app-document requests to inject missing PWA head
- * tags at the `</head>` boundary as chunks stream through (no full-document
- * buffering, so streaming SSR keeps its early flush). Skips anything already
- * content-encoded: under `vite preview` the compression middleware can hand
- * this wrapper gzipped bytes, which must pass through untouched.
+ * Envolve write/end nas respostas de documento para injetar tags PWA em
+ * `</head>` enquanto os chunks passam (sem buffer do documento inteiro).
+ * Pula o que já veio com content-encoding: no `vite preview` a compressão
+ * pode entregar gzip, que tem de passar intocado.
  */
 function wrapHtmlResponses(middlewares, cwd) {
   middlewares.use((req, res, next) => {
@@ -106,15 +104,15 @@ function wrapHtmlResponses(middlewares, cwd) {
       host,
       cwd,
     });
-    let mode = null; // null = undecided, "inject" | "passthrough"
+    let mode = null; // null = indeciso; "inject" ou "passthrough"
 
     const decideMode = () => {
       if (mode) return mode;
       const isHtml = String(res.getHeader("content-type") ?? "").includes("text/html");
       const encoded = Boolean(res.getHeader("content-encoding"));
       mode = isHtml && !encoded ? "inject" : "passthrough";
-      // Streaming SSR flushes headers before the first body chunk, so the
-      // header may no longer be removable — chunked responses don't carry one.
+      // O SSR em stream manda os headers antes do primeiro chunk, então o
+      // header pode já não ser removível — resposta chunked não traz um.
       if (mode === "inject" && !res.headersSent) res.removeHeader("content-length");
       return mode;
     };
@@ -172,16 +170,16 @@ export function grokPwaPlugin() {
       });
     },
     configureServer(server) {
-      // Registered directly (not in a returned post-hook) so both run BEFORE
-      // TanStack Start's SSR middleware, like the auth-popup plugin.
+      // Registro direto (não num post-hook devolvido) para os dois rodarem
+      // ANTES do middleware SSR do TanStack Start, como o plugin de auth-popup.
       serveGrokPwa(server.middlewares);
       wrapHtmlResponses(server.middlewares, root);
     },
     configurePreviewServer(server) {
       serveGrokPwa(server.middlewares);
-      // Post-hook: preview registers compression between the direct hooks and
-      // the post-hooks, and the injector must wrap AFTER compression so it
-      // sees plaintext HTML (compression then compresses the injected output).
+      // Post-hook: o preview registra a compressão entre os hooks diretos e
+      // os post-hooks; o injetor precisa envolver DEPOIS da compressão para
+      // ver HTML puro (a compressão então comprime a saída injetada).
       return () => {
         wrapHtmlResponses(server.middlewares, root);
       };

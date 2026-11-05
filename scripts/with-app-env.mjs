@@ -1,23 +1,18 @@
 #!/usr/bin/env node
 /**
- * Run a command with `.grok/app-env.json` merged into its environment.
+ * Roda um comando com `.grok/app-env.json` no ambiente.
  *
- * `dev`, `build` and `preview` all route through this wrapper, so the dev
- * server, the built bundle and the preview server can never disagree about
- * `VITE_AUTH_ENABLED` — a divergence that only shows up as a built-output
- * mismatch long after the fact. Anything that starts Vite directly bypasses it.
+ * `dev`, `build` e `preview` passam por aqui, então não discordam de
+ * `VITE_AUTH_ENABLED`. Quem sobe o Vite direto fura o wrapper.
  *
- * Only `VITE_`-prefixed keys are honored: the file is a build flag carrier, not
- * a secret store, and only `VITE_` vars reach the browser anyway. A real
- * `process.env` entry always wins, so an explicit override still works.
+ * Só entra chave `VITE_`: o arquivo é flag de build, não cofre, e só `VITE_`
+ * chega no browser. Um `process.env` real sempre ganha.
  *
- * That precedence also means the file governs this workspace only. A deployed
- * build runs with the provider's project env, where the deployer sets
- * `VITE_AUTH_ENABLED` itself (today unconditionally `"true"`), so the deployed
- * flag is the platform's, not this file's.
+ * Por essa precedência o arquivo vale só neste workspace. O build publicado
+ * usa o env do provedor, que define `VITE_AUTH_ENABLED` (hoje sempre `"true"`).
  *
- * Vite picks the values up because `loadEnv` prefix-matches entries already in
- * `process.env`, which is why the merge has to happen before Vite starts.
+ * O Vite lê porque `loadEnv` casa o que já está em `process.env` — o merge
+ * tem de acontecer antes do Vite subir.
  */
 import { spawn } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
@@ -30,9 +25,8 @@ export const APP_ENV_REL_PATH = ".grok/app-env.json";
 const VITE_PREFIX = "VITE_";
 
 /**
- * Parse an app-env document, keeping only `VITE_`-prefixed string entries.
- * Anything unparseable is an empty environment — a workspace without the file
- * must behave exactly like today (auth on, no overrides).
+ * Só entradas string com prefixo `VITE_`. O que não parseia vira ambiente
+ * vazio — workspace sem o arquivo tem de se comportar como hoje (auth ligado).
  */
 export function parseAppEnv(text) {
   let parsed;
@@ -51,7 +45,7 @@ export function parseAppEnv(text) {
   return env;
 }
 
-/** The app env recorded under `root`, or `{}` when the file is absent. */
+/** Env gravado em `root`, ou `{}` se o arquivo não existe. */
 export function readAppEnv(root) {
   try {
     return parseAppEnv(readFileSync(join(root, APP_ENV_REL_PATH), "utf8"));
@@ -60,19 +54,18 @@ export function readAppEnv(root) {
   }
 }
 
-/** File values under the process environment: an explicit override wins. */
+/** Valores do arquivo ficam sob o ambiente: um override explícito ganha. */
 export function mergeAppEnv(appEnv, processEnv) {
   return { ...appEnv, ...processEnv };
 }
 
 /**
- * Translate a child's `exit` `(code, signal)` into this process's exit status.
+ * Traduz o `(code, signal)` do filho no status deste processo.
  *
- * Do not re-raise the signal with `process.kill(process.pid, signal)`: under
- * qemu-user (amd64 image builds on an arm host) a self-directed signal is
- * routinely delivered as SIGSEGV to the wrong process, which takes down the
- * test worker and fails the image build. `128 + signo` is what a shell reports
- * for a signal-killed command, so a cancelled `vite build` is still a failure.
+ * Não reenvie o sinal com `process.kill(process.pid, signal)`: sob qemu-user
+ * (build amd64 num host arm) o sinal para si mesmo chega como SIGSEGV no
+ * processo errado e derruba o worker. `128 + signo` é o que o shell reporta,
+ * então um `vite build` cancelado continua sendo falha.
  */
 export function exitStatusFromChild(code, signal) {
   if (signal) {
@@ -82,17 +75,17 @@ export function exitStatusFromChild(code, signal) {
   return code ?? 1;
 }
 
-/** The workspace root (this file lives in `<root>/scripts/`). */
+/** Raiz do workspace (este arquivo fica em `<root>/scripts/`). */
 export function projectRoot() {
   return dirname(dirname(fileURLToPath(import.meta.url)));
 }
 
 /**
- * Whether `moduleUrl` is the script node was asked to run.
+ * Se `moduleUrl` é o script que o node foi pedido para rodar.
  *
- * Both sides are resolved through symlinks: node realpaths `import.meta.url`
- * but leaves `process.argv[1]` as typed, so comparing them raw makes a CLI
- * launched through a symlinked path (`/tmp` on macOS) a silent no-op.
+ * Os dois lados passam por symlink: o node faz realpath de `import.meta.url`
+ * e deixa `process.argv[1]` como foi digitado. Comparar cru torna um CLI
+ * via symlink (`/tmp` no macOS) um no-op silencioso.
  */
 export function isMainModule(moduleUrl) {
   const entry = process.argv[1];
@@ -112,7 +105,7 @@ function main(argv) {
   }
   const env = mergeAppEnv(readAppEnv(projectRoot()), process.env);
   const child = spawn(command, args, { stdio: "inherit", env });
-  // The dev server is long-running and is stopped by signalling this wrapper.
+  // O dev server é longo e para quando sinalizam este wrapper.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     process.on(signal, () => child.kill(signal));
   }

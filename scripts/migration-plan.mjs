@@ -1,19 +1,15 @@
 // @ts-check
 /**
- * Migration bookkeeping shared by the two appliers — `scripts/migrate.mjs`
- * (deploy, `readdir`) and `src/lib/db.ts` (PGLite preview, `import.meta.glob`).
+ * Livro-caixa das duas aplicações: `scripts/migrate.mjs` (deploy) e
+ * `src/lib/db.ts` (preview PGLite).
  *
- * Applied files are keyed by BASENAME, so the same file applies once no matter
- * which directory it is globbed from. That is what makes the auth schema safe to
- * copy from `migrations/auth/` into `migrations/` when an app turns sign-in on:
- * a database that already has `0001_auth.sql` will not re-run it.
- *
- * Neither applier descends into subdirectories, so `migrations/auth/*.sql` is
- * out of scope for both until it is copied up.
+ * A chave é o BASENAME: o mesmo arquivo aplica uma vez, de qualquer pasta.
+ * Por isso copiar `migrations/auth/` para `migrations/` não reexecuta
+ * `0001_auth.sql`. Nenhum dos dois desce em subpastas, então
+ * `migrations/auth/*.sql` fica de fora até ser copiado para cima.
  */
 
 /**
- * The `_migrations` key for a migration path (or bare filename).
  * @param {string} path
  * @returns {string}
  */
@@ -30,8 +26,8 @@ export function isMigrationFile(path) {
 }
 
 /**
- * Migrations in `paths` that are not yet in `applied`, in apply order.
- * Non-`.sql` entries (a `readdir` also yields `migrations/auth/`) are dropped.
+ * O que ainda não está em `applied`, em ordem. Descarta o que não é `.sql`
+ * (`readdir` também devolve `migrations/auth/`).
  * @param {Iterable<string>} paths
  * @param {Iterable<string>} applied
  * @returns {Array<{ name: string, path: string }>}

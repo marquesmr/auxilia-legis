@@ -1,7 +1,4 @@
-/**
- * Kysely dialect for Better Auth over the app's embedded PGLite instance.
- * Lazy: resolves `getClient` on first connection so migrations can finish first.
- */
+/** Dialeto Kysely do Better Auth sobre o PGLite. Lazy: `getClient` só na 1ª conexão, depois das migrations. */
 import type { PGlite } from "@electric-sql/pglite";
 import {
   CompiledQuery,
@@ -21,7 +18,6 @@ import { concluirTransacaoPglite, consultarPglite, iniciarTransacaoPglite } from
 
 type Client = PGlite;
 
-/** Factory used by `auth/server.ts`: `pgliteDialect(() => getPglite())`. */
 export function pgliteDialect(
   getClient: () => Promise<Client> | Client,
 ): Dialect {
@@ -115,9 +111,7 @@ class LazyPGliteDriver implements Driver {
   }
 
   async destroy(): Promise<void> {
-    // Do not close the client: it is the shared getPglite() singleton used by
-    // app SQL (getSql). Only drop our local handle so auth teardown cannot
-    // poison the rest of the process.
+    // Não feche o client: é o singleton de getPglite()/getSql. Só solta o handle local.
     this.client = undefined;
     this.connection = undefined;
     this.queue = [];

@@ -6,18 +6,10 @@ import { soltarTemaDaConta } from "@/lib/preferencias";
 import { liberarProximoAcesso } from "@/lib/lembrar-acesso";
 
 /**
- * Better Auth client for this React SPA (browser-side).
- *
- * Talks to this app's OWN Better Auth at same-origin `/api/auth/*`. In the live
- * preview the app is an embedded iframe with PARTITIONED cookies, so after a
- * popup sign-in it can't read the session cookie — it authenticates with a
- * bearer token instead (captured from the popup, see `signIn`). The `onRequest`
- * hook attaches that token when present; when deployed (cookie auth) no token
- * is stored, so nothing changes.
- *
- * To sign out call `signOut()` below, NOT `authClient.signOut()`: the raw call
- * leaves the bearer token in place, and `onRequest` keeps re-attaching it, so
- * the visitor stays signed in.
+ * Cliente Better Auth no browser, same-origin em `/api/auth/*`.
+ * No preview o iframe tem cookies particionados: o bearer do popup autentica
+ * (`onRequest` anexa). No deploy não há token.
+ * Saia só por `signOut()`: `authClient.signOut()` deixa o bearer e a sessão volta.
  */
 export const authClient = createAuthClient({
   plugins: [genericOAuthClient()],
@@ -30,26 +22,15 @@ export const authClient = createAuthClient({
   },
 });
 
-/**
- * True when sign-in UI should be shown — i.e. whenever `VITE_AUTH_ENABLED` is
- * not `"false"`. The shipped template sets it to `"false"`
- * (`.grok/app-env.json`), which selects the dev user (see `use-current-user`);
- * with the key removed, sign-in is real in preview (baked preview client) and
- * when deployed (injected per-app client).
- */
+/** Login na UI quando `VITE_AUTH_ENABLED` não é `"false"`. O padrão é `"false"` (usuário de dev). Sem a chave, o login é real no preview e no deploy. */
 export const authEnabled = import.meta.env.VITE_AUTH_ENABLED !== "false";
 
-/** The upstream providers to render sign-in buttons for. */
 export { GROK_PROVIDERS };
 
-// ── Live-preview bearer token ────────────────────────────────────────────────
-// The embedded preview iframe has partitioned cookies, so we keep the session's
-// bearer token in sessionStorage and attach it to every Better Auth request (and
-// to server functions, via `@/lib/auth/middleware`). Empty everywhere except the
-// preview after a popup sign-in, so the cookie path is untouched elsewhere.
+// Preview: iframe com cookies particionados. O bearer fica no sessionStorage
+// e vai em cada request (e nas server functions). Vazio fora do popup.
 const BEARER_KEY = "grok-auth.bearer-token";
 
-/** The stored preview bearer token, or null. */
 export function getBearerToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -65,15 +46,11 @@ function setBearerToken(token: string | null): void {
     if (token) window.sessionStorage.setItem(BEARER_KEY, token);
     else window.sessionStorage.removeItem(BEARER_KEY);
   } catch {
-    /* storage unavailable — ignore */
+    /* sem storage — ignora */
   }
 }
 
-/**
- * The sandbox live preview runs this app inside an iframe on a `*.grok-sandbox.com`
- * host, where a full-page redirect to the broker can't work — so sign-in uses a
- * popup there and a normal redirect everywhere else.
- */
+/** No preview (`*.grok-sandbox.com`) o redirect ao broker não cabe no iframe: login por popup. */
 function inLivePreview(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -81,22 +58,11 @@ function inLivePreview(): boolean {
   );
 }
 
-/** Message the popup posts back to the opener once sign-in completes. */
 type PopupMessage = { source: "grok-auth-popup"; token: string | null; error?: string };
 
 /**
- * Start sign-in with one upstream provider (`providerId` from `GROK_PROVIDERS`),
- * federating through the Grok auth broker.
- *
- * - **Live preview** (`*.grok-sandbox.com` iframe): opens a POPUP to
- *   `/auth/popup`, served by the template Vite plugin (see `vite.config.ts` +
- *   `popup.server.ts`) — 302s to the broker/upstream login (no app chrome) and,
- *   on return, posts the session bearer token back. We store it and refresh the
- *   session; no top-level navigation of the iframe to the broker.
- * - **Deployed** (and local non-iframe): a normal full-page redirect into the broker.
- *
- * Either way it clears any existing local session FIRST so switching providers
- * actually switches identity.
+ * Login via broker. Preview: popup em `/auth/popup` que devolve o bearer, sem navegar o iframe.
+ * Deploy: redirect de página. Limpa a sessão local antes — senão trocar de provedor não troca a identidade.
  */
 export async function signIn(
   providerId: string,
@@ -105,9 +71,7 @@ export async function signIn(
   const callbackURL = opts.callbackURL ?? "/";
   const errorCallbackURL = opts.errorCallbackURL ?? "/";
 
-  // Open the popup SYNCHRONOUSLY on the user gesture — before any await
-  // (including signOut). Awaiting first drops user-gesture privilege in some
-  // browsers when the opener is a cross-origin live-preview iframe.
+  // Abre o popup no clique, antes de qualquer await: o iframe cross-origin perde o gesto.
   const popup = inLivePreview() ? openSignInPopup(providerId) : null;
 
   // Na tela de login o Google e o X não têm sessão para encerrar. Esperar o
@@ -128,13 +92,11 @@ export async function signIn(
     const token = await waitForPopupToken(popup);
     if (!token) throw new Error("Sign-in was cancelled or failed");
     setBearerToken(token);
-    // Refresh the client session store with the bearer attached (onRequest).
-    // Avoid a full iframe reload when we're already on the destination — that
-    // reload was the slow "still loading after the popup closed" feeling.
+    // Atualiza a sessão com o bearer. Não recarrega o iframe se já estamos no destino.
     try {
       await authClient.getSession();
     } catch {
-      /* session store will recover on next useSession fetch */
+      /* a sessão volta no próximo useSession */
     }
     if (typeof window !== "undefined") {
       const dest = new URL(callbackURL, window.location.origin);
@@ -178,26 +140,17 @@ export async function signIn(
 }
 
 /**
- * Open `/auth/popup` in a new window. Must run synchronously inside the click
- * handler (no await before this). The path is served by the template Vite
- * plugin (`authPopupPlugin` in vite.config.ts) — NOT by a React route.
- *
- * Opens the real URL directly (not about:blank → assign). From a cross-origin
- * iframe the about:blank dance often fails on the first click and the window
- * ends up showing the app shell.
+ * Abre `/auth/popup` no clique (plugin Vite, não rota React).
+ * URL real, não about:blank: no iframe cross-origin isso falha e mostra o app.
  */
 function openSignInPopup(providerId: string): Window | null {
   const origin = window.location.origin;
   const url = `${origin}/auth/popup?providerId=${encodeURIComponent(providerId)}`;
-  // Unique name per attempt so a prior attempt stuck on the SPA is not reused.
+  // Nome único: senão reusa janela presa na SPA.
   const name = `grok-signin-${Date.now()}`;
   return window.open(url, name, "popup,width=500,height=650");
 }
 
-/**
- * Wait for the popup's completion page to postMessage the session bearer (or
- * for the user to dismiss the popup).
- */
 function waitForPopupToken(popup: Window): Promise<string | null> {
   return new Promise((resolve) => {
     const origin = window.location.origin;
@@ -215,8 +168,7 @@ function waitForPopupToken(popup: Window): Promise<string | null> {
       if (!data || data.source !== "grok-auth-popup") return;
       settle(data.token ?? null);
     };
-    // Fallback when the user dismisses the popup. Grace period lets the
-    // completion page's postMessage win over a racing `popup.closed`.
+    // Se fechar o popup, espera o postMessage ganhar da corrida com `popup.closed`.
     const pollTimer = window.setInterval(() => {
       if (!popup.closed) return;
       window.clearInterval(pollTimer);
@@ -232,23 +184,15 @@ function waitForPopupToken(popup: Window): Promise<string | null> {
 }
 
 /**
- * Sign out of THIS app's local session, clear the preview token, then redirect.
- *
- * Use this, never `authClient.signOut()` — see the note on `authClient`.
- * Sequencing lives in `scripts/sign-out-plan.mjs` so it can be unit-tested.
- *
- * **Rejects when deployed if the server never confirms.** There the session is
- * an HttpOnly cookie only the server can clear, so redirecting anyway would
- * report a sign-out that did not happen. `<UserButton />` handles that for you;
- * a hand-rolled control must catch it and let the visitor retry. In the live
- * preview the local clear is sufficient, so it always resolves.
+ * Encerra a sessão local, limpa o bearer do preview e redireciona. Não use `authClient.signOut()`.
+ * No deploy, rejeita se o servidor não confirmar: só ele apaga o cookie HttpOnly.
+ * No preview, limpar o local basta.
  */
 export async function signOut(redirectTo = "/"): Promise<void> {
   await runSignOut({
     livePreview: inLivePreview(),
     hasBearer: Boolean(getBearerToken()),
-    // Better Auth resolves with `{ error }` instead of rejecting, so surface a
-    // failed response as a rejection for the sequence to act on.
+    // Better Auth devolve `{ error }` em vez de rejeitar; aqui vira throw.
     requestSignOut: async () => {
       const { error } = await authClient.signOut();
       if (error) throw new Error(error.message ?? "Sign-out failed");

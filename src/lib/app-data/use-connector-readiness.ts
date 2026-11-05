@@ -35,18 +35,7 @@ async function isConnectorReady(): Promise<boolean> {
   return result?.ready === true;
 }
 
-/**
- * While `waiting` is true (a connector call returned `pending`), probes the
- * server for the connector token and calls `refetch` once it is present. The
- * probe is a header check on the app's own server — it never reaches the gate.
- * A `connector-token-ready` bridge event from the Grok preview chrome triggers
- * `refetch` immediately. A top-level page (download/export, local dev, the
- * sandbox's own `npm run preview`) is not framed by any preview, so no token
- * can ever arrive: the hook reports `not_embedded` without probing. Any framed
- * page probes, even when the parent origin cannot be resolved (empty referrer,
- * no `ancestorOrigins`): the token comes through the preview proxy, and the
- * bridge event is only the faster signal.
- */
+/** Enquanto espera o conector, sonda o token no próprio servidor e refaz a consulta quando ele chega. Página solta não tem prévia, então não sonda. */
 export function useRefetchWhenConnectorReady(
   waiting: boolean,
   refetch: () => unknown,
@@ -77,8 +66,7 @@ export function useRefetchWhenConnectorReady(
       try {
         await refetchRef.current();
       } catch {
-        // The query owns its own error state; a failed refetch must not stop
-        // the probe loop.
+        /* a consulta já guarda o erro; a sonda continua */
       } finally {
         refetching = false;
       }
@@ -97,8 +85,7 @@ export function useRefetchWhenConnectorReady(
     const onTokenReady = () => {
       void runRefetch();
     };
-    // Time-based terminal state: a probe that never settles or a refetch that
-    // throws cannot leave the UI on "waiting" forever.
+    // Se a sonda não termina, a espera não pode ficar para sempre.
     const deadline = setTimeout(() => {
       if (!cancelled) setTimedOut(true);
     }, READINESS_PROBE_MAX_TOTAL_MS);

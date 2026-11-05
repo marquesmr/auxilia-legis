@@ -1,42 +1,31 @@
 // @ts-check
 /**
- * The sign-out sequence used by `src/lib/auth/client.ts`, kept here as a pure
- * module so its effects can be unit-tested (`node --test` only covers
- * `scripts/`), the same split `migration-plan.mjs` uses for the two appliers.
+ * Sequência de logout de `src/lib/auth/client.ts`, pura para o `node --test`
+ * (só cobre `scripts/`).
  *
- * The two environments authenticate differently, so they need different
- * answers to "the server did not reply":
- *
- * - **Live preview** — a partitioned iframe with no readable session cookie;
- *   the session rides the bearer token in `sessionStorage`. Dropping that token
- *   IS being signed out, so the server call is best effort and a wedged request
- *   must never strand the button. This is where the hang actually happens.
- * - **Deployed** — the session rides an HttpOnly `__Host-` cookie that JS
- *   cannot delete. ONLY a completed sign-out response clears it, and
- *   `server.ts` enables `session.cookieCache` (maxAge 300), so `/get-session`
- *   would keep answering from the cached cookie for minutes afterwards.
- *   Redirecting on a timeout would show the visitor "signed out" while their
- *   session is still live — so here we fail loudly instead of pretending.
+ * Preview e publicado respondem diferente se o servidor não responde:
+ * - Preview: iframe particionado, sessão no bearer do sessionStorage. Apagar
+ *   o token É sair; a chamada é melhor esforço e não pode travar o botão.
+ * - Publicado: cookie HttpOnly `__Host-` que o JS não apaga. Só a resposta
+ *   concluída limpa, e `cookieCache` (maxAge 300) faria `/get-session`
+ *   mentir por minutos. Timeout aqui falha alto, não finge logout.
  */
 
 /**
- * Live preview: aggressive, because the local clear is what signs the user out.
- * The same-origin POST normally answers in tens of ms; lower would start
- * abandoning slow-but-working sign-outs for no gain.
+ * Preview: curto de propósito. O POST same-origin responde em dezenas de ms;
+ * menos que isso largaria logout lento que ainda daria certo.
  */
 export const PREVIEW_SIGN_OUT_TIMEOUT_MS = 1500;
 
 /**
- * Deployed: generous, because only the server can end this session — but still
- * bounded, so a wedged request reports failure the visitor can retry instead of
- * spinning forever. A sign-out still unanswered at 10s is not going to land.
+ * Publicado: só o servidor encerra a sessão, mas ainda com teto — pedido
+ * preso avisa falha em vez de girar para sempre. Sem resposta em 10s, não chega.
  */
 export const DEPLOYED_SIGN_OUT_TIMEOUT_MS = 10_000;
 
 /**
- * How long to wait for a sign-out in this environment. Every sign-out network
- * call picks its bound here, so the preview/deployed split cannot drift apart
- * between callers.
+ * Quanto esperar neste ambiente. Toda chamada de logout pega o teto aqui,
+ * para o corte preview/publicado não divergir entre quem chama.
  * @param {boolean} livePreview
  * @returns {number}
  */
@@ -45,9 +34,9 @@ export function signOutTimeoutMs(livePreview) {
 }
 
 /**
- * Run `start()` but give up after `timeoutMs`, reporting which happened. Never
- * rejects — callers decide what a failure means, and a `try/catch` around an
- * `await` does nothing for a promise that never settles.
+ * Roda `start()` e desiste depois de `timeoutMs`. Nunca rejeita — quem chama
+ * decide o que a falha significa, e um `try/catch` num `await` não pega
+ * promessa que nunca resolve.
  * @param {() => unknown} start
  * @param {number} timeoutMs
  * @returns {Promise<"ok" | "failed" | "timeout">}
@@ -73,21 +62,20 @@ export function settleWithin(start, timeoutMs) {
 
 /**
  * @typedef {object} SignOutSteps
- * @property {boolean} livePreview Whether the app is the sandbox preview iframe.
- * @property {boolean} hasBearer Whether a preview bearer token is stored.
- * @property {() => unknown} requestSignOut Ask the server to end the session; must reject on a failed response.
- * @property {() => void} clearToken Drop the stored bearer token.
- * @property {() => void} redirect Leave the page.
+ * @property {boolean} livePreview
+ * @property {boolean} hasBearer
+ * @property {() => unknown} requestSignOut Precisa rejeitar se a resposta falhar.
+ * @property {() => void} clearToken
+ * @property {() => void} redirect
  * @property {number} [timeoutMs]
  */
 
 /**
- * End the session, then clear the local token and redirect.
+ * Encerra a sessão, limpa o token local e redireciona.
  *
- * In the live preview those last two always run. When deployed they run only if
- * the server confirmed, because nothing else can clear the cookie — a failed or
- * timed-out sign-out throws rather than reporting a sign-out that did not
- * happen.
+ * No preview ao vivo os dois últimos sempre rodam. Publicado, só se o
+ * servidor confirmou — mais nada apaga o cookie. Falha ou timeout lança,
+ * em vez de reportar um logout que não aconteceu.
  * @param {SignOutSteps} steps
  * @returns {Promise<void>}
  */
@@ -100,8 +88,8 @@ export async function runSignOut({
   timeoutMs,
 }) {
   if (livePreview) {
-    // No bearer means a partitioned iframe with nothing to invalidate; with one,
-    // still invalidate it server-side, just don't block on the answer.
+    // Sem bearer é um iframe particionado, sem o que invalidar; com um,
+    // invalida no servidor, mas não espera a resposta.
     if (hasBearer) {
       await settleWithin(requestSignOut, timeoutMs ?? signOutTimeoutMs(livePreview));
     }
@@ -124,24 +112,22 @@ export async function runSignOut({
 
 /**
  * @typedef {object} PreSignInSteps
- * @property {boolean} livePreview Whether the app is the sandbox preview iframe.
- * @property {boolean} hasBearer Whether a preview bearer token is stored.
- * @property {() => unknown} requestSignOut Ask the server to end any prior session.
- * @property {() => void} clearToken Drop the stored bearer token.
+ * @property {boolean} livePreview
+ * @property {boolean} hasBearer
+ * @property {() => unknown} requestSignOut
+ * @property {() => void} clearToken
  * @property {number} [timeoutMs]
  */
 
 /**
- * Drop any prior session before a new sign-in starts, so switching providers
- * actually switches identity.
+ * Derruba a sessão anterior antes de um login novo, para trocar de provedor
+ * trocar a identidade.
  *
- * Deliberately BEST EFFORT — unlike `runSignOut` this never throws. It also
- * runs when there is no prior session at all, so treating a failure as fatal
- * would block first-time sign-in on a transport hiccup, for a visitor with no
- * session to protect. The subsequent OAuth flow issues a fresh session either
- * way. Only the wait is bounded, and by the same per-environment rule as
- * `runSignOut`: a deployed session dies server-side, so it gets the full
- * window rather than the preview's aggressive one.
+ * De propósito melhor esforço — ao contrário de `runSignOut`, nunca lança.
+ * Também roda quando não há sessão, então tratar falha como fatal bloquearia
+ * o primeiro login num soluço de rede. O OAuth seguinte emite sessão nova
+ * de qualquer jeito. Só a espera tem teto, o mesmo de `runSignOut`: sessão
+ * publicada morre no servidor, então ganha a janela cheia, não a do preview.
  * @param {PreSignInSteps} steps
  * @returns {Promise<void>}
  */
@@ -152,7 +138,7 @@ export async function runPreSignInSignOut({
   clearToken,
   timeoutMs,
 }) {
-  // In the preview a missing bearer means there is nothing to clear.
+  // No preview, sem bearer não há o que limpar.
   if (hasBearer || !livePreview) {
     await settleWithin(requestSignOut, timeoutMs ?? signOutTimeoutMs(livePreview));
   }

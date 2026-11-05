@@ -147,8 +147,8 @@ test("baked identity does not need a workspace filesystem", () => {
 });
 
 test("a public card file wins over a baked site without card=custom", () => {
-  // Deploy middleware always passes a baked `site`. If that snapshot missed
-  // the file, public/og.jpg must still beat the og.grok.me placeholder.
+  // O middleware publicado sempre passa um `site` já assado. Se o snapshot
+  // perdeu o arquivo, public/og.jpg ainda tem de ganhar do placeholder og.grok.me.
   const root = mkdtempSync(join(tmpdir(), "grok-og-card-"));
   mkdirSync(join(root, "public"));
   writeFileSync(join(root, "public/og.jpg"), "x");
@@ -515,9 +515,9 @@ test("renders the manifest with the per-app name", () => {
   assert.equal(manifest.icons[0].src, "/__grok/icon-180.png");
 });
 
-// Tripwires: the deployed-app path only works if Nitro scans server/ — an
-// accidental edit that drops serverDir or the middleware file would otherwise
-// fail silently (published apps would just render the app for ?install=1).
+// Travas: o caminho publicado só funciona se o Nitro varrer server/ —
+// tirar serverDir ou o middleware falharia em silêncio (?install=1
+// renderizaria só o app).
 test("vite config keeps the nitro serverDir wiring", () => {
   const viteConfig = readFileSync(join(TEMPLATE_ROOT, "vite.config.ts"), "utf8");
   assert.match(viteConfig, /serverDir:\s*"\.\/server"/);

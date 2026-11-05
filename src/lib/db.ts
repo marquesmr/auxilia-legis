@@ -7,32 +7,19 @@ import {
   nuvemConfigurada,
 } from "./banco-nuvem";
 
-/** Which database backend is active. */
+/** Qual banco está ativo. */
 export type DbSource = "neon" | "pglite";
 
-// An empty/whitespace DATABASE_URL (an easy misconfig in deploy UIs) must mean
-// "unset" — otherwise production would silently run on the PGLite fallback.
+// DATABASE_URL vazio conta como ausente. Senão a produção cairia no PGLite sem avisar.
 const rawDatabaseUrl =
   typeof process !== "undefined" ? process.env.DATABASE_URL : undefined;
 const databaseUrl =
   rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl : undefined;
 
-/**
- * Active backend: real **Neon** when `DATABASE_URL` is set (deployed / configured
- * sandbox), otherwise a local embedded **PGLite** (Postgres compiled to WASM) so
- * the app has a working database even with nothing configured — the live preview
- * included. Swap in Neon later by just setting `DATABASE_URL`; no code changes.
- */
+/** Neon se houver DATABASE_URL; senão PGLite embutido, inclusive na prévia. */
 export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
 
-/**
- * Minimal shared SQL surface, satisfied by both Neon and PGLite. Both the
- * tagged-template and `.query()` forms resolve to an array of row objects:
- *
- *   const sql = await getSql();
- *   const rows = await sql`select * from todos where id = ${id}`; // parameterized
- *   const rows2 = await sql.query("select * from todos where id = $1", [id]);
- */
+/** Consulta compartilhada: template marcado ou `.query()`, sempre um array de linhas. */
 export interface Sql {
   <T = Record<string, unknown>>(
     strings: TemplateStringsArray,
@@ -44,29 +31,12 @@ export interface Sql {
   ): Promise<T[]>;
 }
 
-/**
- * Init state lives on globalThis as promises: dev HMR creates new instances of
- * this module, and two instances racing module-level state would open a second
- * pool or run two concurrent PGLite migration passes (whose duplicate
- * `_migrations` insert rejects — and would get memoized, poisoning every later
- * `getSql()`). A failed init clears its slot so the next call retries.
- */
+/** Promessas no globalThis: o HMR recria o módulo e duas iniciais correndo abririam outro pool ou repetiriam a migração. Falha limpa o slot para a próxima tentativa. */
 const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
 };
 
-/**
- * Result-type parity: Postgres sends every value as text plus a type OID — the
- * JS value is the DRIVER's parsing choice, and pg and PGLite disagree (pg:
- * int8 -> string, date -> local-midnight Date; PGLite: int8 -> BigInt, which
- * JSON.stringify rejects, date -> UTC Date). Normalize both so preview and
- * production return identical, JSON-safe shapes:
- *   int8/bigint (incl. count(*)) -> number (past 2^53 loses precision — cast
- *                                   `::text` if you ever need huge integers)
- *   date                         -> 'YYYY-MM-DD' string
- *   interval                     -> Postgres interval text
- * numeric already comes back as a string on both (arbitrary precision).
- */
+/** pg e PGLite leem os tipos de forma diferente. Int8 vira número, data vira AAAA-MM-DD, intervalo vira texto. Acima de 2^53 o int8 perde precisão. */
 const OID_INT8 = 20;
 const OID_DATE = 1082;
 const OID_INTERVAL = 1186;
@@ -89,7 +59,7 @@ export function lerTrafego(): Trafego {
   return { ...(caixa.__appTrafego__ ?? { consultas: 0, bytesIda: 0, bytesVolta: 0, desde: Date.now() }) };
 }
 
-/** Wrap a query runner in the tagged-template + `.query()` `Sql` surface. */
+/** Envolve o executor na interface Sql. */
 function toSql(run: Run): Sql {
   const medido: Run = async <T>(text: string, params: unknown[]) => {
     const ida =
@@ -119,8 +89,7 @@ function toSql(run: Run): Sql {
 
 function createNeonSql(): Promise<Sql> {
   globalRef.__pgSqlPromise__ ??= (async () => {
-    // Regular Postgres driver: node-postgres (`pg`) — works directly with Neon's
-    // pooled endpoint. One pool per process; warm serverless instances reuse it.
+    // Um pool por processo. Instância quente da Vercel reaproveita.
     const { Pool, types } = await import("pg");
     types.setTypeParser(OID_INT8, Number);
     types.setTypeParser(OID_DATE, identity);
@@ -157,26 +126,16 @@ async function createSql(): Promise<Sql> {
   return dbSource === "neon" ? createNeonSql() : createPgliteSql();
 }
 
-/**
- * Get the shared, **server-only** SQL client. Neon when `DATABASE_URL` is set,
- * otherwise the local PGLite fallback. Memoized — safe to call per request.
- *
- * Schema comes from `migrations/*.sql`, auto-applied before the first query on
- * both backends — define tables there, never inline in server functions.
- */
+/** Cliente SQL só no servidor. Neon ou PGLite, memoizado. O esquema vem de migrations/*.sql, nunca inline. */
 export function getSql(): Promise<Sql> {
   sqlPromise ??= createSql().catch((err) => {
-    sqlPromise = null; // don't memoize failures — let the next call retry
+    sqlPromise = null; // falha não fica memorizada
     throw err;
   });
   return sqlPromise;
 }
 
-/**
- * The shared PGLite instance (preview only), with `migrations/*.sql` applied.
- * Lets Better Auth persist to the SAME embedded DB as app data in preview (via a
- * Kysely dialect). Throws when `DATABASE_URL` is set (that path uses Neon).
- */
+/** PGLite da prévia, o mesmo do Better Auth. Com DATABASE_URL, lança erro. */
 export async function getPglite(): Promise<import("@electric-sql/pglite").PGlite> {
   if (dbSource !== "pglite") {
     throw new Error("getPglite() is only available on the PGLite fallback (no DATABASE_URL)");
@@ -187,23 +146,13 @@ export async function getPglite(): Promise<import("@electric-sql/pglite").PGlite
   return pg;
 }
 
-/**
- * Finish DB bootstrap before the server handles traffic.
- *
- * - **PGLite** (preview / no `DATABASE_URL`): open the in-memory DB and apply
- *   `migrations/*.sql`. Idempotent — concurrent callers share one promise.
- * - **Neon**: no-op (pool is created lazily on first query).
- *
- * Vite `configureServer` awaits this at dev startup; production imports of this
- * module kick it off immediately (see bottom of file).
- */
+/** Abre o PGLite e aplica as migrações antes do tráfego. No Neon não faz nada. */
 export function ensureDbReady(): Promise<void> {
   if (dbSource !== "pglite") return Promise.resolve();
   return getSql().then(() => undefined);
 }
 
-// Server-only eager start: kick PGLite bootstrap as soon as this module loads in
-// Node. Client bundles never hit this path (`getSql` throws in the browser).
+// Sobe o PGLite assim que o módulo carrega no Node. No navegador este caminho não roda.
 const globalBoot = globalThis as typeof globalThis & {
   __pgBootstrapPromise__?: Promise<void>;
 };

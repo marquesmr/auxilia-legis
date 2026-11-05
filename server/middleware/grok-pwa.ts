@@ -1,18 +1,16 @@
 /**
- * Deployed-app (Nitro) half of the platform PWA chrome. Auto-registered as
- * global h3 middleware because vite.config.ts sets `serverDir: "./server"` —
- * without that option Nitro v3 never scans this directory.
+ * Metade Nitro (app publicado) do chrome PWA. Vira middleware global do h3
+ * porque o vite.config.ts define `serverDir: "./server"` — sem isso o Nitro v3
+ * não varre este diretório.
  *
- * - `?install=1&platform=ios` on a document path → the Home Screen tutorial,
- *   bundled into the server build via `?raw` (the public/ directory is CDN
- *   static output on Vercel and not readable from the function).
- * - `/__grok/manifest.webmanifest` → per-app-named manifest (kept out of
- *   public/ so this dynamic response is the only one).
- * - Other HTML documents → stream-inject PWA + OG head tags at `</head>`.
- *   OG identity is baked via `virtual:grok-og-identity` at `vite build`
- *   (this function cannot read `src/lib/og/site.json` or `public/og.jpg`).
- *   This must be a middleware transforming `next()`: h3 discards the `response`
- *   runtime hook's return value, and `render:html` does not exist in Nitro v3.
+ * - `?install=1&platform=ios` num documento → tutorial de Tela de Início,
+ *   embutido com `?raw` (em Vercel `public/` é CDN e a função não lê).
+ * - `/__grok/manifest.webmanifest` → manifest com o nome do app (fora de
+ *   `public/`, senão a resposta dinâmica não é a única).
+ * - Outros HTML → injeta PWA + OG em `</head>` no stream. A identidade OG
+ *   entra por `virtual:grok-og-identity` no `vite build` (a função não lê
+ *   `site.json` nem `public/og.jpg`). Tem de transformar o `next()`: o h3
+ *   descarta o retorno do hook `response`, e `render:html` não existe no Nitro v3.
  */
 import installPageTemplate from "../../scripts/install-page.html?raw";
 import { grokOgIdentity } from "virtual:grok-og-identity";

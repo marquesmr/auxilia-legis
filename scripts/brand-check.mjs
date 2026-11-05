@@ -1,46 +1,31 @@
 #!/usr/bin/env node
 /**
- * Brand-asset gate shared by browser-smoke.mjs (and unit-testable without a
- * browser): a canvas app is almost always a game / visually rich app, and
- * those must ship a custom share card — the default og.grok.me placeholder is
- * not acceptable for them (see .grok/skills/og/SKILL.md).
+ * Gate de marca do browser-smoke (testável sem browser). App com canvas é
+ * quase sempre jogo e precisa de card próprio — o placeholder og.grok.me não
+ * serve (ver .grok/skills/og/SKILL.md).
  *
- * Games must also set type=x:game in src/lib/og/site.json so the platform
- * injector emits og:type for X game-card unfurls, and public/x-banner.jpg for
- * the 50:11 X feed card. A card file is enough for bake to emit /og.jpg, but
- * brand-check still requires site.json `"card": "custom"` so the agent-facing
- * contract stays explicit.
+ * Jogo também exige `type=x:game` em site.json (og:type no X) e
+ * public/x-banner.jpg (card 50:11). O arquivo do card já faz o bake emitir
+ * /og.jpg, mas `"card": "custom"` continua obrigatório para o contrato ficar
+ * explícito. Julga o disco, não o HTML servido.
  *
- * Checked on the filesystem (not the served head) so preview and mid-scaffold
- * workspaces are judged the same way.
- *
- * Also runnable, so the background brand task can check its own work before it
- * reports (the parent answers without waiting for it):
- *
- *   node scripts/brand-check.mjs [--game] [--placeholder-ok] [--root <dir>]
- *
- * That run judges the files on disk even though the task is holding the
- * og-pending marker; the marker only silences what the parent's gates see. It
- * also requires the custom card: its caller is normally the pass that exists to
- * produce one, so the placeholder the parent tolerates for a plain utility is a
- * failed pass here. --placeholder-ok is for the other launch — a pass doing
- * favicon, PWA icons and title for a plain utility that keeps the og.grok.me
- * card — where no card is the expected verdict rather than a failure.
+ * Rodado sozinho, o marker og-pending só cala o gate do pai; esta passagem
+ * julga o disco e exige o card, salvo `--placeholder-ok` (utilitário simples
+ * que fica no placeholder).
  */
 import { existsSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { OG_SITE_REL_PATH, readOgSite, siteHasCustomCard } from "./grok-pwa-shared.mjs";
 
-// Over this, link scrapers (X card previews included) time out or skip the
-// image, so the card silently fails to unfurl. The og skill's JPEG contract
-// (ffmpeg -q:v 4, ~150-300 KB) exists precisely to stay under it.
+// Acima disso, scrapers de link (preview do X inclusive) estouram ou pulam
+// a imagem e o card não abre. O JPEG do skill (ffmpeg -q:v 4) existe para ficar abaixo.
 export const MAX_CARD_BYTES = 600 * 1024;
 
-// Written by the brand task while it generates, removed when it finishes.
+// O passo de marca grava enquanto gera e apaga ao terminar.
 export const OG_PENDING_REL_PATH = ".grok/og-pending";
-// A Stop mid-generation leaves the marker behind, so the demotion expires
-// instead of hiding a missing card forever on that workspace.
+// Um Stop no meio deixa o marker; a folga expira para não esconder
+// um card faltando para sempre.
 export const OG_PENDING_MAX_AGE_MS = 10 * 60 * 1000;
 
 export function siteDeclaresOgTypeGame(site) {
@@ -57,11 +42,8 @@ export function ogPendingActive(workspaceRoot, now = Date.now()) {
 }
 
 /**
- * What the parent's gates see. The brand pass may still be generating when a
- * gate runs, and "missing" would send the agent to redo the task's work.
- *
- * In flight is silence, not a note: callers report this array as warnings, so
- * anything left in it — however it is worded — reaches the agent as one.
+ * O que o gate do pai vê. Em geração, "faltando" mandaria o agente refazer
+ * o trabalho. Em voo é silêncio: quem chama trata o array como aviso.
  */
 export function computeBrandWarnings({
   hasCanvas,
@@ -73,12 +55,10 @@ export function computeBrandWarnings({
 }
 
 /**
- * The files on disk, marker ignored — the brand pass's own view of its work.
- * Deliberately not exported: a gate that reached for this instead of
- * `computeBrandWarnings` would warn about a card that is still generating.
- * `cardRequired` is for a caller that is itself the brand pass: for it the
- * placeholder is a failure, not the plain-utility default the parent's gate
- * leaves alone.
+ * O disco, ignorando o marker — a visão do próprio passo de marca.
+ * De propósito não exportada: um gate que a usasse avisaria de um card
+ * ainda em geração. `cardRequired` torna o placeholder uma falha, não o
+ * padrão de utilitário que o gate do pai deixa passar.
  */
 function brandWarningsOnDisk({
   hasCanvas,
@@ -144,8 +124,8 @@ function brandWarningsOnDisk({
     );
   }
 
-  // Games with a custom link card must also ship the 50:11 X feed card.
-  // Skip while still on the og.grok.me placeholder — that pass has not started yet.
+  // Jogo com card de link próprio também precisa do card 50:11 do feed do X.
+  // Pula enquanto ainda está no placeholder og.grok.me — esse passo nem começou.
   if (hasCanvas && cardPath !== undefined) {
     const bannerPath = join(workspaceRoot, "public/x-banner.jpg");
     if (!existsSync(bannerPath)) {
@@ -173,8 +153,8 @@ export function parseBrandCheckArgs(argv) {
   let placeholderOk = false;
   let root = null;
   for (let i = 0; i < argv.length; i += 1) {
-    // --game runs the checks browser-smoke.mjs derives from a real <canvas>;
-    // DOM board/word games need them too and have no canvas to detect.
+    // `--game` roda os cheques que o smoke tira de um <canvas> real;
+    // jogo de tabuleiro/palavra no DOM também precisa e não tem canvas.
     if (argv[i] === "--game") {
       game = true;
     } else if (argv[i] === "--placeholder-ok") {
@@ -200,10 +180,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exit(1);
   }
   const workspaceRoot = args.root ?? join(dirname(fileURLToPath(import.meta.url)), "..");
-  // The caller here is the brand task checking its own work: it is holding the
-  // marker (report it, but judge the assets on disk) and it owes a custom card
-  // whether or not the app draws to a canvas — unless it was launched for a
-  // plain utility that keeps the placeholder, which only it knows.
+  // Quem chama é o passo de marca conferindo o próprio trabalho: segura o
+  // marker (reporte, mas julgue o disco) e deve um card próprio, com ou sem
+  // canvas — salvo se foi lançado para um utilitário que fica no placeholder.
   const messages = brandWarningsOnDisk({
     hasCanvas: args.game,
     workspaceRoot,

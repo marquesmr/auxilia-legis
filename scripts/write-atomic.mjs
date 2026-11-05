@@ -1,16 +1,12 @@
 #!/usr/bin/env node
 /**
- * Hand a staged file over to a path another agent reads, in one step.
+ * Entrega um arquivo staged num passo só, para outro agente ler.
  *
- *   node scripts/write-atomic.mjs /workspace/.grok/og.jpg.tmp public/og.jpg
- *
- * The brand-asset task writes public/og.jpg and src/lib/og/site.json while the
- * parent may be mid-`npm run build`, so an in-place write can be read
- * half-finished. rename(2) is atomic within one filesystem: a reader sees the
- * old bytes or the new ones. /workspace is one filesystem, so a staged file
- * from anywhere else (/tmp is a separate mount) is refused rather than copied:
- * copying would have to land its temp in the target's directory, which is the
- * one thing a staged path is not allowed to do.
+ * O passo de marca grava public/og.jpg e site.json enquanto o pai pode estar
+ * no meio de `npm run build`; escrita no lugar pode ser lida pela metade.
+ * rename(2) é atômico no mesmo filesystem. /workspace é um só, então staged
+ * de outro lugar (/tmp é outro mount) é recusado em vez de copiado: a cópia
+ * teria de cair o temp no diretório do destino, e é isso que o staged não pode.
  */
 import { existsSync, mkdirSync, renameSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -33,9 +29,9 @@ function isInside(dir, file) {
 }
 
 /**
- * Why a staged path can be refused: `vite build` copies public/ verbatim into
- * the deployed app, so a temp that lands there ships (and an interrupted run
- * leaves it behind).
+ * Por que um staged pode ser recusado: `vite build` copia public/ inteiro
+ * para o app publicado, então um temp que cai ali vai junto (e uma interrupção
+ * deixa ele para trás).
  */
 export function stagingError({ staged, target, publicDir }) {
   if (staged === target) return `staged file and target are the same path: ${target}`;
@@ -46,9 +42,9 @@ export function stagingError({ staged, target, publicDir }) {
 }
 
 /**
- * Moves `staged` onto `target`, leaving `target` untouched if anything fails.
- * `rename` is injectable because EXDEV — the refusal the "stage under
- * /workspace/.grok/" contract rests on — cannot be provoked portably.
+ * Move `staged` para `target` e deixa `target` intocado se algo falhar.
+ * `rename` é injetável porque EXDEV — a recusa em que o contrato "stage em
+ * /workspace/.grok/" se apoia — não dá para provocar de forma portátil.
  */
 export function handOver(staged, target, { rename = renameSync } = {}) {
   if (!existsSync(staged)) {
@@ -74,9 +70,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.error(`[write-atomic] ${args.error}`);
     process.exit(1);
   }
-  // Relative paths follow this script's root, not the caller's cwd: the brand
-  // pass runs from wherever its sub-shell left it, and the public/ refusal
-  // below is defined against that same root.
+  // Caminho relativo segue a raiz deste script, não o cwd de quem chamou: o
+  // passo de marca roda de onde o subshell parou, e a recusa de public/
+  // abaixo é medida contra essa mesma raiz.
   const staged = resolve(ROOT, args.staged);
   const target = resolve(ROOT, args.target);
   const problem = stagingError({ staged, target, publicDir: join(ROOT, "public") });

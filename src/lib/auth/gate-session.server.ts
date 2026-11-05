@@ -22,13 +22,9 @@ const LOG = "[gate-identity]";
 type GateAccount = Parameters<typeof handleOAuthUserInfo>[1]["account"];
 
 /**
- * Emit the signed session cookie so the browser actually receives it.
- *
- * `setSessionCookie` writes into the Better Auth middleware header bag, but on
- * TanStack Start that bag is not always copied onto the final HTTP response
- * (the response can end up with no `Set-Cookie`). Sign the token ourselves and
- * push it through TanStack's `setCookie` + `responseHeaders` so both the
- * framework cookie store and any after-hooks see it.
+ * Entrega o cookie de sessão assinado ao browser.
+ * `setSessionCookie` grava no bag do Better Auth, que o TanStack nem sempre
+ * copia. Assinamos aqui e mandamos por `setCookie` e `responseHeaders`.
  */
 async function emitSessionCookie(
   ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0],
@@ -65,7 +61,7 @@ async function emitSessionCookie(
     return null;
   }
 
-  // Primary path: TanStack Start's response cookie store (reaches the browser).
+  // Caminho principal: store de cookie do TanStack (chega no browser).
   try {
     const { setCookie } = await import("@tanstack/react-start/server");
     setCookie(sessionTokenName, sessionValue, {
@@ -80,8 +76,7 @@ async function emitSessionCookie(
     console.error(`${LOG} TanStack setCookie failed`, err);
   }
 
-  // Also stash on Better Auth responseHeaders so after-hooks (tanstackStartCookies)
-  // can forward it if they run.
+  // Também em responseHeaders, para os after-hooks repassarem.
   try {
     const responseHeaders = ctx.context.responseHeaders;
     if (responseHeaders) {
@@ -97,11 +92,9 @@ async function emitSessionCookie(
 }
 
 /**
- * Expire the previous user's `session_data` cookie cache after an identity
- * swap. The cache is signed against the old session and outlives it (5-min
- * TTL), so without this `/get-session` keeps serving the replaced user.
- * Mirrors `emitSessionCookie`'s dual-path delivery: TanStack's response
- * cookie store plus Better Auth's `responseHeaders` bag.
+ * Expira o `session_data` do usuário anterior após trocar identidade.
+ * O cache dura 5 min; sem isso `/get-session` segue servindo o antigo.
+ * Mesma entrega dupla de `emitSessionCookie`.
  */
 async function expireSessionDataCookie(
   ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0],
@@ -136,10 +129,8 @@ async function expireSessionDataCookie(
 }
 
 /**
- * Write or clear the client-readable gate-session marker
- * (`gate-session-marker.ts`), through the same dual-path delivery as
- * `emitSessionCookie`. Not HttpOnly by design: `UserButton` reads it to hide
- * sign-out for gate sessions (signing out would re-materialize instantly).
+ * Grava ou apaga o marcador do gate (entrega dupla). Não é HttpOnly de propósito:
+ * o `UserButton` lê para esconder o sair (sair recriaria a sessão na hora).
  */
 async function writeGateMarkerCookie(
   ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0],
@@ -176,10 +167,8 @@ async function writeGateMarkerCookie(
 }
 
 /**
- * Clear a stale marker when a `/get-session` arrives without `x-grok-identity`:
- * the browser is no longer behind a gate viewer (returned anonymously, or the
- * session is a broker one), so sign-out must not stay hidden. Emits the
- * Max-Age=0 clear only when the marker is actually on the request.
+ * Sem `x-grok-identity` no `/get-session`, apaga o marcador (só se veio no request):
+ * fora do gate o botão de sair não pode ficar escondido.
  */
 async function clearGateMarkerIfPresent(
   ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0],
@@ -190,7 +179,6 @@ async function clearGateMarkerIfPresent(
   await writeGateMarkerCookie(ctx, true);
 }
 
-/** Drop a cookie from the request `Cookie` header (inverse of `setRequestCookie`). */
 function removeRequestCookie(headers: Headers, name: string): void {
   const cookieHeader = headers.get("cookie");
   if (!cookieHeader) return;
@@ -219,7 +207,7 @@ export function gateIdentitySessions() {
               console.error(`${LOG} no request headers on /get-session`);
               return;
             }
-            // Bearer auth (live-preview popup) already carries a session — leave it alone.
+            // Bearer do popup de preview já traz sessão — não mexer.
             if (inbound.get("authorization")) return;
             if (!inbound.get(GATE_IDENTITY_HEADER)) {
               await clearGateMarkerIfPresent(ctx, inbound);
@@ -295,12 +283,10 @@ export function gateIdentitySessions() {
                 return;
               }
 
-              // Persist session rows + internal newSession state.
+              // Grava a sessão no banco e o estado interno newSession.
               await setSessionCookie(ctx, result.data);
 
-              // Explicitly sign the token and emit Set-Cookie — do NOT rely on
-              // reading it back from ctx.context.responseHeaders (often empty
-              // here, which previously caused a silent signed-out render).
+              // Assina e emite Set-Cookie. Não leia responseHeaders: costuma vir vazio e o usuário fica deslogado.
               const sessionValue = await emitSessionCookie(
                 ctx,
                 sessionCookieName,
@@ -319,8 +305,7 @@ export function gateIdentitySessions() {
               const sessionDataCookie = ctx.context.authCookies.sessionData;
               await expireSessionDataCookie(ctx, sessionDataCookie);
 
-              // Inject the cookie into this request so the rest of /get-session
-              // resolves the newly created session in the same round-trip.
+              // Injeta o cookie neste request para o /get-session achar a sessão nova na mesma ida.
               const headers = new Headers(
                 Object.fromEntries(inbound.entries()),
               );
