@@ -2663,6 +2663,7 @@ function LinksFaltando({
                 <th className="py-2 pr-3 font-medium">Processo</th>
                 <th className="py-2 pr-3 font-medium">Tipo</th>
                 <th className="py-2 pr-3 font-medium">Número do tipo</th>
+                <th className="py-2 pr-3 font-medium">Referência</th>
                 <th className="py-2 pr-3 font-medium">Faltando</th>
                 <th className="w-12 py-2 font-medium"><span className="sr-only">Ações</span></th>
               </tr>
@@ -2675,6 +2676,7 @@ function LinksFaltando({
                   <td className="py-2 pr-3 text-ink">
                     {item.processo.tipoNumero != null ? `${String(item.processo.tipoNumero).padStart(2, "0")}/${item.processo.tipoAno ?? ""}` : "—"}
                   </td>
+                  <td className="py-2 pr-3 text-ink">{item.processo.referencia || "—"}</td>
                   <td className="py-2 pr-3 text-ink">{item.falta.join(", ")}</td>
                   <td className="py-2 text-right">
                     <MenuLancamento
