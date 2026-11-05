@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, FilePen, FileText, Link2, Megaphone, MoreVertical, Pencil, Plus, Search, Trash2, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, Check, Copy, FilePen, FileText, Link2, Megaphone, MoreVertical, Pencil, Plus, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -2097,7 +2097,7 @@ function CardAdmin({
                 <Info rotulo="Número do tipo" valor={processo.tipoNumero != null ? `${String(processo.tipoNumero).padStart(2, "0")}/${processo.tipoAno ?? ""}` : "—"} />
                 <Info rotulo="Referência" valor={processo.referencia || "—"} />
                 <Info rotulo="Status" valor={statusAdminLabel(processo.status)} />
-                <Info rotulo="Objeto" valor={processo.objeto || "—"} largo justificar />
+                <Info rotulo="Objeto" valor={processo.objeto || "—"} largo justificar copiar />
                 <Info rotulo="Comunicação interna" valor={processo.ciNumero != null ? formatarPeca(processo.ciNumero, processo.ciAno) : "—"} />
                 <Info rotulo="Origem da CI" valor={processo.ciOrigem || "—"} />
                 <Info rotulo="Parecer" valor={processo.parecerNa ? "N/A" : processo.parecerNumero != null ? formatarPeca(processo.parecerNumero, processo.parecerAno) : "—"} />
@@ -3374,10 +3374,29 @@ function DocumentoComConsulta({
   );
 }
 
-function Info({ rotulo, valor, largo, justificar }: { rotulo: string; valor: string; largo?: boolean; justificar?: boolean }) {
+function Info({ rotulo, valor, largo, justificar, copiar }: { rotulo: string; valor: string; largo?: boolean; justificar?: boolean; copiar?: boolean }) {
+  const [copiado, setCopiado] = useState(false);
   return (
     <div className={largo ? "col-span-2" : undefined}>
-      <dt className="text-xs text-muted">{rotulo}</dt>
+      <dt className="flex items-center gap-1 text-xs text-muted">
+        {rotulo}
+        {copiar && valor !== "—" ? (
+          <button
+            type="button"
+            aria-label="Copiar o objeto em maiúsculas"
+            title={copiado ? "Copiado" : "Copiar em maiúsculas"}
+            onClick={() => {
+              void navigator.clipboard.writeText(valor.toLocaleUpperCase("pt-BR")).then(() => {
+                setCopiado(true);
+                window.setTimeout(() => setCopiado(false), 1500);
+              });
+            }}
+            className="grid size-6 place-items-center rounded-md text-muted"
+          >
+            {copiado ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+          </button>
+        ) : null}
+      </dt>
       <dd className={justificar ? "text-justify text-ink" : "text-ink"}>{valor}</dd>
     </div>
   );
