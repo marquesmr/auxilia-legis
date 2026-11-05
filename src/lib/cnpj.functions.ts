@@ -250,22 +250,28 @@ async function buscarJson(url: string): Promise<Record<string, unknown> | "ausen
 
 export const consultarDocumento = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
-    const digitos = typeof input === "string" ? input.replace(/\D/g, "") : "";
+    const bruto = input && typeof input === "object" && !Array.isArray(input) ? (input as { documento?: unknown; nascimento?: unknown }) : { documento: input, nascimento: "" };
+    const origem = typeof bruto.documento === "string" ? bruto.documento : typeof input === "string" ? input : "";
+    const digitos = origem.replace(/\D/g, "");
+    const nascimento = typeof bruto.nascimento === "string" ? bruto.nascimento : "";
     if (digitos.length === 11) {
       if (!cpfValido(digitos)) throw new Error("Informe um CPF válido.");
-      return { tipo: "cpf" as const, digitos };
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(nascimento)) throw new Error("Informe a data de nascimento.");
+      return { tipo: "cpf" as const, digitos, nascimento };
     }
     if (!cnpjValido(digitos)) throw new Error("Informe um CPF ou CNPJ válido.");
-    return { tipo: "cnpj" as const, digitos };
+    return { tipo: "cnpj" as const, digitos, nascimento: "" };
   })
   .middleware([authMiddleware])
   .handler(async ({ data }): Promise<ConsultaDocumento> => {
-    if (data.tipo === "cpf") return consultarCpf(data.digitos);
+    if (data.tipo === "cpf") return consultarCpf(data.digitos, data.nascimento);
     const empresa = await consultarEmpresa(data.digitos);
     return { tipo: "cnpj", ...empresa };
   });
 
-async function consultarCpf(digitos: string): Promise<ConsultaDocumento> {
+async function consultarCpf(digitos: string, nascimento: string): Promise<ConsultaDocumento> {
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (nascimento > hoje) throw new Error("A data de nascimento não pode ser futura.");
   let regiao = "";
   try {
     const resposta = await fetch(`https://brasilapi.com.br/api/cpf/v1/${digitos}`, {
@@ -285,7 +291,7 @@ async function consultarCpf(digitos: string): Promise<ConsultaDocumento> {
     cpf: formatarCpf(digitos),
     valido: true,
     regiao,
-    aviso: "A Receita Federal não informa nome, situação nem endereço do CPF sem a data de nascimento do titular. O que aparece aqui é a conferência do número.",
+    aviso: "A consulta usou a data de nascimento informada no lançamento. A Receita Federal não devolve nome nem situação cadastral numa consulta automática.",
   };
 }
 

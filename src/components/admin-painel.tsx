@@ -74,8 +74,10 @@ type FormAdmin = {
   vigenciaFim: string;
   contratado: string;
   documento: string;
+  nascimento: string;
   contratado2: string;
   documento2: string;
+  nascimento2: string;
   valorTotal: string;
   valorMensal: string;
   valorEstimado: string;
@@ -184,8 +186,10 @@ function vazio(): FormAdmin {
     vigenciaFim: addDaysIso(365),
     contratado: "",
     documento: "",
+    nascimento: "",
     contratado2: "",
     documento2: "",
+    nascimento2: "",
     valorTotal: "",
     valorMensal: "",
     valorEstimado: "",
@@ -236,8 +240,10 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
     vigenciaFim: p.vigenciaFim ?? p.encerramento,
     contratado: p.contratado,
     documento: p.documento,
+    nascimento: p.nascimento ?? "",
     contratado2: p.contratado2,
     documento2: p.documento2,
+    nascimento2: p.nascimento2 ?? "",
     valorTotal: centavosParaCampo(p.valorTotalCentavos),
     valorMensal: centavosParaCampo(p.valorMensalCentavos),
     valorEstimado: centavosParaCampo(p.valorEstimadoCentavos),
@@ -317,6 +323,7 @@ function validar(form: FormAdmin): string[] {
     if (!form.contratado.trim()) erros.push("Informe o contratado.");
     const digitos = form.documento.replace(/\D/g, "");
     if (digitos.length !== 11 && digitos.length !== 14) erros.push("Informe o CPF ou o CNPJ.");
+    if (digitos.length === 11 && !form.nascimento) erros.push("Informe a data de nascimento.");
     if (reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor da contratação ou aquisição.");
   } else if (form.status === "execucao") {
     if (!form.contratado.trim()) erros.push("Informe os dados do contratado.");
@@ -324,6 +331,7 @@ function validar(form: FormAdmin): string[] {
     else if (form.vigenciaFim < form.vigenciaInicio) erros.push("A vigência termina antes de começar.");
     if (reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor anual do contrato.");
     if (reaisParaCentavos(form.valorMensal) == null) erros.push("Informe o valor mensal do contrato.");
+    if (form.documento.replace(/\D/g, "").length === 11 && !form.nascimento) erros.push("Informe a data de nascimento.");
   } else if (form.status !== "encerrado" && form.valorEstimado.trim() && reaisParaCentavos(form.valorEstimado) == null) {
     erros.push("O valor estimado está inválido.");
   }
@@ -334,6 +342,7 @@ function validar(form: FormAdmin): string[] {
       if (!nome2) erros.push("Informe o segundo contratado ou fornecedor.");
       if (doc2 && doc2.length !== 11 && doc2.length !== 14) erros.push("O CPF ou CNPJ do segundo contratado ou fornecedor está inválido.");
       else if (form.status === "encerrado" && nome2 && doc2.length !== 11 && doc2.length !== 14) erros.push("Informe o CPF ou o CNPJ do segundo contratado ou fornecedor.");
+      if (doc2.length === 11 && !form.nascimento2) erros.push("Informe a data de nascimento do segundo contratado.");
     }
   }
   erros.push(...errosDeLinks(form));
@@ -398,8 +407,10 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
       vigenciaFim: null,
       contratado: "",
       documento: "",
+      nascimento: null,
       contratado2: "",
       documento2: "",
+      nascimento2: null,
       valorTotalCentavos: null,
       valorMensalCentavos: null,
       valorEstimadoCentavos: form.status === "execucao" || form.status === "encerrado" ? null : reaisParaCentavos(form.valorEstimado),
@@ -454,8 +465,10 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     vigenciaFim: execucao ? form.vigenciaFim : null,
     contratado: execucao || encerrado ? form.contratado.trim() : "",
     documento: execucao || encerrado ? form.documento.trim() : "",
+    nascimento: (execucao || encerrado) && form.documento.replace(/\D/g, "").length === 11 ? form.nascimento || null : null,
     contratado2: (execucao || encerrado) && permiteDoisContratados(form.tipo) ? form.contratado2.trim() : "",
     documento2: (execucao || encerrado) && permiteDoisContratados(form.tipo) ? form.documento2.trim() : "",
+    nascimento2: (execucao || encerrado) && permiteDoisContratados(form.tipo) && form.documento2.replace(/\D/g, "").length === 11 ? form.nascimento2 || null : null,
     valorTotalCentavos: comValor || execucao ? reaisParaCentavos(form.valorTotal) : null,
     valorMensalCentavos: execucao ? reaisParaCentavos(form.valorMensal) : null,
     valorEstimadoCentavos: !execucao && !encerrado ? reaisParaCentavos(form.valorEstimado) : null,
@@ -527,8 +540,10 @@ export function AdminPainel({
   const [vigenciaFimAnd, setVigenciaFimAnd] = useState("");
   const [contratadoAnd, setContratadoAnd] = useState("");
   const [documentoAnd, setDocumentoAnd] = useState("");
+  const [nascimentoAnd, setNascimentoAnd] = useState("");
   const [contratado2And, setContratado2And] = useState("");
   const [documento2And, setDocumento2And] = useState("");
+  const [nascimento2And, setNascimento2And] = useState("");
   const [valorAnd, setValorAnd] = useState("");
   const [escolhaLink, setEscolhaLink] = useState(false);
   const [linksAndamento, setLinksAndamento] = useState<Partial<Record<TipoLinkAndamento, string>>>({});
@@ -858,12 +873,17 @@ export function AdminPainel({
           onToast("Informe o CPF ou o CNPJ.");
           return;
         }
+        if (digitos.length === 11 && !nascimentoAnd) {
+          onToast("Informe a data de nascimento.");
+          return;
+        }
         if (valor == null) {
           onToast("Informe o valor da contratação ou aquisição.");
           return;
         }
         atualizado.contratado = contratadoAnd.trim();
         atualizado.documento = documentoAnd.trim();
+        atualizado.nascimento = digitos.length === 11 ? nascimentoAnd : null;
         if (permiteDoisContratados(atual.tipo)) {
           const nome2 = contratado2And.trim();
           const doc2 = documento2And.replace(/\D/g, "");
@@ -876,12 +896,18 @@ export function AdminPainel({
               onToast("Informe o CPF ou o CNPJ do segundo contratado ou fornecedor.");
               return;
             }
+            if (doc2.length === 11 && !nascimento2And) {
+              onToast("Informe a data de nascimento do segundo contratado.");
+              return;
+            }
           }
           atualizado.contratado2 = nome2;
           atualizado.documento2 = documento2And.trim();
+          atualizado.nascimento2 = doc2.length === 11 ? nascimento2And : null;
         } else {
           atualizado.contratado2 = "";
           atualizado.documento2 = "";
+          atualizado.nascimento2 = null;
         }
         atualizado.valorTotalCentavos = valor;
         atualizado.valorMensalCentavos = null;
@@ -1053,7 +1079,7 @@ export function AdminPainel({
         {!pronto && guia !== "cnpj" ? (
           <p className="text-sm text-muted">Carregando processos administrativos…</p>
         ) : guia === "cnpj" ? (
-          <PainelConsulta />
+          <PainelConsulta mostrarNascimento />
         ) : guia === "estatisticas" ? (
           <GraficoAdmin processos={lista} />
         ) : guia === "comunicacoes" ? (
@@ -1350,8 +1376,10 @@ export function AdminPainel({
                       setVigenciaFimAnd(item.vigenciaFim ?? "");
                       setContratadoAnd(item.contratado ?? "");
                       setDocumentoAnd(item.documento ?? "");
+                      setNascimentoAnd(item.nascimento ?? "");
                       setContratado2And(item.contratado2 ?? "");
                       setDocumento2And(item.documento2 ?? "");
+                      setNascimento2And(item.nascimento2 ?? "");
                       setValorAnd(centavosParaCampo(item.valorTotalCentavos));
                       setLinksAndamento({});
                       setEscolhaLink(false);
@@ -1628,16 +1656,23 @@ export function AdminPainel({
                     <Campo label="CPF ou CNPJ">
                       <DocumentoComConsulta
                         value={form.documento}
-                        onChange={(documento) => setForm({ ...form, documento })}
+                        nascimento={form.nascimento}
+                        onChange={(documento) => setForm({ ...form, documento, nascimento: documento.replace(/\D/g, "").length === 11 ? form.nascimento : "" })}
                         placeholder="000.000.000-00"
                         required
                       />
                     </Campo>
+                    {form.documento.replace(/\D/g, "").length === 11 && (
+                      <Campo label="Data de nascimento">
+                        <input type="date" value={form.nascimento} onChange={(e) => setForm({ ...form, nascimento: e.target.value })} className={inputCls} required autoComplete="off" />
+                      </Campo>
+                    )}
                     {permiteDoisContratados(form.tipo) && (
                       <SegundoContratado
                         nome={form.contratado2}
                         documento={form.documento2}
-                        onChange={(contratado2, documento2) => setForm({ ...form, contratado2, documento2 })}
+                        nascimento={form.nascimento2}
+                        onChange={(contratado2, documento2, nascimento2) => setForm({ ...form, contratado2, documento2, nascimento2 })}
                       />
                     )}
                     <Campo label="Valor da contratação ou aquisição">
@@ -1675,15 +1710,22 @@ export function AdminPainel({
                     <Campo label="CPF ou CNPJ">
                       <DocumentoComConsulta
                         value={form.documento}
-                        onChange={(documento) => setForm({ ...form, documento })}
+                        nascimento={form.nascimento}
+                        onChange={(documento) => setForm({ ...form, documento, nascimento: documento.replace(/\D/g, "").length === 11 ? form.nascimento : "" })}
                         placeholder="000.000.000-00"
                       />
                     </Campo>
+                    {form.documento.replace(/\D/g, "").length === 11 && (
+                      <Campo label="Data de nascimento">
+                        <input type="date" value={form.nascimento} onChange={(e) => setForm({ ...form, nascimento: e.target.value })} className={inputCls} required autoComplete="off" />
+                      </Campo>
+                    )}
                     {permiteDoisContratados(form.tipo) && (
                       <SegundoContratado
                         nome={form.contratado2}
                         documento={form.documento2}
-                        onChange={(contratado2, documento2) => setForm({ ...form, contratado2, documento2 })}
+                        nascimento={form.nascimento2}
+                        onChange={(contratado2, documento2, nascimento2) => setForm({ ...form, contratado2, documento2, nascimento2 })}
                       />
                     )}
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -1833,18 +1875,29 @@ export function AdminPainel({
                           <Campo label="CPF ou CNPJ">
                             <DocumentoComConsulta
                               value={documentoAnd}
-                              onChange={setDocumentoAnd}
+                              nascimento={nascimentoAnd}
+                              onChange={(documento) => {
+                                setDocumentoAnd(documento);
+                                if (documento.replace(/\D/g, "").length !== 11) setNascimentoAnd("");
+                              }}
                               placeholder="000.000.000-00"
                               required
                             />
                           </Campo>
+                          {documentoAnd.replace(/\D/g, "").length === 11 && (
+                            <Campo label="Data de nascimento">
+                              <input type="date" value={nascimentoAnd} onChange={(e) => setNascimentoAnd(e.target.value)} className={inputCls} required autoComplete="off" />
+                            </Campo>
+                          )}
                           {atual && permiteDoisContratados(atual.tipo) && (
                             <SegundoContratado
                               nome={contratado2And}
                               documento={documento2And}
-                              onChange={(nome, documento) => {
+                              nascimento={nascimento2And}
+                              onChange={(nome, documento, nascimento) => {
                                 setContratado2And(nome);
                                 setDocumento2And(documento);
+                                setNascimento2And(nascimento);
                               }}
                             />
                           )}
@@ -2878,13 +2931,24 @@ function BandeiraBrasil() {
   );
 }
 
-function SegundoContratado({ nome, documento, onChange }: { nome: string; documento: string; onChange: (nome: string, documento: string) => void }) {
+function SegundoContratado({
+  nome,
+  documento,
+  nascimento,
+  onChange,
+}: {
+  nome: string;
+  documento: string;
+  nascimento: string;
+  onChange: (nome: string, documento: string, nascimento: string) => void;
+}) {
+  const cpf = documento.replace(/\D/g, "").length === 11;
   return (
     <>
       <Campo label="Segundo contratado ou fornecedor">
         <input
           value={nome}
-          onChange={(e) => onChange(e.target.value, documento)}
+          onChange={(e) => onChange(e.target.value, documento, nascimento)}
           className={inputCls}
           placeholder="Opcional"
           autoComplete="off"
@@ -2893,10 +2957,16 @@ function SegundoContratado({ nome, documento, onChange }: { nome: string; docume
       <Campo label="CPF ou CNPJ do segundo">
         <DocumentoComConsulta
           value={documento}
-          onChange={(valor) => onChange(nome, valor)}
+          nascimento={nascimento}
+          onChange={(valor) => onChange(nome, valor, valor.replace(/\D/g, "").length === 11 ? nascimento : "")}
           placeholder="Opcional"
         />
       </Campo>
+      {cpf && (
+        <Campo label="Data de nascimento do segundo">
+          <input type="date" value={nascimento} onChange={(e) => onChange(nome, documento, e.target.value)} className={inputCls} required autoComplete="off" />
+        </Campo>
+      )}
     </>
   );
 }
@@ -2988,23 +3058,39 @@ function PecaCampos({
   );
 }
 
-function PainelConsulta({ numeroInicial, embutido }: { numeroInicial?: string; embutido?: boolean }) {
+function PainelConsulta({
+  numeroInicial,
+  nascimentoInicial,
+  embutido,
+  mostrarNascimento,
+}: {
+  numeroInicial?: string;
+  nascimentoInicial?: string;
+  embutido?: boolean;
+  mostrarNascimento?: boolean;
+}) {
   const [numero, setNumero] = useState(numeroInicial ?? "");
+  const [nascimento, setNascimento] = useState(nascimentoInicial ?? "");
   const [consulta, setConsulta] = useState<ConsultaDocumento | null>(null);
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
 
-  const consultar = useCallback(async (valor: string) => {
+  const consultar = useCallback(async (valor: string, dataNascimento: string) => {
     const digitos = valor.replace(/\D/g, "");
     if (digitos.length !== 11 && digitos.length !== 14) {
       setErro("Informe o CPF ou o CNPJ completo.");
       setConsulta(null);
       return;
     }
+    if (digitos.length === 11 && !dataNascimento) {
+      setErro("Informe a data de nascimento.");
+      setConsulta(null);
+      return;
+    }
     setOcupado(true);
     setErro("");
     try {
-      setConsulta(await consultarDocumento({ data: digitos }));
+      setConsulta(await consultarDocumento({ data: { documento: digitos, nascimento: dataNascimento } }));
     } catch (err) {
       setConsulta(null);
       setErro(mensagemErro(err));
@@ -3015,15 +3101,17 @@ function PainelConsulta({ numeroInicial, embutido }: { numeroInicial?: string; e
 
   useEffect(() => {
     const digitos = (numeroInicial ?? "").replace(/\D/g, "");
-    if (digitos.length === 11 || digitos.length === 14) void consultar(numeroInicial ?? "");
-  }, [numeroInicial, consultar]);
+    if (digitos.length === 14 || (digitos.length === 11 && nascimentoInicial)) void consultar(numeroInicial ?? "", nascimentoInicial ?? "");
+  }, [numeroInicial, nascimentoInicial, consultar]);
+
+  const cpf = numero.replace(/\D/g, "").length === 11;
 
   return (
     <div>
       {!embutido && (
         <>
           <h2 className="font-display text-2xl text-ink">Consulta CPF/CNPJ</h2>
-          <p className="mt-1 text-sm text-muted">Consulta o CNPJ e confere o CPF sem sair do Auxilia Legis.</p>
+          <p className="mt-1 text-sm text-muted">Consulta o CNPJ e, no CPF, usa a data de nascimento sem gravá-la no detalhe do processo.</p>
         </>
       )}
       <div className={(embutido ? "" : "mt-4 ") + "flex flex-col gap-2 sm:flex-row"}>
@@ -3038,13 +3126,16 @@ function PainelConsulta({ numeroInicial, embutido }: { numeroInicial?: string; e
             if (evento.key !== "Enter") return;
             evento.preventDefault();
             evento.stopPropagation();
-            void consultar(numero);
+            void consultar(numero, nascimento);
           }}
         />
+        {mostrarNascimento && cpf && (
+          <input type="date" value={nascimento} onChange={(evento) => setNascimento(evento.target.value)} className={inputCls + " sm:max-w-xs"} autoComplete="off" />
+        )}
         <button
           type="button"
           disabled={ocupado}
-          onClick={() => void consultar(numero)}
+          onClick={() => void consultar(numero, nascimento)}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-pine px-4 text-sm font-medium text-sheet disabled:opacity-60"
         >
           <Search className="size-4" />
@@ -3122,11 +3213,13 @@ function ResultadoConsulta({ consulta }: { consulta: ConsultaDocumento }) {
 
 function DocumentoComConsulta({
   value,
+  nascimento,
   onChange,
   placeholder,
   required,
 }: {
   value: string;
+  nascimento?: string;
   onChange: (valor: string) => void;
   placeholder?: string;
   required?: boolean;
@@ -3166,7 +3259,7 @@ function DocumentoComConsulta({
                 <X className="size-4" />
               </Dialog.Close>
             </div>
-            {aberto ? <PainelConsulta numeroInicial={value} embutido /> : null}
+            {aberto ? <PainelConsulta numeroInicial={value} nascimentoInicial={nascimento} embutido /> : null}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

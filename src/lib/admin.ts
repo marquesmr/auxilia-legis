@@ -139,8 +139,10 @@ export type ProcessoAdmin = {
   vigenciaFim: string | null;
   contratado: string;
   documento: string;
+  nascimento: string | null;
   contratado2: string;
   documento2: string;
+  nascimento2: string | null;
   valorTotalCentavos: number | null;
   valorMensalCentavos: number | null;
   valorEstimadoCentavos: number | null;
