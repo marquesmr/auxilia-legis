@@ -9,6 +9,7 @@ import {
   cruzaPeriodo,
   dataAlvo,
   exigeLinks,
+  linksEmFalta,
   permitePublicacaoNa,
   permiteDoisContratados,
   marcoAdmin,
@@ -51,7 +52,7 @@ import { encerraStatus, listaCodigos } from "@/lib/status-catalogo";
 
 type FiltroAdmin = string;
 type OrdemAdmin = "numero" | "tipo" | "encerramento";
-type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres";
+type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres" | "links";
 type StatusRelatorio = "todos" | StatusAdmin;
 type ModoRelatorio = "processos" | "pecas";
 
@@ -1010,6 +1011,10 @@ export function AdminPainel({
           <GuiaBotao ativo={guia === "pareceres"} onClick={() => setGuia("pareceres")}>
             Pareceres do Agente de Contratações
           </GuiaBotao>
+          <GuiaBotao ativo={guia === "links"} onClick={() => setGuia("links")}>
+            <Link2 className="size-4" />
+            Links
+          </GuiaBotao>
           <button
             type="button"
             onClick={abrirFormulario}
@@ -1039,6 +1044,8 @@ export function AdminPainel({
             nota="A sequência vai até o último parecer lançado."
             linhas={linhasParecer}
           />
+        ) : guia === "links" ? (
+          <LinksFaltando processos={lista} />
         ) : guia === "relatorio" ? (
           <div className="flex flex-col gap-4">
             <div className="no-print flex flex-wrap gap-2">
@@ -2465,6 +2472,44 @@ function RelatorioPecas({
         </article>
       )}
     </>
+  );
+}
+
+function LinksFaltando({ processos }: { processos: ProcessoAdmin[] }) {
+  const linhas = processos
+    .map((processo) => ({ processo, falta: linksEmFalta(processo) }))
+    .filter((item) => item.falta.length > 0);
+  return (
+    <div>
+      <h2 className="font-display text-2xl text-ink">Links</h2>
+      <p className="mt-1 text-sm text-muted">
+        Processos com link em branco. Pronto pagamento, doações e outros não entram.
+      </p>
+      {linhas.length === 0 ? (
+        <p className="mt-4 text-sm text-muted">Nenhum link faltando.</p>
+      ) : (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-line text-muted">
+                <th className="py-2 pr-3 font-medium">Processo</th>
+                <th className="py-2 pr-3 font-medium">Tipo</th>
+                <th className="py-2 font-medium">Faltando</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((item, indice) => (
+                <tr key={item.processo.id} className={"border-b border-line " + (indice % 2 === 0 ? "bg-pine/5" : "")}>
+                  <td className="py-2 pr-3 font-medium text-ink">{rotuloNumero(item.processo.numero, item.processo.numeroAno)}</td>
+                  <td className="py-2 pr-3 text-ink">{rotuloTipo(item.processo.tipo, item.processo.tipoNumero, item.processo.tipoAno)}</td>
+                  <td className="py-2 text-ink">{item.falta.join(", ")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -607,14 +607,16 @@ export const decidirFeriadoGestao = createServerFn({ method: "POST" })
 export const manutencaoGestao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
-    const bruto = input as { token?: unknown; ligado?: unknown };
-    return { token: tokenOk(bruto.token), ligado: Boolean(bruto.ligado) };
+    const bruto = input as { token?: unknown; inicio?: unknown; fim?: unknown };
+    const inicio = typeof bruto.inicio === "string" ? bruto.inicio.slice(0, 16) : "";
+    const fim = typeof bruto.fim === "string" ? bruto.fim.slice(0, 16) : "";
+    return { token: tokenOk(bruto.token), inicio, fim };
   })
   .handler(async ({ data }) => {
     await mesmoLugar();
-    const { exigirGestao, definirManutencao } = await import("./gestao.server");
+    const { exigirGestao, definirAvisoManutencao } = await import("./gestao.server");
     await exigirGestao(data.token);
-    return definirManutencao(data.ligado);
+    return definirAvisoManutencao(data.inicio, data.fim);
   });
 
 export const convitesPendentesGestao = createServerFn({ method: "POST" })

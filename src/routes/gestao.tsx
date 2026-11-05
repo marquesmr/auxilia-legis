@@ -483,7 +483,9 @@ function PainelVivo({
           <p className="mt-1 flex items-center gap-2 text-sm text-muted">
             <span className="inline-block size-2 animate-pulse rounded-full bg-pine" />
             Ao vivo · atualiza sozinho
-            {painel.config.manutencao ? " · manutenção ligada. O que for lançado agora sai quando o sistema for liberado." : ""}
+            {painel.config.manutencaoInicio && painel.config.manutencaoFim
+              ? ` · aviso de ${painel.config.manutencaoInicio.replace("T", " ")} até ${painel.config.manutencaoFim.replace("T", " ")}`
+              : ""}
           </p>
         </div>
         <div className="flex gap-2">

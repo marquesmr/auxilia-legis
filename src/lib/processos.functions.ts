@@ -291,11 +291,6 @@ export const salvarProcesso = createServerFn({ method: "POST" })
       if (!permitido) throw new Error("Não foi possível salvar");
     }
     const historicoJson = JSON.stringify(historico);
-    const emManutencao = await sql<{ manutencao: unknown }>`
-      select manutencao from gestao_config where id = 'principal'
-    `;
-    const cru = emManutencao[0]?.manutencao;
-    const lancadoNaManutencao = !existente.length && (cru === true || cru === "t" || cru === "true" || cru === 1 || cru === "1");
     const salvos = existente.length
       ? await sql<{ id: string }>`
           update processos set
@@ -330,7 +325,7 @@ export const salvarProcesso = createServerFn({ method: "POST" })
             ${data.dataLancamento}, ${data.prazo}, ${data.alertaDias}, ${data.status}, ${historicoJson},
             ${data.equipeId}, ${context.userId}, ${autorNome},
             ${data.retorno}, ${data.vetoAlcance}, ${data.leiTipo}, ${data.leiNumero}, ${data.leiAno}, ${data.apreciacaoPrazo},
-            ${lancadoNaManutencao}
+            false
           )
           returning id
         `;

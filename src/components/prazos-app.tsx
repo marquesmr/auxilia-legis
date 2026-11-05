@@ -309,6 +309,7 @@ export function PrazosApp() {
   const [modulo, setModulo] = useState<Area | null>(null);
   const [moduloLido, setModuloLido] = useState(false);
   const [trava, setTrava] = useState<string | null>(null);
+  const [avisoManutencao, setAvisoManutencao] = useState<{ inicio: string; fim: string } | null>(null);
   const [souGestor, setSouGestor] = useState(false);
   const [excluida, setExcluida] = useState(false);
   const [diasMarcados, setDiasMarcados] = useState<DiaMarcado[]>([]);
@@ -386,8 +387,8 @@ export function PrazosApp() {
           setUfConta(estado.uf ?? "");
           setSouGestor(Boolean(estado.administrador));
           if (estado.bloqueado) setTrava("Seu acesso está bloqueado.");
-          else if (estado.manutencao && !estado.administrador) setTrava("O sistema está em manutenção. Tente de novo mais tarde.");
           else setTrava(null);
+          mostrarAvisoManutencao(estado.aviso, setAvisoManutencao);
         })
         .catch(() => undefined);
     };
@@ -471,8 +472,8 @@ export function PrazosApp() {
         setUfConta(pacote.estado.uf ?? "");
         setSouGestor(Boolean(pacote.estado.administrador));
         if (pacote.estado.bloqueado) setTrava("Seu acesso está bloqueado.");
-        else if (pacote.estado.manutencao && !pacote.estado.administrador) setTrava("O sistema está em manutenção. Tente de novo mais tarde.");
         else setTrava(null);
+        mostrarAvisoManutencao(pacote.estado.aviso, setAvisoManutencao);
         if (pacote.exclusao.excluida && !exclusaoVista.current) {
           sessionStorage.setItem("prazos.conta-excluida", "1");
           sessionStorage.setItem("prazos.exclusao-motivo", pacote.exclusao.motivo);
@@ -1021,7 +1022,14 @@ export function PrazosApp() {
 
   if (!moduloLido) return <CarregandoTemis />;
 
-  if (!modulo) return <EscolhaModulo nome={meuNome} onEscolher={entrarModulo} />;
+  if (!modulo) {
+    return (
+      <>
+        <EscolhaModulo nome={meuNome} onEscolher={entrarModulo} />
+        <AvisoManutencao aviso={avisoManutencao} onFechar={() => fecharAvisoManutencao(avisoManutencao, setAvisoManutencao)} />
+      </>
+    );
+  }
 
   return (
     <div className="mx-auto min-h-screen max-w-[100rem] px-4 py-6 md:px-8 md:py-8 xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-x-6">
@@ -1831,6 +1839,7 @@ export function PrazosApp() {
         </p>
       )}
       <AjudaFlutuante nome={meuNome} area={area} />
+      <AvisoManutencao aviso={avisoManutencao} onFechar={() => fecharAvisoManutencao(avisoManutencao, setAvisoManutencao)} />
       </div>
       <div className="mt-6 hidden xl:col-start-2 xl:row-start-2 xl:block">
         <CalendarioExpediente dias={diasMarcados} />
@@ -1841,6 +1850,57 @@ export function PrazosApp() {
 
 const inputCls =
   "h-11 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink placeholder:text-muted";
+
+function mostrarAvisoManutencao(
+  aviso: { inicio: string; fim: string } | null,
+  definir: (aviso: { inicio: string; fim: string } | null) => void,
+) {
+  if (!aviso || typeof sessionStorage === "undefined") return;
+  if (sessionStorage.getItem("prazos.aviso-manutencao") === `${aviso.inicio}|${aviso.fim}`) return;
+  definir(aviso);
+}
+
+function fecharAvisoManutencao(
+  aviso: { inicio: string; fim: string } | null,
+  definir: (aviso: { inicio: string; fim: string } | null) => void,
+) {
+  if (aviso) sessionStorage.setItem("prazos.aviso-manutencao", `${aviso.inicio}|${aviso.fim}`);
+  definir(null);
+}
+
+function textoMarca(valor: string) {
+  const [data, hora] = valor.split("T");
+  if (!data || !hora) return valor;
+  const [ano, mes, dia] = data.split("-");
+  return `${dia}/${mes}/${ano} às ${hora}`;
+}
+
+function AvisoManutencao({
+  aviso,
+  onFechar,
+}: {
+  aviso: { inicio: string; fim: string } | null;
+  onFechar: () => void;
+}) {
+  if (!aviso) return null;
+  return (
+    <div className="fixed inset-0 z-[120] grid place-items-center bg-ink/50 p-4" role="dialog" aria-modal="true" aria-labelledby="titulo-manutencao">
+      <div className="w-full max-w-md rounded-2xl border border-line bg-sheet p-5 shadow-xl">
+        <h2 id="titulo-manutencao" className="font-display text-2xl text-ink">Manutenção agendada</h2>
+        <p className="mt-3 text-justify text-sm leading-relaxed text-ink">
+          Há uma atualização marcada de {textoMarca(aviso.inicio)} até {textoMarca(aviso.fim)}. O sistema pode ser usado, mas passará por instabilidade. Não nos responsabilizamos por perdas de dados relacionadas a esse período.
+        </p>
+        <button
+          type="button"
+          onClick={onFechar}
+          className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-ink text-sm font-medium text-sheet"
+        >
+          Entendi
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function CaixaAvisos({
   perm,

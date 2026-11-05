@@ -49,6 +49,13 @@ const PAPEIS = [
   ["consulta", "Consulta"],
 ] as const;
 
+function formatarMarca(valor: string) {
+  const [data, hora] = valor.split("T");
+  if (!data || !hora) return valor;
+  const [ano, mes, dia] = data.split("-");
+  return `${dia}/${mes}/${ano} às ${hora}`;
+}
+
 function rotuloTipoFeriado(tipo: string) {
   if (tipo === "recesso") return "Recesso";
   if (tipo === "facultativo") return "Ponto facultativo";
@@ -621,22 +628,75 @@ export function SecaoSistema({
   return (
     <div className="mt-5 flex flex-col gap-4">
       <section className="rounded-2xl border border-line bg-sheet p-4">
-        <h2 className="text-sm font-medium text-ink">Manutenção</h2>
-        <p className="mt-1 text-sm text-muted">Ligado, as pessoas comuns não entram. Esta área restrita continua aberta.</p>
-        <button
-          type="button"
-          onClick={() =>
-            void manutencaoGestao({ data: { token, ligado: !painel.config.manutencao } })
-              .then((resultado) => {
-                onAviso(resultado.manutencao ? "Sistema em manutenção. Quem não é administrador vê o aviso e não usa o sistema." : "Sistema liberado.");
+        <h2 className="text-sm font-medium text-ink">Aviso de atualização</h2>
+        <p className="mt-1 text-sm text-muted">
+          No dia marcado, quem entrar vê o aviso. O sistema continua aberto.
+          {painel.config.manutencaoInicio && painel.config.manutencaoFim
+            ? ` Agendado de ${formatarMarca(painel.config.manutencaoInicio)} até ${formatarMarca(painel.config.manutencaoFim)}.`
+            : ""}
+        </p>
+        <form
+          className="mt-3 flex flex-col gap-3"
+          autoComplete="off"
+          onSubmit={(evento) => {
+            evento.preventDefault();
+            const dados = new FormData(evento.currentTarget);
+            const inicio = String(dados.get("inicio") ?? "");
+            const fim = String(dados.get("fim") ?? "");
+            void manutencaoGestao({ data: { token, inicio, fim } })
+              .then(() => {
+                onAviso("Aviso de atualização agendado.");
                 onMudou();
               })
-              .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível mudar a manutenção."))
-          }
-          className="mt-3 inline-flex h-11 items-center rounded-xl bg-ink px-4 text-sm font-medium text-sheet"
+              .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível agendar o aviso."));
+          }}
         >
-          {painel.config.manutencao ? "Desligar manutenção" : "Colocar em manutenção"}
-        </button>
+          <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+            Início
+            <input
+              type="datetime-local"
+              name="inicio"
+              required
+              autoComplete="off"
+              defaultValue={painel.config.manutencaoInicio}
+              key={painel.config.manutencaoInicio}
+              className="h-11 rounded-xl border border-line bg-paper px-3 text-sm font-normal text-ink"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+            Término previsto
+            <input
+              type="datetime-local"
+              name="fim"
+              required
+              autoComplete="off"
+              defaultValue={painel.config.manutencaoFim}
+              key={painel.config.manutencaoFim}
+              className="h-11 rounded-xl border border-line bg-paper px-3 text-sm font-normal text-ink"
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" className="inline-flex h-11 items-center rounded-xl bg-ink px-4 text-sm font-medium text-sheet">
+              Agendar aviso
+            </button>
+            {painel.config.manutencaoInicio ? (
+              <button
+                type="button"
+                onClick={() =>
+                  void manutencaoGestao({ data: { token, inicio: "", fim: "" } })
+                    .then(() => {
+                      onAviso("Aviso de atualização cancelado.");
+                      onMudou();
+                    })
+                    .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível cancelar o aviso."))
+                }
+                className="inline-flex h-11 items-center rounded-xl border border-line px-4 text-sm font-medium text-ink"
+              >
+                Cancelar aviso
+              </button>
+            ) : null}
+          </div>
+        </form>
       </section>
       <section className="rounded-2xl border border-line bg-sheet p-4">
         <h2 className="text-sm font-medium text-ink">E-mail dos códigos</h2>

@@ -453,8 +453,16 @@ export async function lerPainel() {
     left join "user" u on u.id = m.user_id
     order by e.nome asc, u.name asc
   `;
-  const config = await sql<{ manutencao: boolean; backup_em: string | null; backup_auto_em: string | null; smtp_senha: string | null }>`
-    select manutencao, backup_em, backup_auto_em, smtp_senha from gestao_config where id = 'principal'
+  const config = await sql<{
+    manutencao: boolean;
+    backup_em: string | null;
+    backup_auto_em: string | null;
+    smtp_senha: string | null;
+    manutencao_inicio: string | null;
+    manutencao_fim: string | null;
+  }>`
+    select manutencao, backup_em, backup_auto_em, smtp_senha, manutencao_inicio, manutencao_fim
+    from gestao_config where id = 'principal'
   `;
   await colunasFeriado(sql);
   await separarFeriadosColados(sql);
@@ -538,6 +546,8 @@ export async function lerPainel() {
     equipesPainel: [...equipesMapa.values()],
     config: {
       manutencao: marcado(config[0]?.manutencao),
+      manutencaoInicio: config[0]?.manutencao_inicio ? String(config[0].manutencao_inicio) : "",
+      manutencaoFim: config[0]?.manutencao_fim ? String(config[0].manutencao_fim) : "",
       backupEm: config[0]?.backup_em ? String(config[0].backup_em) : null,
       backupAutoEm: config[0]?.backup_auto_em ? String(config[0].backup_auto_em) : null,
       emailPronto: Boolean(process.env.SMTP_PASS?.trim() || config[0]?.smtp_senha),
@@ -867,6 +877,8 @@ const PAPEIS = ["administrador", "operador", "consulta"] as const;
 async function garantirConfig(sql: Sql) {
   await sql`insert into gestao_config (id) values ('principal') on conflict (id) do nothing`;
   await sql`alter table gestao_config add column if not exists smtp_senha text`;
+  await sql`alter table gestao_config add column if not exists manutencao_inicio text`;
+  await sql`alter table gestao_config add column if not exists manutencao_fim text`;
   await sql`update usuario_perfil set papel = 'operador' where papel = 'secretaria'`;
 }
 
@@ -879,15 +891,12 @@ export async function exigirEscrita(userId: string) {
 export async function barrarSePreciso(userId: string) {
   try {
     const sql = await getSql();
-    const cfg = await sql<{ manutencao: boolean }>`select manutencao from gestao_config where id = 'principal'`;
-    const perfil = await sql<{ bloqueado: boolean; papel: string }>`
-      select bloqueado, papel from usuario_perfil where user_id = ${userId}
+    const perfil = await sql<{ bloqueado: boolean }>`
+      select bloqueado from usuario_perfil where user_id = ${userId}
     `;
     if (perfil[0]?.bloqueado) throw new Error("Acesso bloqueado.");
-    const administrador = perfil[0]?.papel === "administrador";
-    if (marcado(cfg[0]?.manutencao) && !administrador) throw new Error("Sistema em manutenção.");
   } catch (err) {
-    if (err instanceof Error && (err.message === "Sistema em manutenção." || err.message === "Acesso bloqueado.")) throw err;
+    if (err instanceof Error && err.message === "Acesso bloqueado.") throw err;
   }
 }
 
@@ -908,7 +917,9 @@ function expandirPeriodo(inicio: string, fim: string) {
 export async function lerEstado(userId: string | null) {
   const sql = await getSql();
   await garantirConfig(sql);
-  const cfg = await sql<{ manutencao: boolean }>`select manutencao from gestao_config where id = 'principal'`;
+  const cfg = await sql<{ manutencao: boolean; manutencao_inicio: string | null; manutencao_fim: string | null }>`
+    select manutencao, manutencao_inicio, manutencao_fim from gestao_config where id = 'principal'
+  `;
   let bloqueado = false;
   let administrador = false;
   if (userId) {
@@ -945,8 +956,16 @@ export async function lerEstado(userId: string | null) {
   const unicos = new Map<string, { data: string; nome: string; tipo: "feriado" | "facultativo" | "recesso"; municipio: string }>();
   for (const dia of dias) if (!unicos.has(dia.data)) unicos.set(dia.data, dia);
   const lista = [...unicos.values()];
+  const inicioAviso = cfg[0]?.manutencao_inicio ? String(cfg[0].manutencao_inicio) : "";
+  const fimAviso = cfg[0]?.manutencao_fim ? String(cfg[0].manutencao_fim) : "";
+  const hojeBrasil = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const aviso =
+    inicioAviso && fimAviso && hojeBrasil >= inicioAviso.slice(0, 10) && hojeBrasil <= fimAviso.slice(0, 10)
+      ? { inicio: inicioAviso, fim: fimAviso }
+      : null;
   return {
     manutencao: marcado(cfg[0]?.manutencao),
+    aviso,
     bloqueado,
     administrador,
     cidade: cidadeUsuario.cidade,
@@ -1703,20 +1722,29 @@ export async function guardarCidadeUsuario(userId: string, latitude: number, lon
   return local;
 }
 
-export async function definirManutencao(ligado: boolean) {
+export async function definirAvisoManutencao(inicio: string, fim: string) {
   const sql = await getSql();
   await garantirConfig(sql);
-  if (!ligado) {
-    await sql`delete from processos where em_manutencao = true`;
-    await sql`delete from processos_admin where em_manutencao = true`;
+  const marca = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+  if (!inicio && !fim) {
+    await sql`
+      update gestao_config
+      set manutencao = false, manutencao_inicio = null, manutencao_fim = null
+      where id = 'principal'
+    `;
+    await copiarBancoAgora();
+    return { inicio: "", fim: "" };
   }
-  if (ligado) await sql`update gestao_config set manutencao = true where id = 'principal'`;
-  else await sql`update gestao_config set manutencao = false where id = 'principal'`;
-  const gravado = await sql<{ manutencao: unknown }>`select manutencao from gestao_config where id = 'principal'`;
-  const ativo = marcado(gravado[0]?.manutencao);
-  if (ativo !== ligado) throw new Error("A manutenção não foi gravada. Tente de novo.");
+  if (!marca.test(inicio) || !marca.test(fim) || fim <= inicio) {
+    throw new Error("Informe o início e um término previsto depois dele.");
+  }
+  await sql`
+    update gestao_config
+    set manutencao = false, manutencao_inicio = ${inicio}, manutencao_fim = ${fim}
+    where id = 'principal'
+  `;
   await copiarBancoAgora();
-  return { manutencao: ativo };
+  return { inicio, fim };
 }
 
 export async function salvarSenhaCaixa(senha: string) {
