@@ -36,6 +36,17 @@ function texto(valor: unknown): string {
   return typeof valor === "string" ? valor.trim() : "";
 }
 
+function objeto(valor: unknown): Record<string, unknown> | null {
+  return valor && typeof valor === "object" && !Array.isArray(valor) ? (valor as Record<string, unknown>) : null;
+}
+
+function descricao(valor: unknown): string {
+  if (typeof valor === "string") return valor.trim();
+  const item = objeto(valor);
+  if (!item) return "";
+  return texto(item.descricao) || texto(item.text) || texto(item.nome);
+}
+
 function formatarCnpj(digitos: string): string {
   return digitos.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
 }
@@ -54,48 +65,162 @@ function formatarCep(valor: string): string {
 }
 
 function formatarCapital(valor: unknown): string {
-  const numero = typeof valor === "number" ? valor : Number(String(valor ?? "").replace(",", "."));
-  if (!Number.isFinite(numero)) return "";
+  const numero = typeof valor === "number"
+    ? valor
+    : Number(String(valor ?? "").trim().includes(",") ? String(valor).trim().replace(/\./g, "").replace(",", ".") : String(valor ?? "").trim());
+  if (!Number.isFinite(numero) || String(valor ?? "").trim() === "") return "";
   return numero.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function montar(bruto: Record<string, unknown>, digitos: string): ConsultaCnpj {
-  const partes = [texto(bruto.descricao_tipo_de_logradouro), texto(bruto.logradouro), texto(bruto.numero), texto(bruto.complemento), texto(bruto.bairro), texto(bruto.municipio), texto(bruto.uf)].filter(Boolean);
-  const cnaeCodigo = bruto.cnae_fiscal == null ? "" : String(bruto.cnae_fiscal);
-  const cnaeNome = texto(bruto.cnae_fiscal_descricao);
+function formatarTelefone(ddd: string, numero: string): string {
+  const digitos = `${ddd}${numero}`.replace(/\D/g, "");
+  if (digitos.length === 10) return digitos.replace(/^(\d{2})(\d{4})(\d{4})$/, "($1) $2-$3");
+  if (digitos.length === 11) return digitos.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3");
+  return [ddd, numero].filter(Boolean).join(" ").trim();
+}
+
+function juntarEndereco(partes: string[]): string {
+  return partes.map((parte) => parte.trim()).filter(Boolean).join(", ");
+}
+
+function montarBrasil(bruto: Record<string, unknown>, digitos: string): ConsultaCnpj | null {
+  const razaoSocial = texto(bruto.razao_social);
+  if (!razaoSocial || bruto.estabelecimento || bruto.taxId) return null;
   const sociosBrutos = Array.isArray(bruto.qsa) ? bruto.qsa : [];
-  const socios = sociosBrutos.slice(0, 30).flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const socio = item as Record<string, unknown>;
-    const nome = texto(socio.nome_socio);
-    if (!nome) return [];
-    return [{ nome, qualificacao: texto(socio.qualificacao_socio) }];
-  });
   return {
     cnpj: formatarCnpj(digitos),
-    razaoSocial: texto(bruto.razao_social),
+    razaoSocial,
     nomeFantasia: texto(bruto.nome_fantasia),
     situacao: texto(bruto.descricao_situacao_cadastral),
     abertura: formatarData(texto(bruto.data_inicio_atividade)),
     natureza: texto(bruto.natureza_juridica),
     porte: texto(bruto.porte),
     capital: formatarCapital(bruto.capital_social),
-    cnae: [cnaeCodigo, cnaeNome].filter(Boolean).join(" — "),
-    endereco: partes.join(", "),
+    cnae: [bruto.cnae_fiscal == null ? "" : String(bruto.cnae_fiscal), texto(bruto.cnae_fiscal_descricao)].filter(Boolean).join(" — "),
+    endereco: juntarEndereco([texto(bruto.descricao_tipo_de_logradouro), texto(bruto.logradouro), texto(bruto.numero), texto(bruto.complemento), texto(bruto.bairro), texto(bruto.municipio), texto(bruto.uf)]),
     cep: formatarCep(texto(bruto.cep)),
-    telefone: texto(bruto.ddd_telefone_1),
+    telefone: formatarTelefone("", texto(bruto.ddd_telefone_1)),
     email: texto(bruto.email),
-    socios,
+    socios: sociosBrutos.slice(0, 30).flatMap((item) => {
+      const socio = objeto(item);
+      const nome = socio ? texto(socio.nome_socio) : "";
+      if (!nome) return [];
+      return [{ nome, qualificacao: texto(socio?.qualificacao_socio) }];
+    }),
   };
 }
 
-async function buscarJson(url: string): Promise<Record<string, unknown> | null> {
-  const resposta = await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(12000) });
-  if (resposta.status === 404) return null;
-  if (!resposta.ok) throw new Error("indisponivel");
+function montarCnpjWs(bruto: Record<string, unknown>, digitos: string): ConsultaCnpj | null {
+  const estabelecimento = objeto(bruto.estabelecimento);
+  const razaoSocial = texto(bruto.razao_social);
+  if (!estabelecimento || !razaoSocial) return null;
+  const atividade = objeto(estabelecimento.atividade_principal);
+  const cidade = objeto(estabelecimento.cidade);
+  const estado = objeto(estabelecimento.estado);
+  const sociosBrutos = Array.isArray(bruto.socios) ? bruto.socios : [];
+  return {
+    cnpj: formatarCnpj(digitos),
+    razaoSocial,
+    nomeFantasia: texto(estabelecimento.nome_fantasia),
+    situacao: texto(estabelecimento.situacao_cadastral),
+    abertura: formatarData(texto(estabelecimento.data_inicio_atividade)),
+    natureza: descricao(bruto.natureza_juridica),
+    porte: descricao(bruto.porte),
+    capital: formatarCapital(bruto.capital_social),
+    cnae: [atividade ? texto(atividade.subclasse) || texto(atividade.id) : "", atividade ? texto(atividade.descricao) : ""].filter(Boolean).join(" — "),
+    endereco: juntarEndereco([texto(estabelecimento.tipo_logradouro), texto(estabelecimento.logradouro), texto(estabelecimento.numero), texto(estabelecimento.complemento), texto(estabelecimento.bairro), cidade ? texto(cidade.nome) : "", estado ? texto(estado.sigla) : ""]),
+    cep: formatarCep(texto(estabelecimento.cep)),
+    telefone: formatarTelefone(texto(estabelecimento.ddd1), texto(estabelecimento.telefone1)),
+    email: texto(estabelecimento.email),
+    socios: sociosBrutos.slice(0, 30).flatMap((item) => {
+      const socio = objeto(item);
+      const nome = socio ? texto(socio.nome) : "";
+      if (!nome) return [];
+      return [{ nome, qualificacao: descricao(socio?.qualificacao_socio) }];
+    }),
+  };
+}
+
+function montarCnpja(bruto: Record<string, unknown>, digitos: string): ConsultaCnpj | null {
+  const empresa = objeto(bruto.company);
+  const razaoSocial = empresa ? texto(empresa.name) : "";
+  if (!razaoSocial || !bruto.taxId) return null;
+  const endereco = objeto(bruto.address);
+  const atividade = objeto(bruto.mainActivity);
+  const telefones = Array.isArray(bruto.phones) ? bruto.phones : [];
+  const primeiroTelefone = objeto(telefones[0]);
+  const emails = Array.isArray(bruto.emails) ? bruto.emails : [];
+  const primeiroEmail = objeto(emails[0]);
+  const membros = empresa && Array.isArray(empresa.members) ? empresa.members : [];
+  return {
+    cnpj: formatarCnpj(digitos),
+    razaoSocial,
+    nomeFantasia: texto(bruto.alias),
+    situacao: descricao(bruto.status),
+    abertura: formatarData(texto(bruto.founded)),
+    natureza: descricao(empresa?.nature),
+    porte: descricao(empresa?.size),
+    capital: formatarCapital(empresa?.equity),
+    cnae: [atividade?.id == null ? "" : String(atividade.id), atividade ? texto(atividade.text) : ""].filter(Boolean).join(" — "),
+    endereco: endereco ? juntarEndereco([texto(endereco.street), texto(endereco.number), texto(endereco.details), texto(endereco.district), texto(endereco.city), texto(endereco.state)]) : "",
+    cep: endereco ? formatarCep(texto(endereco.zip)) : "",
+    telefone: primeiroTelefone ? formatarTelefone(texto(primeiroTelefone.area), texto(primeiroTelefone.number)) : "",
+    email: primeiroEmail ? texto(primeiroEmail.address) : "",
+    socios: membros.slice(0, 30).flatMap((item) => {
+      const membro = objeto(item);
+      const pessoa = membro ? objeto(membro.person) : null;
+      const nome = pessoa ? texto(pessoa.name) : "";
+      if (!nome) return [];
+      return [{ nome, qualificacao: descricao(membro?.role) }];
+    }),
+  };
+}
+
+function montarReceitaWs(bruto: Record<string, unknown>, digitos: string): ConsultaCnpj | null {
+  const razaoSocial = texto(bruto.nome);
+  if (!razaoSocial || !texto(bruto.abertura)) return null;
+  const atividades = Array.isArray(bruto.atividade_principal) ? bruto.atividade_principal : [];
+  const atividade = objeto(atividades[0]);
+  const sociosBrutos = Array.isArray(bruto.qsa) ? bruto.qsa : [];
+  return {
+    cnpj: formatarCnpj(digitos),
+    razaoSocial,
+    nomeFantasia: texto(bruto.fantasia),
+    situacao: texto(bruto.situacao),
+    abertura: texto(bruto.abertura),
+    natureza: texto(bruto.natureza_juridica),
+    porte: texto(bruto.porte),
+    capital: formatarCapital(bruto.capital_social),
+    cnae: [atividade ? texto(atividade.code) : "", atividade ? texto(atividade.text) : ""].filter(Boolean).join(" — "),
+    endereco: juntarEndereco([texto(bruto.logradouro), texto(bruto.numero), texto(bruto.complemento), texto(bruto.bairro), texto(bruto.municipio), texto(bruto.uf)]),
+    cep: formatarCep(texto(bruto.cep)),
+    telefone: texto(bruto.telefone),
+    email: texto(bruto.email),
+    socios: sociosBrutos.slice(0, 30).flatMap((item) => {
+      const socio = objeto(item);
+      const nome = socio ? texto(socio.nome) : "";
+      if (!nome) return [];
+      return [{ nome, qualificacao: texto(socio?.qual) }];
+    }),
+  };
+}
+
+function interpretar(bruto: Record<string, unknown>, digitos: string): ConsultaCnpj | null {
+  return montarCnpja(bruto, digitos) || montarCnpjWs(bruto, digitos) || montarReceitaWs(bruto, digitos) || montarBrasil(bruto, digitos);
+}
+
+async function buscarJson(url: string): Promise<Record<string, unknown> | "ausente" | null> {
+  const resposta = await fetch(url, {
+    headers: { accept: "application/json", "user-agent": "AuxiliaLegis/1.0" },
+    signal: AbortSignal.timeout(12000),
+  });
+  if (resposta.status === 404) return "ausente";
+  if (!resposta.ok) return null;
   const json = (await resposta.json()) as unknown;
-  if (!json || typeof json !== "object") throw new Error("indisponivel");
-  return json as Record<string, unknown>;
+  const item = objeto(json);
+  if (!item) return null;
+  if (texto(item.status) === "ERROR" || texto(item.message).toLowerCase().includes("não encontrado")) return "ausente";
+  return item;
 }
 
 export const consultarCnpj = createServerFn({ method: "POST" })
@@ -106,20 +231,28 @@ export const consultarCnpj = createServerFn({ method: "POST" })
   })
   .middleware([authMiddleware])
   .handler(async ({ data }) => {
-    const fontes = [`https://brasilapi.com.br/api/cnpj/v1/${data}`, `https://minhareceita.org/${data}`];
-    let ultimoErro = false;
+    const fontes = [
+      `https://open.cnpja.com/office/${data}`,
+      `https://publica.cnpj.ws/cnpj/${data}`,
+      `https://receitaws.com.br/v1/cnpj/${data}`,
+      `https://brasilapi.com.br/api/cnpj/v1/${data}`,
+      `https://minhareceita.org/${data}`,
+    ];
+    let ausente = false;
     for (const fonte of fontes) {
       try {
         const json = await buscarJson(fonte);
-        if (!json) throw new Error("CNPJ não encontrado na Receita Federal.");
-        const consulta = montar(json, data);
-        if (!consulta.razaoSocial) throw new Error("indisponivel");
-        return consulta;
-      } catch (err) {
-        if (err instanceof Error && err.message === "CNPJ não encontrado na Receita Federal.") throw err;
-        ultimoErro = true;
+        if (json === "ausente") {
+          ausente = true;
+          continue;
+        }
+        if (!json) continue;
+        const consulta = interpretar(json, data);
+        if (consulta?.razaoSocial) return consulta;
+      } catch {
+        continue;
       }
     }
-    if (ultimoErro) throw new Error("Não foi possível consultar o CNPJ agora. Tente de novo.");
-    throw new Error("CNPJ não encontrado na Receita Federal.");
+    if (ausente) throw new Error("CNPJ não encontrado na Receita Federal.");
+    throw new Error("Não foi possível consultar o CNPJ agora. Tente de novo.");
   });
