@@ -84,7 +84,10 @@ ${codigoEmail(codigo)}
     senhaCaixa,
   );
   try {
-    await copiarBancoAgora();
+    await Promise.race([
+      copiarBancoAgora(),
+      new Promise((_, rejeitar) => setTimeout(() => rejeitar(new Error("prazo")), 8000)),
+    ]);
   } catch (err) {
     console.error("[senha] banco não copiado depois do e-mail", err);
   }

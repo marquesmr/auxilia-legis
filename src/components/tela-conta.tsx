@@ -375,22 +375,21 @@ export function TelaConta() {
       return;
     }
     try {
-      const esperaAte = Date.now() + 40_000;
-      guardarRascunhoCadastro({ nome: nome.trim(), email: email.trim(), senha, nascimento, esperaAte, codigo: codigoCadastro });
-      setConfirmando(true);
-      setEsperaCodigo(40);
       setAviso("Enviando o código para o seu e-mail…");
       const resultado = await pedirCodigoCadastro({ data: { email: email.trim(), nome: nome.trim(), nascimento, liberacao } });
       if (!resultado || typeof resultado !== "object" || !("enviado" in resultado) || !resultado.enviado) {
         const mensagem = resultado && typeof resultado === "object" && "mensagem" in resultado ? String(resultado.mensagem) : "";
         setErro(mensagem || "Não foi possível enviar o código.");
-        setEsperaCodigo(0);
         return;
       }
+      const esperaAte = Date.now() + 40_000;
+      guardarRascunhoCadastro({ nome: nome.trim(), email: email.trim(), senha, nascimento, esperaAte, codigo: codigoCadastro });
+      setConfirmando(true);
+      setEsperaCodigo(40);
       setAviso("Enviamos o código de confirmação para o seu e-mail.");
     } catch (err) {
-      setErro(err instanceof Error ? err.message : "Não foi possível enviar o código.");
-      setEsperaCodigo(0);
+      const mensagem = err instanceof Error ? err.message : err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "";
+      setErro(mensagem || "Não foi possível enviar o código.");
     } finally {
       setEnviando(false);
     }

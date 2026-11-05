@@ -1,4 +1,5 @@
-import { connect } from "node:tls";
+import { connect as conectarTls, type TLSSocket } from "node:tls";
+import { connect as conectarTcp } from "node:net";
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 
 export const EMAIL_ENVIO = "auxilialegis@marquestecnologies.com";
@@ -24,10 +25,6 @@ export function decifrarSenhaCaixa(guardado: string) {
   const cifra = createDecipheriv("aes-256-gcm", chaveCifra(), Buffer.from(ivHex, "hex"));
   cifra.setAuthTag(Buffer.from(tagHex, "hex"));
   return Buffer.concat([cifra.update(Buffer.from(dadoHex, "hex")), cifra.final()]).toString("utf8");
-}
-
-function comando(socket: import("node:tls").TLSSocket, texto: string) {
-  socket.write(texto.endsWith("\r\n") ? texto : `${texto}\r\n`);
 }
 
 function escapar(texto: string) {
@@ -111,86 +108,270 @@ function quebrar(base64: string) {
   return base64.replace(/.{1,76}/g, (trecho) => `${trecho}\r\n`).trimEnd();
 }
 
-export function enviarEmail(destino: string, assunto: string, html: string, senhaCaixa: string) {
-  const corpo = [
-    `From: Auxilia Legis <${EMAIL_ENVIO}>`,
-    `To: ${destino}`,
-    `Date: ${new Date().toUTCString()}`,
-    `Subject: ${assuntoCodificado(assunto)}`,
-    "MIME-Version: 1.0",
+function textoPlano(html: string) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/(h\d|li|tr|div)>/gi, "\n")
+    .replace(/<li>/gi, "- ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">")
+    .replace(/"/g, '"')
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function montarMensagem(destino: string, assunto: string, html: string) {
+  const limite = `auxilia-${randomBytes(12).toString("hex")}`;
+  const texto = textoPlano(html);
+  const miolo = [
+    `--${limite}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    quebrar(Buffer.from(texto, "utf8").toString("base64")),
+    `--${limite}`,
     "Content-Type: text/html; charset=UTF-8",
     "Content-Transfer-Encoding: base64",
     "",
     quebrar(Buffer.from(html, "utf8").toString("base64")),
+    `--${limite}--`,
     "",
   ].join("\r\n");
+  return [
+    `From: Auxilia Legis <${EMAIL_ENVIO}>`,
+    `To: ${destino}`,
+    `Reply-To: ${EMAIL_ENVIO}`,
+    `Date: ${new Date().toUTCString()}`,
+    `Message-ID: <${randomBytes(16).toString("hex")}@auxilialegis.online>`,
+    `Subject: ${assuntoCodificado(assunto)}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${limite}"`,
+    "",
+    miolo,
+  ].join("\r\n");
+}
 
+function rechearPontos(mensagem: string) {
+  return mensagem
+    .replace(/\r?\n/g, "\n")
+    .split("\n")
+    .map((linha) => (linha.startsWith(".") ? `.${linha}` : linha))
+    .join("\r\n");
+}
+
+function lerResposta(buffer: string) {
+  let cursor = 0;
+  const linhas: string[] = [];
+  while (cursor < buffer.length) {
+    const fim = buffer.indexOf("\n", cursor);
+    if (fim < 0) return null;
+    const linha = buffer.slice(cursor, fim).replace(/\r$/, "");
+    cursor = fim + 1;
+    linhas.push(linha);
+    if (linha.length >= 4 && linha[3] === " ") {
+      const codigo = Number(linha.slice(0, 3));
+      if (!Number.isFinite(codigo)) return null;
+      return { codigo, texto: linhas.join(" | ").slice(0, 220), resto: buffer.slice(cursor) };
+    }
+    if (linha.length < 4 || linha[3] !== "-") return null;
+  }
+  return null;
+}
+
+function sessaoSmtp(socket: TLSSocket, destino: string, mensagem: string, senhaCaixa: string) {
+  const dados = `${rechearPontos(mensagem)}\r\n.\r\n`;
   return new Promise<void>((resolve, reject) => {
-    const socket = connect({ host: SMTP_HOST, port: SMTP_PORT, servername: SMTP_HOST });
     let etapa = 0;
     let buffer = "";
-    const falha = (mensagem: string) => {
+    let resolvido = false;
+    const acabar = (erro?: Error) => {
+      if (resolvido) return;
+      resolvido = true;
+      clearTimeout(tempo);
       socket.destroy();
-      reject(new Error(mensagem));
+      if (erro) reject(erro);
+      else resolve();
     };
-    const tempo = setTimeout(() => falha("O servidor de e-mail não respondeu."), 20000);
+    const tempo = setTimeout(() => acabar(new Error("O servidor de e-mail não respondeu.")), 20000);
+    const enviar = (texto: string) => {
+      socket.write(texto.endsWith("\r\n") ? texto : `${texto}\r\n`);
+    };
+    const falha = (mensagemErro: string) => {
+      console.error("[email]", mensagemErro);
+      acabar(new Error(mensagemErro));
+    };
+    const consumir = () => {
+      while (!resolvido) {
+        const resposta = lerResposta(buffer);
+        if (!resposta) return;
+        buffer = resposta.resto;
+        const { codigo, texto } = resposta;
+        if (etapa === 0 && codigo === 220) {
+          enviar("EHLO auxilialegis.online");
+          etapa = 1;
+          continue;
+        }
+        if (etapa === 1 && codigo === 250) {
+          enviar("AUTH LOGIN");
+          etapa = 2;
+          continue;
+        }
+        if (etapa === 2 && codigo === 334) {
+          enviar(Buffer.from(EMAIL_ENVIO).toString("base64"));
+          etapa = 3;
+          continue;
+        }
+        if (etapa === 3 && codigo === 334) {
+          enviar(Buffer.from(senhaCaixa).toString("base64"));
+          etapa = 4;
+          continue;
+        }
+        if (etapa === 4 && codigo === 235) {
+          enviar(`MAIL FROM:<${EMAIL_ENVIO}>`);
+          etapa = 5;
+          continue;
+        }
+        if (etapa === 4) return falha("A senha da caixa auxilialegis@marquestecnologies.com foi recusada.");
+        if (etapa === 5 && codigo === 250) {
+          enviar(`RCPT TO:<${destino}>`);
+          etapa = 6;
+          continue;
+        }
+        if (etapa === 6 && (codigo === 250 || codigo === 251)) {
+          enviar("DATA");
+          etapa = 7;
+          continue;
+        }
+        if (etapa === 7 && codigo === 354) {
+          enviar(dados);
+          etapa = 8;
+          continue;
+        }
+        if (etapa === 8 && codigo === 250) {
+          resolvido = true;
+          clearTimeout(tempo);
+          enviar("QUIT");
+          socket.end();
+          resolve();
+          return;
+        }
+        falha(`O e-mail não foi aceito pelo servidor (${codigo}).`);
+        return;
+      }
+    };
     socket.on("error", () => falha("Não foi possível falar com o servidor de e-mail."));
     socket.on("data", (pedaço) => {
       buffer += pedaço.toString("utf8");
-      const linhas = buffer.split(/\r?\n/).filter((linha) => linha.length > 0);
-      const ultima = linhas.at(-1) ?? "";
-      if (ultima.length < 4 || ultima[3] === "-") return;
-      buffer = "";
-      const codigo = Number(ultima.slice(0, 3));
-      if (etapa === 0 && codigo === 220) {
-        comando(socket, "EHLO auxilialegis");
+      consumir();
+    });
+  });
+}
+
+function enviarNaPorta465(destino: string, mensagem: string, senhaCaixa: string) {
+  return new Promise<void>((resolve, reject) => {
+    let resolvido = false;
+    const socket = conectarTls({ host: SMTP_HOST, port: SMTP_PORT, servername: SMTP_HOST });
+    const acabar = (erro?: Error) => {
+      if (resolvido) return;
+      resolvido = true;
+      clearTimeout(tempo);
+      if (erro) {
+        socket.destroy();
+        reject(erro);
+        return;
+      }
+      resolve();
+    };
+    const tempo = setTimeout(() => acabar(new Error("O servidor de e-mail não respondeu.")), 20000);
+    socket.once("secureConnect", () => {
+      clearTimeout(tempo);
+      sessaoSmtp(socket, destino, mensagem, senhaCaixa).then(
+        () => acabar(),
+        (erro: unknown) => acabar(erro instanceof Error ? erro : new Error("Não foi possível falar com o servidor de e-mail.")),
+      );
+    });
+    socket.once("error", () => acabar(new Error("Não foi possível falar com o servidor de e-mail.")));
+  });
+}
+
+function enviarNaPorta587(destino: string, mensagem: string, senhaCaixa: string) {
+  return new Promise<void>((resolve, reject) => {
+    const cru = conectarTcp({ host: SMTP_HOST, port: 587 });
+    let buffer = "";
+    let etapa = 0;
+    let resolvido = false;
+    const acabar = (erro?: Error) => {
+      if (resolvido) return;
+      resolvido = true;
+      clearTimeout(tempo);
+      cru.destroy();
+      if (erro) reject(erro);
+      else resolve();
+    };
+    const tempo = setTimeout(() => acabar(new Error("O servidor de e-mail não respondeu.")), 20000);
+    const enviar = (texto: string) => cru.write(`${texto}\r\n`);
+    cru.on("error", () => acabar(new Error("Não foi possível falar com o servidor de e-mail.")));
+    cru.on("data", (pedaço) => {
+      if (resolvido) return;
+      buffer += pedaço.toString("utf8");
+      const resposta = lerResposta(buffer);
+      if (!resposta) return;
+      buffer = resposta.resto;
+      if (etapa === 0 && resposta.codigo === 220) {
+        enviar("EHLO auxilialegis.online");
         etapa = 1;
         return;
       }
-      if (etapa === 1 && codigo === 250) {
-        comando(socket, "AUTH LOGIN");
+      if (etapa === 1 && resposta.codigo === 250) {
+        enviar("STARTTLS");
         etapa = 2;
         return;
       }
-      if (etapa === 2 && codigo === 334) {
-        comando(socket, Buffer.from(EMAIL_ENVIO).toString("base64"));
-        etapa = 3;
-        return;
-      }
-      if (etapa === 3 && codigo === 334) {
-        comando(socket, Buffer.from(senhaCaixa).toString("base64"));
-        etapa = 4;
-        return;
-      }
-      if (etapa === 4 && codigo === 235) {
-        comando(socket, `MAIL FROM:<${EMAIL_ENVIO}>`);
-        etapa = 5;
-        return;
-      }
-      if (etapa === 4) return falha("A senha da caixa auxilialegis@marquestecnologies.com foi recusada.");
-      if (etapa === 5 && codigo === 250) {
-        comando(socket, `RCPT TO:<${destino}>`);
-        etapa = 6;
-        return;
-      }
-      if (etapa === 6 && (codigo === 250 || codigo === 251)) {
-        comando(socket, "DATA");
-        etapa = 7;
-        return;
-      }
-      if (etapa === 7 && codigo === 354) {
-        comando(socket, `${corpo}\r\n.`);
-        etapa = 8;
-        return;
-      }
-      if (etapa === 8 && codigo === 250) {
+      if (etapa === 2 && resposta.codigo === 220) {
+        resolvido = true;
         clearTimeout(tempo);
-        comando(socket, "QUIT");
-        socket.end();
-        resolve();
+        cru.removeAllListeners("data");
+        cru.removeAllListeners("error");
+        const seguro = conectarTls({ socket: cru, servername: SMTP_HOST });
+        let entregue = false;
+        const fechar = (erro?: Error) => {
+          if (entregue) return;
+          entregue = true;
+          clearTimeout(tempoTls);
+          if (erro) {
+            seguro.destroy();
+            reject(erro);
+            return;
+          }
+          resolve();
+        };
+        const tempoTls = setTimeout(() => fechar(new Error("O servidor de e-mail não respondeu.")), 20000);
+        seguro.once("secureConnect", () => {
+          clearTimeout(tempoTls);
+          sessaoSmtp(seguro, destino, mensagem, senhaCaixa).then(
+            () => fechar(),
+            (erro: unknown) => fechar(erro instanceof Error ? erro : new Error("Não foi possível falar com o servidor de e-mail.")),
+          );
+        });
+        seguro.once("error", () => fechar(new Error("Não foi possível falar com o servidor de e-mail.")));
         return;
       }
-      falha("O e-mail não foi aceito pelo servidor.");
+      acabar(new Error("O e-mail não foi aceito pelo servidor."));
     });
+  });
+}
+
+export function enviarEmail(destino: string, assunto: string, html: string, senhaCaixa: string) {
+  const mensagem = montarMensagem(destino, assunto, html);
+  return enviarNaPorta465(destino, mensagem, senhaCaixa).catch((erro: unknown) => {
+    const texto = erro instanceof Error ? erro.message : "";
+    if (!/falar com o servidor|não respondeu/i.test(texto)) throw erro;
+    return enviarNaPorta587(destino, mensagem, senhaCaixa);
   });
 }

@@ -76,7 +76,10 @@ ${botaoEmail(link, "Acessar Minha Equipe")}
     senhaCaixa,
   );
   try {
-    await copiarBancoAgora();
+    await Promise.race([
+      copiarBancoAgora(),
+      new Promise((_, rejeitar) => setTimeout(() => rejeitar(new Error("prazo")), 8000)),
+    ]);
   } catch (err) {
     console.error("[convite] banco não copiado depois do e-mail", err);
   }

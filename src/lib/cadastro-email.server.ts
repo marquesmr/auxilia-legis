@@ -8,6 +8,22 @@ import { senhaDaCaixa } from "@/lib/senha-email.server";
 
 const scrypt = promisify(scryptCb);
 
+function comPrazo<T>(tarefa: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const tempo = setTimeout(() => reject(new Error("prazo")), ms);
+    tarefa.then(
+      (valor) => {
+        clearTimeout(tempo);
+        resolve(valor);
+      },
+      (erro) => {
+        clearTimeout(tempo);
+        reject(erro);
+      },
+    );
+  });
+}
+
 async function hashCodigo(codigo: string) {
   const sal = randomBytes(16).toString("hex");
   const buf = (await scrypt(codigo, sal, 32)) as Buffer;
@@ -86,11 +102,20 @@ export async function barrarEmailRestrito(email: string, nascimento: string, lib
   if (idade == null || idade > 120) throw new Error("Escolha a data de nascimento.");
   const normal = email.trim().toLowerCase();
   if (await liberacaoPermite(normal, nascimento, liberacao)) return;
-  const trava = await lerTravaEmail(normal);
+  let trava: Awaited<ReturnType<typeof lerTravaEmail>> = null;
+  try {
+    trava = await comPrazo(lerTravaEmail(normal), 8000);
+  } catch (err) {
+    console.error("[cadastro] trava", err);
+  }
   if (trava?.analise) throw new Error(TEXTO_ANALISE);
   if (trava && new Date(trava.ate).getTime() > Date.now()) throw new Error(textoAte(trava.ate));
   const sql = await getSql();
-  await puxarNuvem();
+  try {
+    await comPrazo(puxarNuvem(), 8000);
+  } catch (err) {
+    console.error("[cadastro] nuvem", err);
+  }
   await tabelaRestricao(sql);
   const ativo = await sql<{ restrito_ate: string; analise: boolean }>`
     select restrito_ate, analise from email_restrito where lower(email) = ${normal} and (analise or restrito_ate > now())
@@ -159,7 +184,7 @@ ${codigoEmail(codigo)}
     senhaCaixa,
   );
   try {
-    await copiarBancoAgora();
+    await comPrazo(copiarBancoAgora(), 8000);
   } catch (err) {
     console.error("[cadastro] banco não copiado depois do e-mail", err);
   }
