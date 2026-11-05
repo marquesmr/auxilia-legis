@@ -1068,14 +1068,13 @@ export function AdminPainel({
           <LinksFaltando
             processos={lista}
             autorNome={meuNome}
-            onSalvar={async (atualizado) => {
-              const ok = await persistir(
-                lista.map((item) => (item.id === atualizado.id ? atualizado : item)),
-                atualizado,
-                null,
-                "Link lançado",
-              );
-              return ok === true;
+            onSalvar={(atualizado) => {
+              setLista((atual) => atual.map((item) => (item.id === atualizado.id ? atualizado : item)));
+              onToast("Link lançado");
+              void salvarAdmin({ data: atualizado }).catch((err: unknown) => {
+                onToast(mensagemErro(err));
+                void listarAdmin({ data: equipeAtual }).then(setLista).catch(() => undefined);
+              });
             }}
           />
         ) : guia === "relatorio" ? (
@@ -2556,13 +2555,11 @@ function LinksFaltando({
 }: {
   processos: ProcessoAdmin[];
   autorNome: string;
-  onSalvar: (processo: ProcessoAdmin) => Promise<boolean>;
+  onSalvar: (processo: ProcessoAdmin) => void;
 }) {
   const [alvo, setAlvo] = useState<ProcessoAdmin | null>(null);
   const [escolhido, setEscolhido] = useState<LinkLancamento | null>(null);
   const [url, setUrl] = useState("");
-  const [na, setNa] = useState(false);
-  const [ocupado, setOcupado] = useState(false);
   const [erroLink, setErroLink] = useState("");
   const linhas = processos
     .map((processo) => ({ processo, falta: linksEmFalta(processo) }))
@@ -2575,8 +2572,18 @@ function LinksFaltando({
     setAlvo(null);
     setEscolhido(null);
     setUrl("");
-    setNa(false);
     setErroLink("");
+  }
+
+  function gravar(atualizado: ProcessoAdmin) {
+    onSalvar(atualizado);
+    if (linksEmFalta(atualizado).length === 0) fechar();
+    else {
+      setAlvo(atualizado);
+      setEscolhido(null);
+      setUrl("");
+      setErroLink("");
+    }
   }
 
   return (
@@ -2615,7 +2622,7 @@ function LinksFaltando({
                         setAlvo(item.processo);
                         setEscolhido(null);
                         setUrl("");
-                        setNa(false);
+                        setErroLink("");
                       }}
                     />
                   </td>
@@ -2636,18 +2643,29 @@ function LinksFaltando({
             {!opcao ? (
               <div className="mt-4 flex flex-col gap-2">
                 {opcoes.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      setEscolhido(item.id);
-                      setUrl("");
-                      setNa(false);
-                    }}
-                    className="inline-flex h-11 items-center rounded-xl border border-line px-3 text-left text-sm font-medium text-ink"
-                  >
-                    {item.rotulo}
-                  </button>
+                  <div key={item.id} className="flex h-11 items-center rounded-xl border border-line">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEscolhido(item.id);
+                        setUrl("");
+                        setErroLink("");
+                      }}
+                      className="min-w-0 flex-1 px-3 text-left text-sm font-medium text-ink"
+                    >
+                      {item.rotulo}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!alvo) return;
+                        gravar(aplicarLink(alvo, item.id, "", true, autorNome));
+                      }}
+                      className="mr-1 inline-flex h-8 items-center rounded-lg bg-paper px-2.5 text-xs font-medium text-ink"
+                    >
+                      N/A
+                    </button>
+                  </div>
                 ))}
               </div>
             ) : (
@@ -2655,46 +2673,25 @@ function LinksFaltando({
                 className="mt-4 flex flex-col gap-3"
                 onSubmit={(eventoForm) => {
                   eventoForm.preventDefault();
-                  if (!alvo || ocupado) return;
-                  const endereco = na ? "" : normalizarLink(url) || "";
-                  if (!na && !endereco) {
-                    setErroLink(url.trim() ? "O link está inválido." : "Informe o link ou marque N/A.");
+                  if (!alvo) return;
+                  const endereco = normalizarLink(url) || "";
+                  if (!endereco) {
+                    setErroLink(url.trim() ? "O link está inválido." : "Informe o link.");
                     return;
                   }
-                  setErroLink("");
-                  const atualizado = aplicarLink(alvo, opcao.id, endereco, na, autorNome);
-                  setOcupado(true);
-                  void onSalvar(atualizado).then((ok) => {
-                    setOcupado(false);
-                    if (ok) fechar();
-                  });
+                  gravar(aplicarLink(alvo, opcao.id, endereco, false, autorNome));
                 }}
               >
-                <label className="flex items-center gap-2 text-sm font-medium text-ink">
-                  <input
-                    type="checkbox"
-                    checked={na}
-                    onChange={(evento) => {
-                      setNa(evento.target.checked);
-                      if (evento.target.checked) setUrl("");
-                    }}
-                  />
-                  N/A
-                </label>
-                {na ? (
-                  <p className="text-xs text-muted">Fica como N/A.</p>
-                ) : (
-                  <input
-                    type="url"
-                    inputMode="url"
-                    value={url}
-                    onChange={(evento) => setUrl(evento.target.value)}
-                    className={inputCls}
-                    placeholder="https://"
-                    autoComplete="off"
-                    required
-                  />
-                )}
+                <input
+                  type="url"
+                  inputMode="url"
+                  value={url}
+                  onChange={(evento) => setUrl(evento.target.value)}
+                  className={inputCls}
+                  placeholder="https://"
+                  autoComplete="off"
+                  required
+                />
                 {erroLink ? <p className="text-sm text-seal">{erroLink}</p> : null}
                 <div className="flex gap-2">
                   <button
@@ -2702,17 +2699,13 @@ function LinksFaltando({
                     onClick={() => {
                       setEscolhido(null);
                       setUrl("");
-                      setNa(false);
+                      setErroLink("");
                     }}
                     className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink"
                   >
                     Voltar
                   </button>
-                  <button
-                    type="submit"
-                    disabled={ocupado}
-                    className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-60"
-                  >
+                  <button type="submit" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">
                     Salvar
                   </button>
                 </div>
