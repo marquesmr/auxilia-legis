@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { formatarReais, MODALIDADES, rotuloNumero, statusAdminLabel, type ProcessoAdmin } from "@/lib/admin";
+import { corGrafico } from "@/lib/cores-grafico";
 import { listaCodigos } from "@/lib/status-catalogo";
 
 type Vista = "situacao" | "tipo" | "anual" | "mensal" | "valorTipo";
-type Fatia = { label: string; valor: number; cor: string; texto: string };
+type Fatia = { label: string; valor: number; texto: string };
 
 const VISTAS: { id: Vista; label: string }[] = [
   { id: "situacao", label: "Situação" },
@@ -11,18 +12,6 @@ const VISTAS: { id: Vista; label: string }[] = [
   { id: "anual", label: "Valor anual" },
   { id: "mensal", label: "Valor mensal" },
   { id: "valorTipo", label: "Valor por tipo" },
-];
-
-const CORES = [
-  "var(--color-pine)",
-  "var(--color-brass)",
-  "var(--color-seal)",
-  "var(--color-muted)",
-  "#3d5a4c",
-  "#4a5568",
-  "#8a6a32",
-  "#2f5d50",
-  "#a39b90",
 ];
 
 export function GraficoAdmin({ processos }: { processos: ProcessoAdmin[] }) {
@@ -72,26 +61,17 @@ export function GraficoAdmin({ processos }: { processos: ProcessoAdmin[] }) {
 }
 
 function VistaSituacao({ processos }: { processos: ProcessoAdmin[] }) {
-  const cores: Record<string, string> = {
-    proposta: "var(--color-pine)",
-    pareceres: "var(--color-brass)",
-    assinatura: "color-mix(in srgb, var(--color-pine) 55%, var(--color-ink))",
-    execucao: "color-mix(in srgb, var(--color-brass) 55%, var(--color-ink))",
-    encerrado: "var(--color-muted)",
-    cancelado: "color-mix(in srgb, var(--color-muted) 45%, var(--color-line))",
-  };
-  const extras = ["var(--color-pine)", "var(--color-brass)", "var(--color-ink)", "var(--color-seal)"];
-  const fatias = listaCodigos("administrativo").map((status, indice) => {
+  const fatias = listaCodigos("administrativo").map((status) => {
     const n = processos.filter((p) => p.status === status).length;
-    return { label: statusAdminLabel(status), valor: n, texto: String(n), cor: cores[status] ?? extras[indice % extras.length] };
+    return { label: statusAdminLabel(status), valor: n, texto: String(n) };
   }).filter((item) => item.valor > 0);
   return <Rosca fatias={fatias} centro={String(processos.length)} legenda="processos" />;
 }
 
 function VistaTipo({ processos }: { processos: ProcessoAdmin[] }) {
-  const fatias = MODALIDADES.map((tipo, i) => {
+  const fatias = MODALIDADES.map((tipo) => {
     const n = processos.filter((p) => p.tipo === tipo).length;
-    return { label: tipo, valor: n, texto: String(n), cor: CORES[i % CORES.length] };
+    return { label: tipo, valor: n, texto: String(n) };
   }).filter((item) => item.valor > 0);
   return <Rosca fatias={fatias} centro={String(processos.length)} legenda="processos" />;
 }
@@ -110,11 +90,11 @@ function valorAnualOuEstimado(p: ProcessoAdmin): { valor: number; texto: string 
 }
 function VistaValores({ processos, mensal }: { processos: ProcessoAdmin[]; mensal: boolean }) {
   const fatias = processos
-    .map((p, i) => {
+    .map((p) => {
       const anual = valorAnualOuEstimado(p);
       const valor = mensal ? (p.valorMensalCentavos ?? 0) : anual.valor;
       const texto = mensal ? formatarReais(p.valorMensalCentavos) : anual.texto;
-      return { label: rotuloProcesso(p), valor, texto, cor: CORES[i % CORES.length] };
+      return { label: rotuloProcesso(p), valor, texto };
     })
     .filter((item) => item.valor > 0)
     .sort((a, b) => b.valor - a.valor);
@@ -124,9 +104,9 @@ function VistaValores({ processos, mensal }: { processos: ProcessoAdmin[]; mensa
 }
 
 function VistaValorTipo({ processos }: { processos: ProcessoAdmin[] }) {
-  const fatias = MODALIDADES.map((tipo, i) => {
+  const fatias = MODALIDADES.map((tipo) => {
     const valor = processos.filter((p) => p.tipo === tipo).reduce((soma, p) => soma + valorAnualOuEstimado(p).valor, 0);
-    return { label: tipo, valor, texto: formatarReais(valor), cor: CORES[i % CORES.length] };
+    return { label: tipo, valor, texto: formatarReais(valor) };
   }).filter((item) => item.valor > 0);
   const soma = fatias.reduce((total, item) => total + item.valor, 0);
   if (fatias.length === 0) return <p className="text-sm text-muted">Nenhum valor lançado neste recorte.</p>;
@@ -134,11 +114,12 @@ function VistaValorTipo({ processos }: { processos: ProcessoAdmin[] }) {
 }
 
 function Rosca({ fatias, centro, legenda }: { fatias: Fatia[]; centro: string; legenda: string }) {
+  const pintadas = fatias.map((item, indice) => ({ ...item, cor: corGrafico(indice) }));
   return (
     <div className="grid items-center gap-6 md:grid-cols-[15rem_1fr]">
-      <Donut fatias={fatias} centro={centro} legenda={legenda} />
+      <Donut fatias={pintadas} centro={centro} legenda={legenda} />
       <ul className="flex flex-col gap-2">
-        {fatias.map((item) => (
+        {pintadas.map((item) => (
           <li key={item.label} className="flex items-start justify-between gap-3 text-sm">
             <span className="flex min-w-0 items-start gap-2 text-ink">
               <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ background: item.cor }} />
@@ -152,7 +133,7 @@ function Rosca({ fatias, centro, legenda }: { fatias: Fatia[]; centro: string; l
   );
 }
 
-function Donut({ fatias, centro, legenda }: { fatias: Fatia[]; centro: string; legenda: string }) {
+function Donut({ fatias, centro, legenda }: { fatias: (Fatia & { cor: string })[]; centro: string; legenda: string }) {
   const r = 58;
   const c = 2 * Math.PI * r;
   const total = fatias.reduce((soma, item) => soma + item.valor, 0);

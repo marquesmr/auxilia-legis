@@ -1,32 +1,21 @@
 import { classeResposta, rotuloRetorno, TIPOS_LEI, type Processo, urgencia } from "@/lib/prazos";
+import { pintarContagem } from "@/lib/cores-grafico";
 import { encerraStatus } from "@/lib/status-catalogo";
 
 const ORDEM_TIPO = ["Requerimentos", "Indicações", "Projetos de Lei", "Outros"] as const;
-
-const CORES_TIPO = ["var(--color-pine)", "var(--color-brass)", "var(--color-seal)", "var(--color-muted)"];
-
-const CORES_RETORNO = [
-  "var(--color-muted)",
-  "var(--color-seal)",
-  "var(--color-brass)",
-  "var(--color-pine)",
-  "color-mix(in srgb, var(--color-pine) 55%, var(--color-ink))",
-  "color-mix(in srgb, var(--color-brass) 55%, var(--color-ink))",
-  "color-mix(in srgb, var(--color-seal) 55%, var(--color-ink))",
-];
 
 export function PainelEstatisticas({ processos, className }: { processos: Processo[]; className?: string }) {
   const porTipo = ORDEM_TIPO.map((tipo) => ({
     tipo,
     n: processos.filter((p) => p.tipo === tipo).length,
   }));
-  const situacao = [
-    { label: "Vencidos", n: processos.filter((p) => urgencia(p) === "vencido").length, cor: "var(--color-seal)" },
-    { label: "Vencem hoje", n: processos.filter((p) => urgencia(p) === "hoje").length, cor: "var(--color-seal)" },
-    { label: "Vencendo", n: processos.filter((p) => urgencia(p) === "proximo").length, cor: "var(--color-brass)" },
-    { label: "No prazo", n: processos.filter((p) => urgencia(p) === "ok").length, cor: "var(--color-pine)" },
-    { label: "Arquivados", n: processos.filter((p) => encerraStatus("legislativo", p.status)).length, cor: "var(--color-muted)" },
-  ];
+  const situacao = pintarContagem([
+    { label: "Vencidos", n: processos.filter((p) => urgencia(p) === "vencido").length },
+    { label: "Vencem hoje", n: processos.filter((p) => urgencia(p) === "hoje").length },
+    { label: "Vencendo", n: processos.filter((p) => urgencia(p) === "proximo").length },
+    { label: "No prazo", n: processos.filter((p) => urgencia(p) === "ok").length },
+    { label: "Arquivados", n: processos.filter((p) => encerraStatus("legislativo", p.status)).length },
+  ]);
   const retornos = processos.filter((p) => p.retorno);
   const labelsRetorno = [
     "Veto integral",
@@ -37,16 +26,20 @@ export function PainelEstatisticas({ processos, className }: { processos: Proces
     const rotulo = rotuloRetorno(item);
     if (!labelsRetorno.includes(rotulo)) labelsRetorno.push(rotulo);
   }
-  const fatiasRetorno = labelsRetorno.map((label, i) => ({
-    label,
-    n: retornos.filter((p) => rotuloRetorno(p) === label).length,
-    cor: CORES_RETORNO[(i + 1) % CORES_RETORNO.length],
-  }));
-  const resposta = [
-    { label: "Respondido no prazo", id: "no-prazo" as const, cor: "var(--color-pine)" },
-    { label: "Não respondido no prazo", id: "fora" as const, cor: "var(--color-seal)" },
-    { label: "Ainda no prazo", id: "aguardando" as const, cor: "var(--color-brass)" },
-  ].map((item) => ({ ...item, n: processos.filter((p) => classeResposta(p) === item.id).length }));
+  const fatiasRetorno = pintarContagem(
+    labelsRetorno.map((label) => ({
+      label,
+      n: retornos.filter((p) => rotuloRetorno(p) === label).length,
+    })),
+  );
+  const resposta = pintarContagem(
+    [
+      { label: "Respondido no prazo", id: "no-prazo" as const },
+      { label: "Não respondido no prazo", id: "fora" as const },
+      { label: "Ainda no prazo", id: "aguardando" as const },
+    ].map((item) => ({ ...item, n: processos.filter((p) => classeResposta(p) === item.id).length })),
+  );
+  const tiposPintados = pintarContagem(porTipo.map((item) => ({ label: item.tipo, n: item.n })));
   const total = processos.length;
   const abertos = processos.filter((p) => !encerraStatus("legislativo", p.status)).length;
 
@@ -84,16 +77,13 @@ export function PainelEstatisticas({ processos, className }: { processos: Proces
 
       <section className="rounded-2xl border border-line bg-sheet p-4">
         <h2 className="font-display text-2xl text-ink">Por tipo</h2>
-        <Donut
-          fatias={porTipo.map((item, i) => ({ label: item.tipo, n: item.n, cor: CORES_TIPO[i] }))}
-          total={total}
-        />
+        <Donut fatias={tiposPintados} total={total} />
         <ul className="mt-2 flex flex-col gap-2">
-          {porTipo.map((item, i) => (
-            <li key={item.tipo} className="flex items-center justify-between gap-3 text-sm">
+          {tiposPintados.map((item) => (
+            <li key={item.label} className="flex items-center justify-between gap-3 text-sm">
               <span className="flex items-center gap-2 text-ink">
-                <span className="size-2.5 rounded-full" style={{ background: CORES_TIPO[i] }} />
-                {item.tipo}
+                <span className="size-2.5 rounded-full" style={{ background: item.cor }} />
+                {item.label}
               </span>
               <span className="font-medium text-ink">{item.n}</span>
             </li>
