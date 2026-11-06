@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react";
 import textoLei from "@/lib/lei-14133.html?raw";
 
 const OFICIAIS = [
@@ -11,14 +11,53 @@ const OFICIAIS = [
   { rotulo: "Decreto 12.807/2025", href: "https://www.planalto.gov.br/ccivil_03/_Ato2023-2026/2025/Decreto/D12807.htm" },
 ];
 
+const SEM_ACENTO: Record<string, string> = {
+  á: "a", à: "a", ã: "a", â: "a", ä: "a",
+  é: "e", è: "e", ê: "e", ë: "e",
+  í: "i", ì: "i", î: "i", ï: "i",
+  ó: "o", ò: "o", õ: "o", ô: "o", ö: "o",
+  ú: "u", ù: "u", û: "u", ü: "u",
+  ç: "c",
+};
+
+function semAcento(valor: string) {
+  return valor
+    .toLowerCase()
+    .replace(/[áàãâäéèêëíìîïóòõôöúùûüç]/g, (letra) => SEM_ACENTO[letra] ?? letra);
+}
+
 function titulosDaLei(html: string) {
   const itens: { id: string; nome: string }[] = [];
-  const re = /<h2 class="lei-titulo" id="([^"]+)">([^<]+)<\/h2>\s*<p class="lei-p">([^<]*)<\/p>/g;
+  const re = /<h2 class="lei-titulo" id="([^"]+)">([^<]+)<\/h2>\s*<p class="lei-nome">([^<]*)<\/p>/g;
   for (const item of html.matchAll(re)) {
     const nome = item[3].trim();
     itens.push({ id: item[1], nome: nome ? `${item[2]} — ${nome}` : item[2] });
   }
   return itens;
+}
+
+function marcarTermo(html: string, termo: string) {
+  const alvo = semAcento(termo.trim());
+  if (alvo.length < 2) return { html, total: 0 };
+  let total = 0;
+  const marcado = html.replace(/>([^<]+)</g, (_trecho, texto: string) => {
+    const base = semAcento(texto);
+    let cursor = 0;
+    let saida = "";
+    let achou = base.indexOf(alvo, cursor);
+    if (achou < 0) return `>${texto}<`;
+    while (achou >= 0) {
+      saida += texto.slice(cursor, achou);
+      const fim = achou + alvo.length;
+      saida += `<mark class="lei-marca">${texto.slice(achou, fim)}</mark>`;
+      total += 1;
+      cursor = fim;
+      achou = base.indexOf(alvo, cursor);
+    }
+    saida += texto.slice(cursor);
+    return `>${saida}<`;
+  });
+  return { html: marcado, total };
 }
 
 function irPara(id: string) {
@@ -27,20 +66,44 @@ function irPara(id: string) {
 
 export function LeiLicitacoes() {
   const titulos = useMemo(() => titulosDaLei(textoLei), []);
-  const [artigo, setArtigo] = useState("");
+  const [consulta, setConsulta] = useState("");
   const [aviso, setAviso] = useState("");
+  const [html, setHtml] = useState(textoLei);
+  const [indice, setIndice] = useState(0);
+  const [total, setTotal] = useState(0);
 
-  function buscarArtigo(event: FormEvent) {
+  useEffect(() => {
+    const marcas = document.querySelectorAll<HTMLElement>("#topo-lei mark.lei-marca");
+    marcas.forEach((marca, posicao) => marca.classList.toggle("lei-marca-atual", posicao === indice));
+    marcas[indice]?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [indice, html]);
+
+  function buscar(event: FormEvent) {
     event.preventDefault();
-    const numero = artigo.replace(/\D/g, "");
-    if (!numero) return;
-    const alvo = document.getElementById(`art${numero}`);
-    if (!alvo) {
-      setAviso("Não há esse artigo na Lei 14.133.");
+    const texto = consulta.trim();
+    if (!texto) {
+      setHtml(textoLei);
+      setTotal(0);
+      setAviso("");
       return;
     }
-    setAviso("");
-    alvo.scrollIntoView({ behavior: "smooth", block: "start" });
+    const artigo = texto.match(/^(?:art(?:igo)?\.?\s*)?(\d{1,3})(?:\s*[-–]?\s*([a-z]))?º?$/i);
+    if (artigo) {
+      const id = `art${artigo[1]}${(artigo[2] ?? "").toLowerCase()}`;
+      const alvo = document.getElementById(id);
+      if (alvo) {
+        setHtml(textoLei);
+        setTotal(0);
+        setAviso("");
+        alvo.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+    }
+    const marcado = marcarTermo(textoLei, texto);
+    setHtml(marcado.html);
+    setIndice(0);
+    setTotal(marcado.total);
+    setAviso(marcado.total ? "" : "Nada encontrado na Lei 14.133.");
   }
 
   function aoClicar(event: MouseEvent<HTMLElement>) {
@@ -71,20 +134,31 @@ export function LeiLicitacoes() {
           ),
         )}
       </div>
-      <form onSubmit={buscarArtigo} className="mt-4 flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-          Ir para o artigo
+      <form onSubmit={buscar} className="mt-4 flex flex-wrap items-end gap-2">
+        <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-medium text-ink">
+          Pesquisar
           <input
-            value={artigo}
-            onChange={(event) => setArtigo(event.target.value)}
-            inputMode="numeric"
-            placeholder="Ex.: 75"
-            className="h-11 w-36 rounded-xl border border-line bg-paper px-3 text-ink"
+            value={consulta}
+            onChange={(event) => setConsulta(event.target.value)}
+            placeholder="Artigo ou termo. Ex.: 75 ou dispensa"
+            className="h-11 w-full rounded-xl border border-line bg-paper px-3 text-ink"
           />
         </label>
         <button type="submit" className="h-11 rounded-xl bg-pine px-4 text-sm font-medium text-sheet">
-          Abrir
+          Buscar
         </button>
+        {total > 1 && (
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setIndice((atual) => (atual - 1 + total) % total)} className="h-11 rounded-xl border border-line bg-sheet px-3 text-sm text-ink">
+              Anterior
+            </button>
+            <span className="text-sm text-muted">{indice + 1} de {total}</span>
+            <button type="button" onClick={() => setIndice((atual) => (atual + 1) % total)} className="h-11 rounded-xl border border-line bg-sheet px-3 text-sm text-ink">
+              Próximo
+            </button>
+          </div>
+        )}
+        {total === 1 && <span className="text-sm text-muted">1 ocorrência</span>}
         {aviso && <p className="text-sm text-seal">{aviso}</p>}
       </form>
       <div className="mt-4 flex flex-wrap gap-2">
@@ -94,7 +168,7 @@ export function LeiLicitacoes() {
           </button>
         ))}
       </div>
-      <article className="lei-texto mt-6" onClick={aoClicar} dangerouslySetInnerHTML={{ __html: textoLei }} />
+      <article className="lei-texto mt-6" onClick={aoClicar} dangerouslySetInnerHTML={{ __html: html }} />
       <div className="sticky bottom-4 z-30 mt-4 flex justify-start">
         <button
           type="button"
@@ -106,10 +180,11 @@ export function LeiLicitacoes() {
       </div>
       <style>{`
         .lei-texto { color: var(--color-ink); font-size: 0.95rem; line-height: 1.65; }
-        .lei-texto .lei-notas, .lei-texto .lei-titulo, .lei-texto .lei-capitulo, .lei-texto .lei-secao { text-align: center; }
+        .lei-texto .lei-notas, .lei-texto .lei-titulo, .lei-texto .lei-capitulo, .lei-texto .lei-secao, .lei-texto .lei-nome { text-align: center; }
         .lei-texto .lei-titulo { margin: 2rem 0 0.25rem; font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; scroll-margin-top: 5rem; }
-        .lei-texto .lei-capitulo, .lei-texto .lei-secao { margin: 1.25rem 0 0.2rem; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.02em; }
+        .lei-texto .lei-capitulo, .lei-texto .lei-secao, .lei-texto .lei-nome { margin: 1.25rem 0 0.2rem; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.02em; }
         .lei-texto p { margin: 0.55rem 0; text-align: justify; }
+        .lei-texto p.lei-nome, .lei-texto p.lei-secao, .lei-texto h2, .lei-texto h3, .lei-texto h4 { text-align: center; }
         .lei-texto .lei-art, .lei-texto .lei-inciso, .lei-texto .lei-alinea, .lei-texto .lei-par, #topo-lei { scroll-margin-top: 5rem; }
         .lei-texto .lei-citacao {
           margin: 0.2rem 0 0.2rem 0.35rem;
@@ -125,6 +200,8 @@ export function LeiLicitacoes() {
         }
         .lei-texto a { color: var(--color-pine); text-decoration: underline; text-underline-offset: 2px; }
         .lei-texto del { color: var(--color-muted); text-decoration: line-through; }
+        .lei-texto mark.lei-marca { background: #f3d48a; color: inherit; border-radius: 2px; }
+        .lei-texto mark.lei-marca-atual { background: #e09a2b; }
       `}</style>
     </div>
   );
