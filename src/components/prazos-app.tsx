@@ -147,6 +147,18 @@ function classificar(lista: Processo[], campo: OrdemCampo, dir: "asc" | "desc"):
   });
 }
 
+function useTelaPequena() {
+  const [pequena, setPequena] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const aplicar = () => setPequena(mq.matches);
+    aplicar();
+    mq.addEventListener("change", aplicar);
+    return () => mq.removeEventListener("change", aplicar);
+  }, []);
+  return pequena;
+}
+
 function emptyForm(): FormState {
   return {
     numero: "",
@@ -293,6 +305,7 @@ export function PrazosApp() {
   const [nomePerfil, setNomePerfil] = useState("");
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   const [parte, setParte] = useState(0);
+  const telaPequena = useTelaPequena();
   const [area, setArea] = useState<Area>("legislativo");
   const [modulo, setModulo] = useState<Area | null>(null);
   const [moduloLido, setModuloLido] = useState(false);
@@ -601,14 +614,14 @@ export function PrazosApp() {
     return classificar(lista, ordemCampo, ordemDir);
   }, [processos, filtro, busca, tipoAba, ordemCampo, ordemDir]);
 
-  const porParte = 12;
+  const porParte = telaPequena ? 8 : 12;
   const totalPartes = Math.max(1, Math.ceil(filtrados.length / porParte));
   const parteAtual = Math.min(parte, totalPartes - 1);
   const daParte = filtrados.slice(parteAtual * porParte, parteAtual * porParte + porParte);
 
   useEffect(() => {
     setParte(0);
-  }, [filtro, busca, tipoAba, ordemCampo, ordemDir, equipeAtual]);
+  }, [filtro, busca, tipoAba, ordemCampo, ordemDir, equipeAtual, telaPequena]);
 
   const contagem = useMemo(() => {
     let vencidos = 0;
@@ -1327,7 +1340,7 @@ export function PrazosApp() {
               )}
             </div>
           ) : (
-            <ul className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
+            <ul className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3">
               {daParte.map((p) => (
                 <ProcessoCard
                   key={p.id}

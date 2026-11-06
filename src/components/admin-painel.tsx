@@ -556,6 +556,7 @@ export function AdminPainel({
   const [ordemCampo, setOrdemCampo] = useState<OrdemAdmin>("numero");
   const [ordemDir, setOrdemDir] = useState<"asc" | "desc">("asc");
   const [parte, setParte] = useState(0);
+  const telaPequena = useTelaPequena();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ProcessoAdmin | null>(null);
   const [form, setForm] = useState<FormAdmin>(vazio);
@@ -639,7 +640,7 @@ export function AdminPainel({
 
   useEffect(() => {
     setParte(0);
-  }, [filtro, busca, tipoAba, ordemCampo, ordemDir, equipeAtual]);
+  }, [filtro, busca, tipoAba, ordemCampo, ordemDir, equipeAtual, telaPequena]);
 
   useEffect(() => {
     if (!pronto || typeof Notification === "undefined" || Notification.permission !== "granted") return;
@@ -694,7 +695,7 @@ export function AdminPainel({
     });
   }, [lista, filtro, busca, tipoAba, ordemCampo, ordemDir]);
 
-  const porParte = 12;
+  const porParte = telaPequena ? 8 : 12;
   const totalPartes = Math.max(1, Math.ceil(filtrados.length / porParte));
   const parteAtual = Math.min(parte, totalPartes - 1);
   const daParte = filtrados.slice(parteAtual * porParte, parteAtual * porParte + porParte);
@@ -1403,7 +1404,7 @@ export function AdminPainel({
                 </p>
               </div>
             ) : (
-              <ul className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
+              <ul className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3">
                 {daParte.map((item) => (
                   <CardAdmin
                     key={item.id}
@@ -3573,6 +3574,18 @@ function Resumo({ valor, rotulo, tom }: { valor: number; rotulo: string; tom: "s
       <p className="mt-1 text-xs leading-tight text-muted">{rotulo}</p>
     </div>
   );
+}
+
+function useTelaPequena() {
+  const [pequena, setPequena] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const aplicar = () => setPequena(mq.matches);
+    aplicar();
+    mq.addEventListener("change", aplicar);
+    return () => mq.removeEventListener("change", aplicar);
+  }, []);
+  return pequena;
 }
 
 function GuiaBotao({ ativo, onClick, children, className = "" }: { ativo: boolean; onClick: () => void; children: ReactNode; className?: string }) {
