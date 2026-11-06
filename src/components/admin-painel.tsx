@@ -1403,7 +1403,7 @@ export function AdminPainel({
                 </p>
               </div>
             ) : (
-              <ul className="mt-4 grid grid-cols-3 gap-3">
+              <ul className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
                 {daParte.map((item) => (
                   <CardAdmin
                     key={item.id}
@@ -2073,7 +2073,7 @@ function CardAdmin({
         evento.dataTransfer.setData("text/plain", processo.id);
         evento.dataTransfer.effectAllowed = "move";
       }}
-      className="relative flex h-full cursor-grab flex-col overflow-hidden rounded-2xl border border-line bg-sheet active:cursor-grabbing"
+      className="relative flex h-full min-w-0 cursor-grab flex-col overflow-hidden rounded-2xl border border-line bg-sheet active:cursor-grabbing"
     >
       <span className={`absolute inset-y-0 left-0 w-1.5 ${tom.bar}`} />
       <div className="flex flex-1 flex-col px-3 py-3 pl-4">
@@ -2089,21 +2089,21 @@ function CardAdmin({
         </p>
         {processo.referencia && <p className="mt-1 truncate text-sm font-medium text-ink">{processo.referencia}</p>}
         <p className="mt-1 truncate text-xs text-muted">{statusAdminLabel(processo.status)}</p>
-        <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
-          <button type="button" onClick={onAndamento} className="inline-flex h-8 items-center rounded-lg bg-pine-soft px-2.5 text-xs font-medium text-pine">
+        <div className="mt-auto flex flex-col gap-1.5 pt-3 sm:flex-row sm:flex-wrap">
+          <button type="button" onClick={onAndamento} className="inline-flex h-8 w-full items-center rounded-lg bg-pine-soft px-2.5 text-xs font-medium text-pine sm:w-auto">
             Andamento
           </button>
-          <button type="button" onClick={() => setDetalhes(true)} className="inline-flex h-8 items-center rounded-lg border border-line px-2.5 text-xs font-medium text-ink">
+          <button type="button" onClick={() => setDetalhes(true)} className="inline-flex h-8 w-full items-center rounded-lg border border-line px-2.5 text-xs font-medium text-ink sm:w-auto">
             Detalhes
           </button>
-          <button type="button" onClick={() => setMoverAberto((v) => !v)} className="inline-flex h-8 items-center rounded-lg border border-line px-2.5 text-xs font-medium text-ink">
+          <button type="button" onClick={() => setMoverAberto((v) => !v)} className="inline-flex h-8 w-full items-center rounded-lg border border-line px-2.5 text-xs font-medium text-ink sm:w-auto">
             Mover
           </button>
-          <button type="button" onClick={onEditar} className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-xs font-medium text-ink">
+          <button type="button" onClick={onEditar} className="inline-flex h-8 w-full items-center gap-1 rounded-lg border border-line px-2.5 text-xs font-medium text-ink sm:w-auto">
             <Pencil className="size-3.5" />
             Editar
           </button>
-          <button type="button" onClick={onExcluir} className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-xs font-medium text-seal">
+          <button type="button" onClick={onExcluir} className="inline-flex h-8 w-full items-center gap-1 rounded-lg border border-line px-2.5 text-xs font-medium text-seal sm:w-auto">
             <Trash2 className="size-3.5" />
             Excluir
           </button>

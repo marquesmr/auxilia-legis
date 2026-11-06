@@ -147,18 +147,6 @@ function classificar(lista: Processo[], campo: OrdemCampo, dir: "asc" | "desc"):
   });
 }
 
-function useGradeTresColunas() {
-  const [tres, setTres] = useState(true);
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const aplicar = () => setTres(mq.matches);
-    aplicar();
-    mq.addEventListener("change", aplicar);
-    return () => mq.removeEventListener("change", aplicar);
-  }, []);
-  return tres;
-}
-
 function emptyForm(): FormState {
   return {
     numero: "",
@@ -319,7 +307,6 @@ export function PrazosApp() {
   const [lendoCidade, setLendoCidade] = useState(false);
   const [motivoExclusaoId, setMotivoExclusaoId] = useState("");
   const exclusaoVista = useRef(false);
-  const tresColunas = useGradeTresColunas();
   const meuNome = user?.displayName?.trim() || "Sem nome";
   const aberturaAplicada = useRef(false);
   const [pedirSenha, setPedirSenha] = useState(false);
@@ -614,14 +601,14 @@ export function PrazosApp() {
     return classificar(lista, ordemCampo, ordemDir);
   }, [processos, filtro, busca, tipoAba, ordemCampo, ordemDir]);
 
-  const porParte = (tresColunas ? 3 : 1) * 5;
+  const porParte = 12;
   const totalPartes = Math.max(1, Math.ceil(filtrados.length / porParte));
   const parteAtual = Math.min(parte, totalPartes - 1);
   const daParte = filtrados.slice(parteAtual * porParte, parteAtual * porParte + porParte);
 
   useEffect(() => {
     setParte(0);
-  }, [filtro, busca, tipoAba, ordemCampo, ordemDir, equipeAtual, tresColunas]);
+  }, [filtro, busca, tipoAba, ordemCampo, ordemDir, equipeAtual]);
 
   const contagem = useMemo(() => {
     let vencidos = 0;
@@ -1340,7 +1327,7 @@ export function PrazosApp() {
               )}
             </div>
           ) : (
-            <ul className={"mt-4 grid gap-3 " + (tresColunas ? "grid-cols-3" : "grid-cols-1")}>
+            <ul className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
               {daParte.map((p) => (
                 <ProcessoCard
                   key={p.id}
@@ -2017,7 +2004,7 @@ function ProcessoCard({
         evento.dataTransfer.setData("text/plain", processo.id);
         evento.dataTransfer.effectAllowed = "move";
       }}
-      className="relative flex h-full cursor-grab flex-col overflow-hidden rounded-2xl border border-line bg-sheet active:cursor-grabbing"
+      className="relative flex h-full min-w-0 cursor-grab flex-col overflow-hidden rounded-2xl border border-line bg-sheet active:cursor-grabbing"
     >
       <span className={`absolute inset-y-0 left-0 w-1.5 ${tom.bar}`} aria-hidden />
       <div className="flex flex-1 flex-col px-4 py-4 pl-5">
