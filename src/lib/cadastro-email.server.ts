@@ -216,33 +216,88 @@ export async function abrirSessaoConta(userId: string) {
   });
 }
 
+async function barrarRapido(sql: Awaited<ReturnType<typeof getSql>>, email: string, nascimento: string) {
+  const idade = idadeEm(nascimento);
+  if (idade == null || idade > 120) throw new Error("Escolha a data de nascimento.");
+  await tabelaRestricao(sql);
+  const ativo = await sql<{ restrito_ate: string; analise: boolean }>`
+    select restrito_ate, analise from email_restrito where lower(email) = ${email} and (analise or restrito_ate > now())
+  `;
+  if (ativo[0]?.analise) throw new Error(TEXTO_ANALISE);
+  if (ativo[0]) throw new Error(textoAte(new Date(ativo[0].restrito_ate).toISOString()));
+  if (idade < 18) throw new Error(`Menor de 18 anos não cria conta. ${textoAte(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString())}`);
+}
+
+async function senhaConfere(userId: string, senha: string) {
+  const sql = await getSql();
+  const contas = await sql<{ password: string | null }>`
+    select password from "account" where "userId" = ${userId} and "providerId" = 'credential' limit 1
+  `;
+  const hash = contas[0]?.password;
+  if (!hash) return false;
+  const { auth } = await import("./auth/server");
+  const ctx = await auth.$context;
+  return ctx.password.verify({ password: senha, hash });
+}
+
+function depoisDoCadastro(tarefa: Promise<unknown>) {
+  void tarefa.catch((err) => console.error("[cadastro] tarefa tardia", err));
+}
+
 export async function criarContaComCodigo(nome: string, email: string, senha: string, codigo: string, idade: number, nascimento: string, liberacao = "") {
   const sql = await getSql();
   await tabela(sql);
-  await barrarEmailRestrito(email, nascimento, liberacao);
+  if (!(await liberacaoPermite(email, nascimento, liberacao))) await barrarRapido(sql, email, nascimento);
   const linhas = await sql<{ codigo_hash: string; tentativas: number; valido: boolean }>`
     select codigo_hash, tentativas, expira_em > now() as valido
     from codigo_cadastro
     where email = ${email}
   `;
   const item = linhas[0];
-  if (!item || !item.valido) throw new Error("O código expirou. Peça outro.");
+  const ja = await sql<{ id: string; criado: string | null }>`
+    select id, "createdAt" as criado from "user" where lower(email) = ${email}
+  `;
+  const contaRecente = ja[0]?.criado != null && Date.now() - new Date(ja[0].criado).getTime() < 30 * 60 * 1000;
+  if (!item || !item.valido) {
+    if (ja[0] && contaRecente && (await senhaConfere(ja[0].id, senha))) {
+      await abrirSessaoConta(ja[0].id);
+      return { ok: true };
+    }
+    throw new Error("O código expirou. Peça outro.");
+  }
   if (item.tentativas >= 5) throw new Error("Muitas tentativas. Peça um código novo.");
   const ok = await codigoConfere(codigo, item.codigo_hash);
   if (!ok) {
     await sql`update codigo_cadastro set tentativas = tentativas + 1 where email = ${email}`;
     throw new Error("Código incorreto.");
   }
-  const ja = await sql<{ id: string }>`select id from "user" where lower(email) = ${email}`;
-  if (ja[0]) throw new Error("Já existe uma conta com este e-mail.");
+  if (ja[0]) {
+    if (await senhaConfere(ja[0].id, senha)) {
+      await sql`delete from codigo_cadastro where email = ${email}`;
+      await abrirSessaoConta(ja[0].id);
+      return { ok: true };
+    }
+    throw new Error("Já existe uma conta com este e-mail.");
+  }
   const { auth } = await import("./auth/server");
   const ctx = await auth.$context;
   const hash = await ctx.password.hash(senha);
-  const usuario = await ctx.internalAdapter.createUser({
-    email,
-    name: nome,
-    emailVerified: true,
-  });
+  let usuario: { id: string } | null = null;
+  try {
+    usuario = await ctx.internalAdapter.createUser({
+      email,
+      name: nome,
+      emailVerified: true,
+    });
+  } catch (err) {
+    const deNovo = await sql<{ id: string }>`select id from "user" where lower(email) = ${email}`;
+    if (deNovo[0] && (await senhaConfere(deNovo[0].id, senha))) {
+      await sql`delete from codigo_cadastro where email = ${email}`;
+      await abrirSessaoConta(deNovo[0].id);
+      return { ok: true };
+    }
+    throw err instanceof Error ? err : new Error("Não foi possível criar a conta.");
+  }
   if (!usuario?.id) throw new Error("Não foi possível criar a conta.");
   await sql`alter table "user" add column if not exists idade smallint`;
   await sql`alter table "user" add column if not exists nascimento date`;
@@ -261,36 +316,49 @@ export async function criarContaComCodigo(nome: string, email: string, senha: st
   await sql`delete from conta_excluida where lower(email) = ${email}`;
   await sql`delete from codigo_cadastro where email = ${email}`;
   await sql`delete from email_restrito where lower(email) = ${email}`;
-  await apagarTravaEmail(email);
-  await copiarBancoAgora();
   await abrirSessaoConta(usuario.id);
+  depoisDoCadastro(avisarContaPronta(sql, usuario.id, nome, email));
+  return { ok: true };
+}
+
+async function avisarContaPronta(sql: Awaited<ReturnType<typeof getSql>>, userId: string, nome: string, email: string) {
+  try {
+    await comPrazo(copiarBancoAgora(), 8000);
+  } catch (err) {
+    console.error("[cadastro] banco não copiado", err);
+  }
+  try {
+    await apagarTravaEmail(email);
+  } catch (err) {
+    console.error("[cadastro] trava", err);
+  }
   try {
     const senhaCaixa = await senhaDaCaixa();
     const origem = await urlDoSite();
-    if (senhaCaixa) {
-      let link = "";
-      if (origem) {
-        const token = randomBytes(32).toString("hex");
-        const tokenHash = createHmac("sha256", "acesso-direto").update(token).digest("hex");
-        await sql`
-          create table if not exists acesso_direto (
-            token_hash text primary key,
-            user_id text not null,
-            expira_em timestamptz not null
-          )
-        `;
-        await sql`
-          insert into acesso_direto (token_hash, user_id, expira_em)
-          values (${tokenHash}, ${usuario.id}, now() + interval '24 hours')
-        `;
-        link = `${origem}/?acesso=${token}`;
-      }
-      await enviarEmail(
-        email,
-        "Sua conta no Auxilia Legis está pronta!",
-        emailHtml(
-          nome,
-          `<p>Sua conta no <strong>Auxilia Legis</strong> foi criada com sucesso. Agora é só entrar e começar a usar.</p>
+    if (!senhaCaixa) return;
+    let link = "";
+    if (origem) {
+      const token = randomBytes(32).toString("hex");
+      const tokenHash = createHmac("sha256", "acesso-direto").update(token).digest("hex");
+      await sql`
+        create table if not exists acesso_direto (
+          token_hash text primary key,
+          user_id text not null,
+          expira_em timestamptz not null
+        )
+      `;
+      await sql`
+        insert into acesso_direto (token_hash, user_id, expira_em)
+        values (${tokenHash}, ${userId}, now() + interval '24 hours')
+      `;
+      link = `${origem}/?acesso=${token}`;
+    }
+    await enviarEmail(
+      email,
+      "Sua conta no Auxilia Legis está pronta!",
+      emailHtml(
+        nome,
+        `<p>Sua conta no <strong>Auxilia Legis</strong> foi criada com sucesso. Agora é só entrar e começar a usar.</p>
 ${link ? botaoEmail(link, "Abrir o Auxilia Legis") : "<p>Entre com o e-mail e a senha que você acabou de criar.</p>"}
 <p>Lembre-se:</p>
 <ul>
@@ -300,15 +368,13 @@ ${link ? botaoEmail(link, "Abrir o Auxilia Legis") : "<p>Entre com o e-mail e a 
 </ul>
 <p>Se precisar de ajuda com qualquer coisa, é só chamar. Estamos por aqui para te apoiar.</p>
 <p>Bem-vindo(a)!</p>`,
-          origem,
-        ),
-        senhaCaixa,
-      );
-    }
-  } catch {
-    /* a conta já existe; o aviso por e-mail não desfaz o cadastro */
+        origem,
+      ),
+      senhaCaixa,
+    );
+  } catch (err) {
+    console.error("[cadastro] aviso", err);
   }
-  return { ok: true };
 }
 
 export async function entrarPeloLink(token: string) {

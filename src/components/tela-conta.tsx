@@ -397,27 +397,36 @@ export function TelaConta() {
 
   async function confirmarCadastro(event: FormEvent) {
     event.preventDefault();
+    if (enviando) return;
     setErro("");
+    if (!liberacao && travaLocalDe(email)) {
+      setErro(textoTrava(travaLocalDe(email) ?? Date.now()));
+      return;
+    }
     setEnviando(true);
-    try {
-      if (!liberacao && travaLocalDe(email)) {
-        setErro(textoTrava(travaLocalDe(email) ?? Date.now()));
+    let terminou = false;
+    const pedido = criarContaComCodigo({
+      data: { nome: nome.trim(), email: email.trim(), senha, codigo: codigoCadastro, nascimento, liberacao },
+    })
+      .then((resultado) => {
+        terminou = true;
+        if (resultado && typeof resultado === "object" && "restrito" in resultado && resultado.restrito) {
+          marcarTravaLocal(email);
+          setErro("mensagem" in resultado && typeof resultado.mensagem === "string" ? resultado.mensagem : textoTrava(Date.now()));
+          setEnviando(false);
+          return;
+        }
+        limparRascunhoCadastro();
+        window.location.assign("/");
+      })
+      .catch((err) => {
+        terminou = true;
+        setErro(err instanceof Error ? err.message : "Não foi possível confirmar o e-mail.");
         setEnviando(false);
-        return;
-      }
-      const resultado = await criarContaComCodigo({
-        data: { nome: nome.trim(), email: email.trim(), senha, codigo: codigoCadastro, nascimento, liberacao },
       });
-      if (resultado && typeof resultado === "object" && "restrito" in resultado && resultado.restrito) {
-        marcarTravaLocal(email);
-        setErro("mensagem" in resultado && typeof resultado.mensagem === "string" ? resultado.mensagem : textoTrava(Date.now()));
-        setEnviando(false);
-        return;
-      }
-      limparRascunhoCadastro();
-      window.location.assign("/");
-    } catch (err) {
-      setErro(err instanceof Error ? err.message : "Não foi possível confirmar o e-mail.");
+    await Promise.race([pedido, new Promise((resolve) => window.setTimeout(resolve, 12000))]);
+    if (!terminou) {
+      setErro("A confirmação demorou. Toque em confirmar de novo.");
       setEnviando(false);
     }
   }
