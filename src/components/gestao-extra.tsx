@@ -4,6 +4,7 @@ import {
   backupGestao,
   backupsAutomaticosGestao,
   clienteGoogleGestao,
+  enviarBackupDriveGestao,
   apagarStatusGestao,
   bloquearUsuarioGestao,
   definirPapelGestao,
@@ -28,7 +29,7 @@ import type { painelGestao } from "@/lib/gestao.functions";
 import { MOTIVOS_EXCLUSAO } from "@/lib/motivos-exclusao";
 import { motivoSaida } from "@/lib/motivos-saida";
 import { CampoSenha } from "@/components/campo-senha";
-import { carregarGoogle, enviarBackupDrive, nomeBackupManual, pedirAcessoDrive } from "@/lib/google-drive-backup";
+import { carregarGoogle, nomeBackupManual, pedirCodigoDrive } from "@/lib/google-drive-backup";
 
 type Painel = Awaited<ReturnType<typeof painelGestao>>;
 
@@ -576,12 +577,10 @@ export function SecaoSistema({
       return;
     }
     setEscolhaBackup(false);
-    void pedirAcessoDrive(googleId)
-      .then(async (acesso) => {
-        const arquivo = await backupGestao({ data: token });
-        const nome = nomeBackupManual();
-        await enviarBackupDrive(acesso, nome, arquivo.conteudo);
-        onAviso(`Backup no Google Drive, na pasta Auxilia Legis: ${nome}`);
+    void pedirCodigoDrive(googleId)
+      .then((codigo) => enviarBackupDriveGestao({ data: { token, codigo } }))
+      .then((resultado) => {
+        onAviso(`Backup no Google Drive, na pasta ${resultado.pasta}: ${resultado.nome}. Os automáticos vão para a pasta Auxilia Legis - Automático.`);
         onMudou();
       })
       .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível enviar o backup ao Google Drive."));
@@ -892,7 +891,7 @@ export function SecaoSistema({
       <section className="rounded-2xl border border-line bg-sheet p-4">
         <h2 className="text-sm font-medium text-ink">Backup</h2>
         <p className="mt-1 text-sm text-muted">
-          Último manual: {hora(painel.config.backupEm)}. Último automático: {hora(painel.config.backupAutoEm)}. O automático ocorre a cada novo lançamento e nenhum ponto é apagado.
+          Último manual: {hora(painel.config.backupEm)}. Último automático: {hora(painel.config.backupAutoEm)}. O automático ocorre a cada novo lançamento e nenhum ponto é apagado. Depois que o Drive é autorizado uma vez, o automático também vai para a pasta Auxilia Legis - Automático.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
@@ -938,7 +937,7 @@ export function SecaoSistema({
               <div className="w-full max-w-md rounded-2xl border border-line bg-sheet p-5 shadow-lg">
                 <h3 id="titulo-backup" className="font-display text-2xl text-ink">Backup manual</h3>
                 <p className="mt-2 text-sm text-muted">
-                  Guarda neste computador ou no Google Drive. O arquivo sai cifrado: só o sistema o abre, na restauração. No Drive, a pasta é Auxilia Legis e o arquivo se chama {nomeBackupManual()}.
+                  Guarda neste computador ou no Google Drive. O arquivo sai cifrado: só o sistema o abre, na restauração. No Drive, a pasta é Auxilia Legis e o arquivo se chama {nomeBackupManual()}. Autorizar o Drive também passa a enviar o backup automático para a pasta Auxilia Legis - Automático.
                 </p>
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                   <button type="button" onClick={backupNoComputador} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line px-4 text-sm font-medium text-ink">

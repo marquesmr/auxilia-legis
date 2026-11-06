@@ -74,7 +74,7 @@ function Privacidade() {
           Nem o controlador, nem quem guarda o arquivo no computador, nem a conta Google que recebe a cópia no Drive conseguem ler as informações. Não há tela, exportação nem consulta que revele o conteúdo do arquivo. A decifragem existe apenas como etapa interna da restauração, feita pelo sistema, para repor os dados. O controlador não usa o backup para conhecer o que está nas contas.
         </p>
         <p className="text-justify">
-          O envio ao Google Drive não é automático. Só ocorre quando alguém autorizado na área restrita escolhe essa opção e autoriza o escopo drive.file. Esse escopo cria a pasta Auxilia Legis e o arquivo cifrado na conta Google escolhida na hora. Não autoriza ler o restante do Drive.
+          O envio ao Google Drive depende de uma autorização da área restrita, com o escopo drive.file. O backup manual vai para a pasta Auxilia Legis. Depois dessa autorização, o backup automático também é enviado, cifrado, para a pasta separada Auxilia Legis - Automático. Esse escopo não autoriza ler o restante do Drive.
         </p>
 
         <Titulo>6. Transferência internacional</Titulo>

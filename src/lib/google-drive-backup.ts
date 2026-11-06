@@ -1,27 +1,48 @@
 const PASTA = "Auxilia Legis";
 const ESCOPO = "https://www.googleapis.com/auth/drive.file";
 
-type ClienteToken = {
-  requestAccessToken: (opcoes?: { prompt?: string }) => void;
+type ClienteCodigo = {
+  requestCode: () => void;
 };
 
-type RespostaToken = { access_token?: string; error?: string };
+type RespostaCodigo = { code?: string; error?: string; error_description?: string };
 
 declare global {
   interface Window {
     google?: {
       accounts: {
         oauth2: {
-          initTokenClient: (config: {
+          initCodeClient: (config: {
             client_id: string;
             scope: string;
-            callback: (resposta: RespostaToken) => void;
+            ux_mode?: "popup";
+            select_account?: boolean;
+            callback: (resposta: RespostaCodigo) => void;
             error_callback?: () => void;
-          }) => ClienteToken;
+          }) => ClienteCodigo;
         };
       };
     };
   }
+}
+
+export function nomeBackupAutomatico(agora = new Date()) {
+  const partes = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(agora);
+  const ler = (tipo: string) => partes.find((parte) => parte.type === tipo)?.value ?? "00";
+  return `backup_automatico_${ler("day")}_${ler("month")}_${ler("year")}_${ler("hour")}_${ler("minute")}`;
+}
+
+export function avisoTesteGoogle(clientId: string) {
+  const projeto = clientId.split("-")[0] || clientId;
+  return `O Google bloqueou o acesso porque o aplicativo ainda está em teste. No Cloud Console, abra o projeto de número ${projeto}, que é o do login, e não outro. Em APIs e serviços, ative a API Google Drive. Na tela de consentimento OAuth, publique o aplicativo ou adicione o e-mail como usuário de teste.`;
 }
 
 export function nomeBackupManual(agora = new Date()) {
@@ -58,23 +79,26 @@ export function carregarGoogle() {
   });
 }
 
-export function pedirAcessoDrive(clientId: string) {
+export function pedirCodigoDrive(clientId: string) {
   return new Promise<string>((resolver, rejeitar) => {
     const google = window.google?.accounts?.oauth2;
     if (!google) {
       rejeitar(new Error("O Google ainda está abrindo. Tenta de novo."));
       return;
     }
-    const cliente = google.initTokenClient({
+    const cliente = google.initCodeClient({
       client_id: clientId,
       scope: ESCOPO,
+      ux_mode: "popup",
+      select_account: true,
       callback: (resposta) => {
-        if (resposta.access_token) resolver(resposta.access_token);
-        else rejeitar(new Error("O Google não autorizou o Drive. Ative a API do Google Drive neste login."));
+        if (resposta.code) resolver(resposta.code);
+        else if (resposta.error === "access_denied") rejeitar(new Error(avisoTesteGoogle(clientId)));
+        else rejeitar(new Error(resposta.error_description || "O Google não autorizou o Drive. Ative a API do Google Drive neste login."));
       },
       error_callback: () => rejeitar(new Error("O acesso ao Google Drive foi cancelado.")),
     });
-    cliente.requestAccessToken();
+    cliente.requestCode();
   });
 }
 
@@ -99,9 +123,9 @@ async function driveJson<T>(token: string, url: string, init?: RequestInit): Pro
   return (await resposta.json()) as T;
 }
 
-async function pastaDoSistema(token: string) {
+async function pastaDoSistema(token: string, nome: string) {
   const consulta = encodeURIComponent(
-    `name = '${PASTA}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    `name = '${nome}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
   );
   const achada = await driveJson<{ files?: { id: string }[] }>(
     token,
@@ -111,13 +135,13 @@ async function pastaDoSistema(token: string) {
   const criada = await driveJson<{ id: string }>(token, "https://www.googleapis.com/drive/v3/files", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: PASTA, mimeType: "application/vnd.google-apps.folder" }),
+    body: JSON.stringify({ name: nome, mimeType: "application/vnd.google-apps.folder" }),
   });
   return criada.id;
 }
 
-export async function enviarBackupDrive(token: string, nome: string, conteudo: string) {
-  const pasta = await pastaDoSistema(token);
+export async function enviarBackupDrive(token: string, nome: string, conteudo: string, pastaNome = PASTA) {
+  const pasta = await pastaDoSistema(token, pastaNome);
   const consulta = encodeURIComponent(`name = '${nome}' and '${pasta}' in parents and trashed = false`);
   const achado = await driveJson<{ files?: { id: string }[] }>(
     token,

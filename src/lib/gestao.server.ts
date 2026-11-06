@@ -1375,8 +1375,15 @@ async function guardarBackup(sql: Sql, automatico: boolean) {
     insert into gestao_backups (id, automatico, conteudo, contas, processos, administrativos)
     values (${crypto.randomUUID()}, ${automatico}, ${conteudo}, ${resumo.contas}, ${resumo.processos}, ${resumo.administrativos})
   `;
-  if (automatico) await sql`update gestao_config set backup_auto_em = now() where id = 'principal'`;
-  else await sql`update gestao_config set backup_em = now() where id = 'principal'`;
+  if (automatico) {
+    await sql`update gestao_config set backup_auto_em = now() where id = 'principal'`;
+    try {
+      const { enviarBackupAutomaticoDrive } = await import("./google-drive.server");
+      await enviarBackupAutomaticoDrive(conteudo);
+    } catch {
+      /* o ponto fica gravado mesmo se o Drive recusar */
+    }
+  } else await sql`update gestao_config set backup_em = now() where id = 'principal'`;
   return conteudo;
 }
 

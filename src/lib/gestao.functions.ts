@@ -486,6 +486,24 @@ export const clienteGoogleGestao = createServerFn({ method: "POST" })
     return { clientId };
   });
 
+export const enviarBackupDriveGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; codigo?: unknown };
+    if (typeof bruto.codigo !== "string" || bruto.codigo.length < 8 || bruto.codigo.length > 2048) {
+      throw new Error("O Google não devolveu a autorização.");
+    }
+    return { token: tokenOk(bruto.token), codigo: bruto.codigo };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, fazerBackup } = await import("./gestao.server");
+    const { autorizarDriveEEnviarManual } = await import("./google-drive.server");
+    await exigirGestao(data.token);
+    const arquivo = await fazerBackup();
+    return autorizarDriveEEnviarManual(data.codigo, arquivo.conteudo);
+  });
+
 export const backupsAutomaticosGestao = createServerFn({ method: "POST" })
   .validator(tokenOk)
   .handler(async ({ data }) => {
