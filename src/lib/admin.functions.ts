@@ -344,7 +344,7 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
     contratado2: linha.contratado_2 ?? "",
     documento2: linha.documento_2 ?? "",
     nascimento2: dia(linha.nascimento_2),
-    valorTotalCentavos: linha.valor_total_centavos != null ? Number(linha.valor_total_centavos) : null,
+    valorTotalCentavos: pagamentoDemanda && pagamentos.length > 0 ? somaPagamentos(pagamentos) : linha.valor_total_centavos != null ? Number(linha.valor_total_centavos) : null,
     valorMensalCentavos: possui && linha.valor_mensal_centavos != null ? Number(linha.valor_mensal_centavos) : null,
     valorEstimadoCentavos: linha.valor_estimado_centavos != null ? Number(linha.valor_estimado_centavos) : null,
     pagamentoDemanda,

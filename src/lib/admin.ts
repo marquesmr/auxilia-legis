@@ -243,6 +243,11 @@ export function somaPagamentos(pagamentos: PagamentoDemanda[]): number {
   return pagamentos.reduce((soma, item) => soma + item.valorCentavos, 0);
 }
 
+export function valorSomado(p: ProcessoAdmin): number | null {
+  if (p.pagamentoDemanda && p.pagamentos.length > 0) return somaPagamentos(p.pagamentos);
+  return p.valorTotalCentavos;
+}
+
 export function reaisParaCentavos(texto: string): number | null {
   const bruto = texto.trim();
   if (!bruto) return null;

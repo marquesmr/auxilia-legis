@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { formatarReais, MODALIDADES, rotuloNumero, statusAdminLabel, type ProcessoAdmin } from "@/lib/admin";
+import { formatarReais, MODALIDADES, rotuloNumero, somaPagamentos, statusAdminLabel, type ProcessoAdmin } from "@/lib/admin";
 import { caminhoPizza, corGrafico } from "@/lib/cores-grafico";
 import { listaCodigos } from "@/lib/status-catalogo";
 
@@ -84,6 +84,10 @@ function rotuloProcesso(p: ProcessoAdmin): string {
 }
 
 function valorAnualOuEstimado(p: ProcessoAdmin): { valor: number; texto: string } {
+  if (p.pagamentoDemanda && p.pagamentos.length > 0) {
+    const soma = somaPagamentos(p.pagamentos);
+    return { valor: soma, texto: formatarReais(soma) };
+  }
   if ((p.valorTotalCentavos ?? 0) > 0) return { valor: p.valorTotalCentavos ?? 0, texto: formatarReais(p.valorTotalCentavos) };
   if ((p.valorEstimadoCentavos ?? 0) > 0) return { valor: p.valorEstimadoCentavos ?? 0, texto: `${formatarReais(p.valorEstimadoCentavos)} estimado` };
   return { valor: 0, texto: formatarReais(null) };

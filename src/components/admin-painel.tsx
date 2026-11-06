@@ -34,6 +34,7 @@ import {
   somaPagamentos,
   statusAdminLabel,
   urgenciaAdmin,
+  valorSomado,
   type Modalidade,
   type PeriodoRelatorio,
   type ProcessoAdmin,
@@ -1044,6 +1045,10 @@ export function AdminPainel({
       });
   }
 
+  function pagamentoNoPeriodo(item: ProcessoAdmin, inicio: string, fim: string) {
+    return item.pagamentoDemanda && item.pagamentos.some((pagamento) => pagamento.data >= inicio && pagamento.data <= fim);
+  }
+
   function gerarRelatorio() {
     const intervalo = intervaloPeriodo(ancora, periodo);
     if (!intervalo) {
@@ -1051,7 +1056,7 @@ export function AdminPainel({
       return;
     }
     const itens = lista
-      .filter((item) => cruzaPeriodo(item, intervalo.inicio, intervalo.fim))
+      .filter((item) => cruzaPeriodo(item, intervalo.inicio, intervalo.fim) || pagamentoNoPeriodo(item, intervalo.inicio, intervalo.fim))
       .filter((item) => statusRelatorio === "todos" || item.status === statusRelatorio)
       .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
     setRelatorio({ ...intervalo, itens });
@@ -1069,8 +1074,9 @@ export function AdminPainel({
     });
   }
 
-  const totalRelatorio = relatorio?.itens.reduce((soma, item) => soma + (item.valorTotalCentavos ?? 0), 0) ?? 0;
+  const totalRelatorio = relatorio?.itens.reduce((soma, item) => soma + (valorSomado(item) ?? 0), 0) ?? 0;
   const mensalRelatorio = relatorio?.itens.reduce((soma, item) => soma + (item.valorMensalCentavos ?? 0), 0) ?? 0;
+  const demandaRelatorio = relatorio?.itens.reduce((soma, item) => soma + (item.pagamentoDemanda ? (valorSomado(item) ?? 0) : 0), 0) ?? 0;
 
   const moverPara = useCallback(
     async (id: string, equipeId: string | null) => {
@@ -1304,8 +1310,9 @@ export function AdminPainel({
                   <BotaoRelatorio />
                 </div>
                 <p className="mt-3 text-sm text-ink">
-                  Valor total dos contratos no recorte: {formatarReais(totalRelatorio || null)} · mensal:{" "}
+                  Valor total no recorte: {formatarReais(totalRelatorio || null)} · mensal:{" "}
                   {formatarReais(mensalRelatorio || null)}
+                  {relatorio.itens.some((item) => item.pagamentoDemanda) ? ` · pagamentos por demanda: ${formatarReais(demandaRelatorio)}` : ""}
                 </p>
                 <div className="mt-4">
                   <GraficoAdmin processos={relatorio.itens} />
@@ -1358,7 +1365,7 @@ export function AdminPainel({
                             </td>
                             <td className="col-fixa py-2 text-ink">
                               {item.pagamentoDemanda ? (
-                                formatarReais(item.valorTotalCentavos)
+                                formatarReais(valorSomado(item))
                               ) : item.valorTotalCentavos != null ? (
                                 <>
                                   {formatarReais(item.valorTotalCentavos)}
@@ -3168,7 +3175,7 @@ function CartaoProcesso({ item }: { item: ProcessoAdmin }) {
         <p className="font-medium text-ink">{rotuloNumero(item.numero, item.numeroAno)}</p>
         <p className="shrink-0 text-right text-ink">
           {item.pagamentoDemanda ? (
-            formatarReais(item.valorTotalCentavos)
+            formatarReais(valorSomado(item))
           ) : item.valorTotalCentavos != null ? formatarReais(item.valorTotalCentavos) : item.valorEstimadoCentavos != null ? `${formatarReais(item.valorEstimadoCentavos)} estimado` : "—"}
         </p>
       </div>
