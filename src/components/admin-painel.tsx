@@ -348,10 +348,6 @@ function validar(form: FormAdmin): string[] {
   } else if (!form.pagamentoDemanda && form.valorEstimado.trim() && reaisParaCentavos(form.valorEstimado) == null) {
     erros.push("O valor estimado está inválido.");
   }
-  if (form.pagamentoDemanda && form.status !== "cancelado") {
-    if (form.pagamentos.length === 0) erros.push("Informe ao menos um pagamento.");
-    else if (form.pagamentos.some((item) => reaisParaCentavos(item.valor) == null)) erros.push("Informe o valor de cada pagamento.");
-  }
   if (permiteDoisContratados(form.tipo) && (form.status === "encerrado" || form.status === "execucao")) {
     const nome2 = form.contratado2.trim();
     const doc2 = form.documento2.replace(/\D/g, "");
@@ -575,6 +571,9 @@ export function AdminPainel({
   const [documento2And, setDocumento2And] = useState("");
   const [nascimento2And, setNascimento2And] = useState("");
   const [valorAnd, setValorAnd] = useState("");
+  const [pagAndData, setPagAndData] = useState("");
+  const [pagAndValor, setPagAndValor] = useState("");
+  const [pagAndDescricao, setPagAndDescricao] = useState("");
   const [escolhaLink, setEscolhaLink] = useState(false);
   const [linksAndamento, setLinksAndamento] = useState<Partial<Record<TipoLinkAndamento, string>>>({});
   const [periodo, setPeriodo] = useState<PeriodoRelatorio>("mensal");
@@ -865,13 +864,36 @@ export function AdminPainel({
       aplicados.push({ curto: item.curto, url, campo: item.campo });
     }
     const simples = tipoSimples(atual.tipo);
+    const valorNovo = atual.pagamentoDemanda ? reaisParaCentavos(pagAndValor) : null;
+    const querPagamento = Boolean(atual.pagamentoDemanda && (pagAndValor.trim() || pagAndDescricao.trim() || pagAndData));
+    if (querPagamento) {
+      if (!pagAndData) {
+        onToast("Informe a data do pagamento.");
+        return;
+      }
+      if (valorNovo == null) {
+        onToast("Informe o valor do pagamento.");
+        return;
+      }
+    }
     if (!simples && pedePrevisao(statusAndamento) && !novoEncerramento) {
       onToast("Informe a data do prazo.");
       return;
     }
-    if (!texto && aplicados.length === 0 && statusAndamento === atual.status && novoEncerramento === (atual.previsaoEtapa ?? "")) return;
+    if (!texto && aplicados.length === 0 && statusAndamento === atual.status && novoEncerramento === (atual.previsaoEtapa ?? "") && !querPagamento) return;
     const statusMudou = statusAndamento !== atual.status;
     const atualizado: ProcessoAdmin = { ...atual, status: statusAndamento };
+    let frasePagamento = "";
+    if (querPagamento && valorNovo != null) {
+      atualizado.pagamentos = [
+        ...atual.pagamentos,
+        { id: crypto.randomUUID(), data: pagAndData, valorCentavos: valorNovo, descricao: pagAndDescricao.trim() },
+      ];
+      atualizado.valorTotalCentavos = somaPagamentos(atualizado.pagamentos);
+      atualizado.valorMensalCentavos = null;
+      atualizado.valorEstimadoCentavos = null;
+      frasePagamento = `Lançou pagamento de ${formatarReais(valorNovo)}${pagAndDescricao.trim() ? ` (${pagAndDescricao.trim()})` : ""}.`;
+    }
     for (const item of aplicados) atualizado[item.campo] = item.url;
     if (aplicados.some((item) => item.campo === "linkAbertura")) atualizado.linkAberturaNa = false;
     if (aplicados.some((item) => item.campo === "linkHomologacao")) atualizado.linkHomologacaoNa = false;
@@ -939,7 +961,7 @@ export function AdminPainel({
           atualizado.documento2 = "";
           atualizado.nascimento2 = null;
         }
-        atualizado.valorTotalCentavos = atual.pagamentoDemanda ? somaPagamentos(atual.pagamentos) : valor;
+        atualizado.valorTotalCentavos = atual.pagamentoDemanda ? somaPagamentos(atualizado.pagamentos) : valor;
         atualizado.valorMensalCentavos = null;
         atualizado.possuiContrato = false;
       }
@@ -950,7 +972,7 @@ export function AdminPainel({
         return;
       }
       const valoresProntos = atual.pagamentoDemanda
-        ? atual.pagamentos.length > 0
+        ? true
         : atual.valorTotalCentavos != null && atual.valorMensalCentavos != null;
       if (!atual.contratado || !valoresProntos) {
         onToast("Complete contratado e valores em Editar antes de mudar para execução.");
@@ -967,7 +989,7 @@ export function AdminPainel({
         : aplicados.length === 1
           ? `Adicionou o link de ${aplicados[0].curto}.`
           : `Adicionou os links de ${aplicados.slice(0, -1).map((item) => item.curto).join(", ")} e ${aplicados[aplicados.length - 1].curto}.`;
-    const frase = [statusMudou ? `Status alterado para ${statusAdminLabel(statusAndamento)}.` : "", texto, fraseLink].filter(Boolean).join(" ");
+    const frase = [statusMudou ? `Status alterado para ${statusAdminLabel(statusAndamento)}.` : "", texto, frasePagamento, fraseLink].filter(Boolean).join(" ");
     atualizado.historico = [
       ...atual.historico,
       evento(frase, meuNome, aplicados.length === 1 ? aplicados[0].url : undefined),
@@ -984,6 +1006,9 @@ export function AdminPainel({
     setNovoEncerramento("");
     setLinksAndamento({});
     setEscolhaLink(false);
+    setPagAndData("");
+    setPagAndValor("");
+    setPagAndDescricao("");
   }
 
   function gerarRelatorio() {
@@ -1433,6 +1458,9 @@ export function AdminPainel({
                       setValorAnd(centavosParaCampo(item.valorTotalCentavos));
                       setLinksAndamento({});
                       setEscolhaLink(false);
+                      setPagAndData("");
+                      setPagAndValor("");
+                      setPagAndDescricao("");
                     }}
                     onExcluir={() => setDeleteId(item.id)}
                   />
@@ -1898,6 +1926,30 @@ export function AdminPainel({
                 <Link2 className="size-4" />
                 Adicionar link
               </button>
+              {lista.find((item) => item.id === andamentoId)?.pagamentoDemanda && (
+                <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3">
+                  <p className="text-sm font-medium text-ink">Lançar pagamento</p>
+                  {(lista.find((item) => item.id === andamentoId)?.pagamentos.length ?? 0) > 0 && (
+                    <ul className="flex flex-col gap-1 text-sm text-muted">
+                      {lista.find((item) => item.id === andamentoId)?.pagamentos.map((item) => (
+                        <li key={item.id}>
+                          {formatDate(item.data)} · {formatarReais(item.valorCentavos)}
+                          {item.descricao ? ` · ${item.descricao}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Campo label="Data do pagamento">
+                    <input type="date" value={pagAndData} onChange={(e) => setPagAndData(e.target.value)} className={inputCls} />
+                  </Campo>
+                  <Campo label="Valor">
+                    <input value={pagAndValor} onChange={(e) => setPagAndValor(mascaraReais(e.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" />
+                  </Campo>
+                  <Campo label="Descrição">
+                    <input value={pagAndDescricao} onChange={(e) => setPagAndDescricao(e.target.value)} className={inputCls} placeholder="Opcional" />
+                  </Campo>
+                </div>
+              )}
               {(() => {
                 const atual = lista.find((item) => item.id === andamentoId);
                 const simples = atual ? tipoSimples(atual.tipo) : false;
@@ -3008,70 +3060,19 @@ function BandeiraBrasil() {
 }
 
 function PagamentoPorDemanda({ form, onChange }: { form: FormAdmin; onChange: (form: FormAdmin) => void }) {
-  const soma = form.pagamentos.reduce((total, item) => total + (reaisParaCentavos(item.valor) ?? 0), 0);
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3">
-      <label className="flex items-center gap-2 text-sm font-medium text-ink">
-        <input
-          type="checkbox"
-          checked={form.pagamentoDemanda}
-          onChange={(e) => onChange({ ...form, pagamentoDemanda: e.target.checked })}
-        />
+    <label className="flex items-start gap-2 rounded-2xl border border-line bg-paper p-3 text-sm font-medium text-ink">
+      <input
+        type="checkbox"
+        className="mt-0.5"
+        checked={form.pagamentoDemanda}
+        onChange={(e) => onChange({ ...form, pagamentoDemanda: e.target.checked })}
+      />
+      <span>
         Pagamento por demanda
-      </label>
-      {form.pagamentoDemanda && (
-        <>
-          {form.pagamentos.map((item) => (
-            <div key={item.id} className="grid gap-2 sm:grid-cols-[9.5rem_8.5rem_1fr_auto]">
-              <input
-                type="date"
-                value={item.data}
-                onChange={(e) => onChange({ ...form, pagamentos: form.pagamentos.map((atual) => (atual.id === item.id ? { ...atual, data: e.target.value } : atual)) })}
-                className={inputCls}
-                aria-label="Data do pagamento"
-              />
-              <input
-                value={item.valor}
-                onChange={(e) => onChange({ ...form, pagamentos: form.pagamentos.map((atual) => (atual.id === item.id ? { ...atual, valor: mascaraReais(e.target.value) } : atual)) })}
-                className={inputCls}
-                inputMode="decimal"
-                placeholder="0,00"
-                aria-label="Valor do pagamento"
-              />
-              <input
-                value={item.descricao}
-                onChange={(e) => onChange({ ...form, pagamentos: form.pagamentos.map((atual) => (atual.id === item.id ? { ...atual, descricao: e.target.value } : atual)) })}
-                className={inputCls}
-                placeholder="Descrição"
-                aria-label="Descrição do pagamento"
-              />
-              <button
-                type="button"
-                onClick={() => onChange({ ...form, pagamentos: form.pagamentos.filter((atual) => atual.id !== item.id) })}
-                className="grid size-11 place-items-center rounded-xl border border-line text-seal"
-                aria-label="Remover pagamento"
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() =>
-              onChange({
-                ...form,
-                pagamentos: [...form.pagamentos, { id: crypto.randomUUID(), data: todayIso(), valor: "", descricao: "" }],
-              })
-            }
-            className="inline-flex h-10 items-center gap-2 text-sm font-medium text-pine"
-          >
-            <Plus className="size-4" />
-            Adicionar pagamento
-          </button>
-          <p className="text-sm text-ink">Soma: {formatarReais(form.pagamentos.length ? soma : null)}</p>
-        </>
-      )}
-    </div>
+        <span className="mt-1 block font-normal text-muted">Marcada, o pagamento é lançado na tela de Andamento. No relatório, os lançamentos entram somados.</span>
+      </span>
+    </label>
   );
 }
 
