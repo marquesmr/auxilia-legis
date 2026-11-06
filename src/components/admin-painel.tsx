@@ -34,7 +34,6 @@ import {
   somaPagamentos,
   statusAdminLabel,
   urgenciaAdmin,
-  valorSomado,
   type Modalidade,
   type PeriodoRelatorio,
   type ProcessoAdmin,
@@ -338,12 +337,12 @@ function validar(form: FormAdmin): string[] {
     const digitos = form.documento.replace(/\D/g, "");
     if (digitos.length !== 11 && digitos.length !== 14) erros.push("Informe o CPF ou o CNPJ.");
     if (digitos.length === 11 && !form.nascimento) erros.push("Informe a data de nascimento.");
-    if (!form.pagamentoDemanda && reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor da contratação ou aquisição.");
+    if (reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor da contratação ou aquisição.");
   } else if (form.status === "execucao") {
     if (!form.contratado.trim()) erros.push("Informe os dados do contratado.");
     if (!form.vigenciaInicio || !form.vigenciaFim) erros.push("Informe a vigência do contrato.");
     else if (form.vigenciaFim < form.vigenciaInicio) erros.push("A vigência termina antes de começar.");
-    if (!form.pagamentoDemanda && reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor anual do contrato.");
+    if (reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor anual do contrato.");
     if (!form.pagamentoDemanda && reaisParaCentavos(form.valorMensal) == null) erros.push("Informe o valor mensal do contrato.");
     if (form.documento.replace(/\D/g, "").length === 11 && !form.nascimento) erros.push("Informe a data de nascimento.");
   } else if (!form.pagamentoDemanda && form.valorEstimado.trim() && reaisParaCentavos(form.valorEstimado) == null) {
@@ -493,8 +492,8 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     contratado2: (execucao || encerrado) && permiteDoisContratados(form.tipo) ? form.contratado2.trim() : "",
     documento2: (execucao || encerrado) && permiteDoisContratados(form.tipo) ? form.documento2.trim() : "",
     nascimento2: (execucao || encerrado) && permiteDoisContratados(form.tipo) && form.documento2.replace(/\D/g, "").length === 11 ? form.nascimento2 || null : null,
-    valorTotalCentavos: demanda ? somaPagamentos(pagamentos) : comValor || execucao ? reaisParaCentavos(form.valorTotal) : null,
-    valorMensalCentavos: demanda ? null : execucao ? reaisParaCentavos(form.valorMensal) : null,
+    valorTotalCentavos: comValor || execucao ? reaisParaCentavos(form.valorTotal) : null,
+    valorMensalCentavos: demanda ? somaPagamentos(pagamentos) : execucao ? reaisParaCentavos(form.valorMensal) : null,
     valorEstimadoCentavos: demanda || execucao || encerrado ? null : reaisParaCentavos(form.valorEstimado),
     pagamentoDemanda: demanda,
     pagamentos,
@@ -910,7 +909,7 @@ export function AdminPainel({
           onToast("Informe a data de nascimento.");
           return;
         }
-        if (valor == null && !atual.pagamentoDemanda) {
+        if (valor == null) {
           onToast("Informe o valor da contratação ou aquisição.");
           return;
         }
@@ -942,8 +941,8 @@ export function AdminPainel({
           atualizado.documento2 = "";
           atualizado.nascimento2 = null;
         }
-        atualizado.valorTotalCentavos = atual.pagamentoDemanda ? somaPagamentos(atualizado.pagamentos) : valor;
-        atualizado.valorMensalCentavos = null;
+        atualizado.valorTotalCentavos = valor;
+        atualizado.valorMensalCentavos = atual.pagamentoDemanda ? somaPagamentos(atualizado.pagamentos) : null;
         atualizado.possuiContrato = false;
       }
     }
@@ -953,7 +952,7 @@ export function AdminPainel({
         return;
       }
       const valoresProntos = atual.pagamentoDemanda
-        ? true
+        ? atual.valorTotalCentavos != null
         : atual.valorTotalCentavos != null && atual.valorMensalCentavos != null;
       if (!atual.contratado || !valoresProntos) {
         onToast("Complete contratado e valores em Editar antes de mudar para execução.");
@@ -1035,9 +1034,7 @@ export function AdminPainel({
     const atualizado: ProcessoAdmin = {
       ...atual,
       pagamentos,
-      valorTotalCentavos: somaPagamentos(pagamentos),
-      valorMensalCentavos: null,
-      valorEstimadoCentavos: null,
+      valorMensalCentavos: somaPagamentos(pagamentos),
       historico: [
         ...atual.historico,
         evento(`Lançou pagamento de ${formatarReais(valorNovo)}${descricao ? ` (${descricao})` : ""}.`, meuNome),
@@ -1067,15 +1064,32 @@ export function AdminPainel({
       {
         ...atual,
         pagamentos,
-        valorTotalCentavos: somaPagamentos(pagamentos),
-        valorMensalCentavos: null,
-        valorEstimadoCentavos: null,
+        valorMensalCentavos: somaPagamentos(pagamentos),
         historico: [
           ...atual.historico,
           evento(`Alterou o pagamento de ${formatDate(anterior.data) || "sem data"} para ${formatDate(data)}, no valor de ${formatarReais(valorNovo)}.`, meuNome),
         ],
       },
       "Lançamento alterado",
+    );
+  }
+
+  function removerPagamento(processoId: string, pagamentoId: string) {
+    const atual = listaViva.current.find((item) => item.id === processoId);
+    const anterior = atual?.pagamentos.find((item) => item.id === pagamentoId);
+    if (!atual || !anterior) return;
+    const pagamentos = atual.pagamentos.filter((item) => item.id !== pagamentoId);
+    gravarProcesso(
+      {
+        ...atual,
+        pagamentos,
+        valorMensalCentavos: somaPagamentos(pagamentos),
+        historico: [
+          ...atual.historico,
+          evento(`Removeu o pagamento de ${formatarReais(anterior.valorCentavos)}.`, meuNome),
+        ],
+      },
+      "Lançamento removido",
     );
   }
 
@@ -1114,10 +1128,10 @@ export function AdminPainel({
         .filter((item) => statusRelatorio === "todos" || item.status === statusRelatorio)
         .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }))
     : [];
-  const totalRelatorio = relatorio
-    ? itensRelatorio.reduce((soma, item) => soma + (valorNoRelatorio(item, relatorio.inicio, relatorio.fim) ?? 0), 0)
+  const totalRelatorio = itensRelatorio.reduce((soma, item) => soma + (item.valorTotalCentavos ?? 0), 0);
+  const mensalRelatorio = relatorio
+    ? itensRelatorio.reduce((soma, item) => soma + (mensalNoRelatorio(item, relatorio.inicio, relatorio.fim) ?? 0), 0)
     : 0;
-  const mensalRelatorio = itensRelatorio.reduce((soma, item) => soma + (item.pagamentoDemanda ? 0 : (item.valorMensalCentavos ?? 0)), 0);
 
   const moverPara = useCallback(
     async (id: string, equipeId: string | null) => {
@@ -1363,7 +1377,7 @@ export function AdminPainel({
                   <>
                     <ul className="relatorio-cards mt-4 flex flex-col gap-3 md:hidden">
                       {itensRelatorio.map((item) => (
-                        <CartaoProcesso key={item.id} item={item} valor={relatorio ? valorNoRelatorio(item, relatorio.inicio, relatorio.fim) : null} />
+                        <CartaoProcesso key={item.id} item={item} mensal={relatorio ? mensalNoRelatorio(item, relatorio.inicio, relatorio.fim) : item.valorMensalCentavos} />
                       ))}
                     </ul>
                     <div className="relatorio-tabela-wrap mt-4 hidden md:block">
@@ -1404,18 +1418,11 @@ export function AdminPainel({
                               )}
                             </td>
                             <td className="col-fixa py-2 text-ink">
-                              {item.pagamentoDemanda || item.pagamentos.length > 0 ? (
-                                formatarReais(relatorio ? valorNoRelatorio(item, relatorio.inicio, relatorio.fim) : valorSomado(item))
-                              ) : item.valorTotalCentavos != null ? (
-                                <>
-                                  {formatarReais(item.valorTotalCentavos)}
-                                  {item.valorMensalCentavos != null ? (
-                                    <span className="block text-xs text-muted">{formatarReais(item.valorMensalCentavos)} / mês</span>
-                                  ) : null}
-                                </>
-                              ) : (
-                                "—"
-                              )}
+                              {item.valorTotalCentavos != null ? formatarReais(item.valorTotalCentavos) : "—"}
+                              {(() => {
+                                const mensal = relatorio ? mensalNoRelatorio(item, relatorio.inicio, relatorio.fim) : item.valorMensalCentavos;
+                                return mensal != null ? <span className="block text-xs text-muted">{formatarReais(mensal)} / mês</span> : null;
+                              })()}
                             </td>
                           </tr>
                         ))}
@@ -1541,6 +1548,7 @@ export function AdminPainel({
                     }}
                     onExcluir={() => setDeleteId(item.id)}
                     onEditarPagamento={(pagamentoId, data, valor) => editarPagamento(item.id, pagamentoId, data, valor)}
+                    onRemoverPagamento={(pagamentoId) => removerPagamento(item.id, pagamentoId)}
                   />
                 ))}
               </ul>
@@ -1831,18 +1839,16 @@ export function AdminPainel({
                         onChange={(contratado2, documento2, nascimento2) => setForm({ ...form, contratado2, documento2, nascimento2 })}
                       />
                     )}
-                    {!form.pagamentoDemanda && (
-                      <Campo label="Valor da contratação ou aquisição">
-                        <input
-                          value={form.valorTotal}
-                          onChange={(e) => setForm({ ...form, valorTotal: mascaraReais(e.target.value) })}
-                          className={inputCls}
-                          inputMode="decimal"
-                          placeholder="0,00"
-                          required
-                        />
-                      </Campo>
-                    )}
+                    <Campo label="Valor da contratação ou aquisição">
+                      <input
+                        value={form.valorTotal}
+                        onChange={(e) => setForm({ ...form, valorTotal: mascaraReais(e.target.value) })}
+                        className={inputCls}
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        required
+                      />
+                    </Campo>
                   </div>
                 )}
                 {form.status === "execucao" && (
@@ -1886,18 +1892,18 @@ export function AdminPainel({
                         onChange={(contratado2, documento2, nascimento2) => setForm({ ...form, contratado2, documento2, nascimento2 })}
                       />
                     )}
-                    {!form.pagamentoDemanda && (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Campo label="Valor anual">
-                          <input
-                            value={form.valorTotal}
-                            onChange={(e) => setForm({ ...form, valorTotal: mascaraReais(e.target.value) })}
-                            className={inputCls}
-                            inputMode="decimal"
-                            placeholder="0,00"
-                            required
-                          />
-                        </Campo>
+                    <div className={form.pagamentoDemanda ? "" : "grid gap-3 sm:grid-cols-2"}>
+                      <Campo label="Valor anual">
+                        <input
+                          value={form.valorTotal}
+                          onChange={(e) => setForm({ ...form, valorTotal: mascaraReais(e.target.value) })}
+                          className={inputCls}
+                          inputMode="decimal"
+                          placeholder="0,00"
+                          required
+                        />
+                      </Campo>
+                      {!form.pagamentoDemanda && (
                         <Campo label="Valor mensal">
                           <input
                             value={form.valorMensal}
@@ -1908,7 +1914,10 @@ export function AdminPainel({
                             required
                           />
                         </Campo>
-                      </div>
+                      )}
+                    </div>
+                    {form.pagamentoDemanda && (
+                      <p className="text-sm text-muted">O valor mensal passa a ser a soma dos pagamentos lançados no andamento.</p>
                     )}
                   </div>
                 )}
@@ -2022,7 +2031,11 @@ export function AdminPainel({
                             {formatDate(item.data)} · {formatarReais(item.valorCentavos)}
                             {item.descricao ? ` · ${item.descricao}` : ""}
                           </span>
-                          <MenuPagamento pagamento={item} onSalvar={(data, valor) => editarPagamento(andamentoId ?? "", item.id, data, valor)} />
+                          <MenuPagamento
+                            pagamento={item}
+                            onSalvar={(data, valor) => editarPagamento(andamentoId ?? "", item.id, data, valor)}
+                            onRemover={() => removerPagamento(andamentoId ?? "", item.id)}
+                          />
                         </li>
                       ))}
                     </ul>
@@ -2103,11 +2116,9 @@ export function AdminPainel({
                               }}
                             />
                           )}
-                          {!atual?.pagamentoDemanda && (
-                            <Campo label="Valor da contratação ou aquisição">
-                              <input value={valorAnd} onChange={(e) => setValorAnd(mascaraReais(e.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" required />
-                            </Campo>
-                          )}
+                          <Campo label="Valor da contratação ou aquisição">
+                            <input value={valorAnd} onChange={(e) => setValorAnd(mascaraReais(e.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" required />
+                          </Campo>
                         </div>
                       )}
                     </div>
@@ -2203,6 +2214,7 @@ function CardAdmin({
   onAndamento,
   onExcluir,
   onEditarPagamento,
+  onRemoverPagamento,
 }: {
   processo: ProcessoAdmin;
   equipes: { id: string; nome: string }[];
@@ -2211,6 +2223,7 @@ function CardAdmin({
   onAndamento: () => void;
   onExcluir: () => void;
   onEditarPagamento: (pagamentoId: string, data: string, valor: string) => void;
+  onRemoverPagamento: (pagamentoId: string) => void;
 }) {
   const [detalhes, setDetalhes] = useState(false);
   const [moverAberto, setMoverAberto] = useState(false);
@@ -2321,7 +2334,10 @@ function CardAdmin({
                 ) : null}
                 <Info rotulo="Vigência" valor={processo.vigenciaInicio ? `${formatDate(processo.vigenciaInicio)} a ${processo.vigenciaFim ? formatDate(processo.vigenciaFim) : "—"}` : "—"} largo />
                 {processo.pagamentoDemanda ? (
-                  <Info rotulo="Pagamento por demanda" valor={formatarReais(processo.valorTotalCentavos)} largo />
+                  <>
+                    <Info rotulo={processo.possuiContrato ? "Valor anual" : "Valor da contratação"} valor={formatarReais(processo.valorTotalCentavos)} />
+                    <Info rotulo="Valor mensal" valor={formatarReais(processo.pagamentos.length > 0 ? somaPagamentos(processo.pagamentos) : processo.valorMensalCentavos)} />
+                  </>
                 ) : (
                   <Info rotulo="Valor estimado" valor={formatarReais(processo.valorEstimadoCentavos)} />
                 )}
@@ -2345,7 +2361,11 @@ function CardAdmin({
                         {item.descricao ? ` · ${item.descricao}` : ""}
                         <span className="ml-2 font-medium">{formatarReais(item.valorCentavos)}</span>
                       </span>
-                      <MenuPagamento pagamento={item} onSalvar={(data, valor) => onEditarPagamento(item.id, data, valor)} />
+                      <MenuPagamento
+                        pagamento={item}
+                        onSalvar={(data, valor) => onEditarPagamento(item.id, data, valor)}
+                        onRemover={() => onRemoverPagamento(item.id)}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -2547,11 +2567,14 @@ function NumeroControle({ linha }: { linha: LinhaControle }) {
 function MenuPagamento({
   pagamento,
   onSalvar,
+  onRemover,
 }: {
   pagamento: { data: string; valorCentavos: number };
   onSalvar: (data: string, valor: string) => void;
+  onRemover: () => void;
 }) {
   const [aberto, setAberto] = useState(false);
+  const [confirmar, setConfirmar] = useState(false);
   const [data, setData] = useState(pagamento.data);
   const [valor, setValor] = useState(centavosParaCampo(pagamento.valorCentavos));
   useEffect(() => {
@@ -2562,7 +2585,10 @@ function MenuPagamento({
     <div className="relative shrink-0" onKeyDown={(evento) => evento.stopPropagation()}>
       <button
         type="button"
-        onClick={() => setAberto((atual) => !atual)}
+        onClick={() => {
+          setAberto((atual) => !atual);
+          setConfirmar(false);
+        }}
         className="grid size-8 place-items-center rounded-lg text-muted"
         aria-label="Ações do pagamento"
         aria-expanded={aberto}
@@ -2590,6 +2616,26 @@ function MenuPagamento({
           >
             Salvar
           </button>
+          {confirmar ? (
+            <div className="mt-3">
+              <p className="text-sm text-ink">Remover este lançamento?</p>
+              <button
+                type="button"
+                onClick={() => {
+                  onRemover();
+                  setAberto(false);
+                  setConfirmar(false);
+                }}
+                className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-lg bg-seal text-sm font-medium text-sheet"
+              >
+                Remover
+              </button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setConfirmar(true)} className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-lg text-sm font-medium text-seal">
+              Remover lançamento
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -3220,7 +3266,7 @@ function PagamentoPorDemanda({ form, onChange }: { form: FormAdmin; onChange: (f
       />
       <span>
         Pagamento por demanda
-        <span className="mt-1 block font-normal text-muted">Marcada, o pagamento é lançado na tela de Andamento. No relatório, os lançamentos entram somados.</span>
+        <span className="mt-1 block font-normal text-muted">Marcada, o valor mensal passa a ser a soma dos pagamentos lançados no andamento. O valor anual da contratação permanece.</span>
       </span>
     </label>
   );
@@ -3266,25 +3312,23 @@ function SegundoContratado({
   );
 }
 
-function valorNoRelatorio(item: ProcessoAdmin, inicio: string, fim: string): number | null {
+function mensalNoRelatorio(item: ProcessoAdmin, inicio: string, fim: string): number | null {
   if (item.pagamentoDemanda || item.pagamentos.length > 0) {
     const noPeriodo = item.pagamentos.filter((pagamento) => pagamento.data >= inicio && pagamento.data <= fim);
     if (noPeriodo.length > 0) return somaPagamentos(noPeriodo);
-    return valorSomado(item);
+    if (item.pagamentos.length > 0) return somaPagamentos(item.pagamentos);
   }
-  return item.valorTotalCentavos;
+  return item.valorMensalCentavos;
 }
 
-function CartaoProcesso({ item, valor }: { item: ProcessoAdmin; valor?: number | null }) {
+function CartaoProcesso({ item, mensal }: { item: ProcessoAdmin; mensal?: number | null }) {
   const marco = marcoAdmin(item);
   return (
     <li className="rounded-xl border border-line bg-paper p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
         <p className="font-medium text-ink">{rotuloNumero(item.numero, item.numeroAno)}</p>
         <p className="shrink-0 text-right text-ink">
-          {item.pagamentoDemanda || item.pagamentos.length > 0 ? (
-            formatarReais(valor ?? valorSomado(item))
-          ) : item.valorTotalCentavos != null ? formatarReais(item.valorTotalCentavos) : item.valorEstimadoCentavos != null ? `${formatarReais(item.valorEstimadoCentavos)} estimado` : "—"}
+          {item.valorTotalCentavos != null ? formatarReais(item.valorTotalCentavos) : item.valorEstimadoCentavos != null ? `${formatarReais(item.valorEstimadoCentavos)} estimado` : "—"}
         </p>
       </div>
       <p className="mt-1 break-words text-pine">{rotuloTipo(item.tipo, item.tipoNumero, item.tipoAno)}</p>
@@ -3296,7 +3340,7 @@ function CartaoProcesso({ item, valor }: { item: ProcessoAdmin; valor?: number |
       <p className="mt-1 break-words text-ink">
         {item.possuiContrato ? item.contratado || "Contrato" : item.contratado || "Sem contrato"}
         {item.contratado2 ? ` · ${item.contratado2}` : ""}
-        {item.valorMensalCentavos != null ? ` · ${formatarReais(item.valorMensalCentavos)} / mês` : ""}
+        {mensal != null ? ` · ${formatarReais(mensal)} / mês` : ""}
       </p>
     </li>
   );

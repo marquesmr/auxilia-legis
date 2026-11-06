@@ -157,13 +157,13 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     if (!contratado) throw new Error("Informe os dados do contratado.");
     if (!vigenciaInicio || !vigenciaFim) throw new Error("Informe a vigência do contrato.");
     if (vigenciaFim < vigenciaInicio) throw new Error("A vigência termina antes de começar.");
-    if (!pagamentoDemanda && valorTotalCentavos == null) throw new Error("Informe o valor anual do contrato.");
+    if (valorTotalCentavos == null) throw new Error("Informe o valor anual do contrato.");
     if (!pagamentoDemanda && valorMensalCentavos == null) throw new Error("Informe o valor mensal do contrato.");
   } else if (modo === "total") {
     if (!contratado) throw new Error("Informe o contratado.");
     const digitos = documento.replace(/\D/g, "");
     if (digitos.length !== 11 && digitos.length !== 14) throw new Error("Informe o CPF ou o CNPJ.");
-    if (!pagamentoDemanda && valorTotalCentavos == null) throw new Error("Informe o valor da contratação ou aquisição.");
+    if (valorTotalCentavos == null) throw new Error("Informe o valor da contratação ou aquisição.");
   }
   const guardaContratado = !simples && (possuiContrato || modo === "total");
   const nome2 = typeof bruto.contratado2 === "string" ? bruto.contratado2.trim() : "";
@@ -209,8 +209,8 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     contratado2,
     documento2,
     nascimento2: documento2 ? nascimentoDe(documento2, bruto.nascimento2, "Informe a data de nascimento do segundo contratado.") : null,
-    valorTotalCentavos: pagamentoDemanda ? somaPagamentos(pagamentos) : modo === "contrato" || modo === "total" ? valorTotalCentavos : null,
-    valorMensalCentavos: pagamentoDemanda ? null : modo === "contrato" ? valorMensalCentavos : null,
+    valorTotalCentavos: modo === "contrato" || modo === "total" ? valorTotalCentavos : null,
+    valorMensalCentavos: pagamentoDemanda ? somaPagamentos(pagamentos) : modo === "contrato" ? valorMensalCentavos : null,
     valorEstimadoCentavos: pagamentoDemanda || modo !== "estimado" ? null : valorEstimadoCentavos,
     pagamentoDemanda,
     pagamentos,
@@ -344,8 +344,8 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
     contratado2: linha.contratado_2 ?? "",
     documento2: linha.documento_2 ?? "",
     nascimento2: dia(linha.nascimento_2),
-    valorTotalCentavos: pagamentoDemanda && pagamentos.length > 0 ? somaPagamentos(pagamentos) : linha.valor_total_centavos != null ? Number(linha.valor_total_centavos) : null,
-    valorMensalCentavos: possui && linha.valor_mensal_centavos != null ? Number(linha.valor_mensal_centavos) : null,
+    valorTotalCentavos: linha.valor_total_centavos != null ? Number(linha.valor_total_centavos) : null,
+    valorMensalCentavos: pagamentoDemanda && pagamentos.length > 0 ? somaPagamentos(pagamentos) : linha.valor_mensal_centavos != null ? Number(linha.valor_mensal_centavos) : null,
     valorEstimadoCentavos: linha.valor_estimado_centavos != null ? Number(linha.valor_estimado_centavos) : null,
     pagamentoDemanda,
     pagamentos,
