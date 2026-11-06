@@ -116,7 +116,7 @@ export function LeiLicitacoes() {
   }
 
   return (
-    <div id="topo-lei" className="rounded-2xl border border-line bg-sheet p-4 sm:p-6">
+    <div id="topo-lei" className="relative rounded-2xl border border-line bg-sheet p-4 sm:p-6">
       <h2 className="font-display text-2xl text-ink sm:text-3xl">Lei de Licitações</h2>
       <p className="mt-1 text-sm text-muted">
         Lei nº 14.133, de 1º de abril de 2021, no texto compilado. O artigo citado nesta lei abre aqui. Lei, decreto e vigência citados abrem a página oficial.
@@ -169,15 +169,22 @@ export function LeiLicitacoes() {
         ))}
       </div>
       <article className="lei-texto mt-6" onClick={aoClicar} dangerouslySetInnerHTML={{ __html: html }} />
-      <div className="sticky bottom-4 z-30 mt-4 flex justify-end">
+      <div className="pointer-events-none absolute top-0 bottom-0 left-full z-30 ml-3 hidden w-40 xl:block">
         <button
           type="button"
           onClick={() => irPara("topo-lei")}
-          className="rounded-full border border-line bg-sheet px-4 py-2 text-sm font-medium text-ink shadow-md"
+          className="pointer-events-auto sticky top-[calc(100dvh-4.5rem)] whitespace-nowrap rounded-full border border-line bg-sheet px-4 py-2 text-sm font-medium text-ink shadow-md"
         >
           Voltar ao topo
         </button>
       </div>
+      <button
+        type="button"
+        onClick={() => irPara("topo-lei")}
+        className="mt-4 ml-auto block rounded-full border border-line bg-sheet px-4 py-2 text-sm font-medium text-ink shadow-md xl:hidden"
+      >
+        Voltar ao topo
+      </button>
       <style>{`
         .lei-texto { color: var(--color-ink); font-size: 0.95rem; line-height: 1.65; }
         .lei-texto .lei-notas, .lei-texto .lei-titulo, .lei-texto .lei-capitulo, .lei-texto .lei-secao, .lei-texto .lei-nome { text-align: center; }
