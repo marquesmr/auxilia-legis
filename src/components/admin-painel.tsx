@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, Check, Copy, FilePen, FileText, Link2, Megaphone, MoreVertical, Pencil, Plus, Search, Trash2, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, Check, Copy, FilePen, FileText, Link2, Megaphone, MoreVertical, Pencil, Plus, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -47,6 +47,7 @@ import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { CampoMes } from "@/components/campo-mes";
 import { SoltarProcessoContext } from "@/components/soltar-processo";
 import { GraficoAdmin } from "@/components/admin-grafico";
+import { LeiLicitacoes } from "@/components/lei-licitacoes";
 import { Timbrado, TimbradoRodape } from "@/components/timbrado";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { addDaysIso, formatDate, todayIso, type Andamento } from "@/lib/prazos";
@@ -54,7 +55,7 @@ import { encerraStatus, listaCodigos } from "@/lib/status-catalogo";
 
 type FiltroAdmin = string;
 type OrdemAdmin = "numero" | "tipo" | "encerramento";
-type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres" | "links" | "cnpj";
+type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres" | "links" | "cnpj" | "lei";
 type StatusRelatorio = "todos" | StatusAdmin;
 type ModoRelatorio = "processos" | "pecas";
 
@@ -1093,6 +1094,10 @@ export function AdminPainel({
             <Link2 className="size-4" />
             Links
           </GuiaBotao>
+          <GuiaBotao ativo={guia === "lei"} onClick={() => setGuia("lei")}>
+            <Scale className="size-4" />
+            Lei de Licitações
+          </GuiaBotao>
           <GuiaBotao ativo={guia === "cnpj"} onClick={() => setGuia("cnpj")}>
             <Search className="size-4" />
             Consulta CPF/CNPJ
@@ -1107,8 +1112,10 @@ export function AdminPainel({
           </button>
         </div>
 
-        {!pronto && guia !== "cnpj" ? (
+        {!pronto && guia !== "cnpj" && guia !== "lei" ? (
           <p className="text-sm text-muted">Carregando processos administrativos…</p>
+        ) : guia === "lei" ? (
+          <LeiLicitacoes />
         ) : guia === "cnpj" ? (
           <PainelConsulta mostrarNascimento />
         ) : guia === "estatisticas" ? (
