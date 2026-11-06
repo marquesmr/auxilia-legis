@@ -864,36 +864,13 @@ export function AdminPainel({
       aplicados.push({ curto: item.curto, url, campo: item.campo });
     }
     const simples = tipoSimples(atual.tipo);
-    const valorNovo = atual.pagamentoDemanda ? reaisParaCentavos(pagAndValor) : null;
-    const querPagamento = Boolean(atual.pagamentoDemanda && (pagAndValor.trim() || pagAndDescricao.trim() || pagAndData));
-    if (querPagamento) {
-      if (!pagAndData) {
-        onToast("Informe a data do pagamento.");
-        return;
-      }
-      if (valorNovo == null) {
-        onToast("Informe o valor do pagamento.");
-        return;
-      }
-    }
     if (!simples && pedePrevisao(statusAndamento) && !novoEncerramento) {
       onToast("Informe a data do prazo.");
       return;
     }
-    if (!texto && aplicados.length === 0 && statusAndamento === atual.status && novoEncerramento === (atual.previsaoEtapa ?? "") && !querPagamento) return;
+    if (!texto && aplicados.length === 0 && statusAndamento === atual.status && novoEncerramento === (atual.previsaoEtapa ?? "")) return;
     const statusMudou = statusAndamento !== atual.status;
     const atualizado: ProcessoAdmin = { ...atual, status: statusAndamento };
-    let frasePagamento = "";
-    if (querPagamento && valorNovo != null) {
-      atualizado.pagamentos = [
-        ...atual.pagamentos,
-        { id: crypto.randomUUID(), data: pagAndData, valorCentavos: valorNovo, descricao: pagAndDescricao.trim() },
-      ];
-      atualizado.valorTotalCentavos = somaPagamentos(atualizado.pagamentos);
-      atualizado.valorMensalCentavos = null;
-      atualizado.valorEstimadoCentavos = null;
-      frasePagamento = `Lançou pagamento de ${formatarReais(valorNovo)}${pagAndDescricao.trim() ? ` (${pagAndDescricao.trim()})` : ""}.`;
-    }
     for (const item of aplicados) atualizado[item.campo] = item.url;
     if (aplicados.some((item) => item.campo === "linkAbertura")) atualizado.linkAberturaNa = false;
     if (aplicados.some((item) => item.campo === "linkHomologacao")) atualizado.linkHomologacaoNa = false;
@@ -989,7 +966,7 @@ export function AdminPainel({
         : aplicados.length === 1
           ? `Adicionou o link de ${aplicados[0].curto}.`
           : `Adicionou os links de ${aplicados.slice(0, -1).map((item) => item.curto).join(", ")} e ${aplicados[aplicados.length - 1].curto}.`;
-    const frase = [statusMudou ? `Status alterado para ${statusAdminLabel(statusAndamento)}.` : "", texto, frasePagamento, fraseLink].filter(Boolean).join(" ");
+    const frase = [statusMudou ? `Status alterado para ${statusAdminLabel(statusAndamento)}.` : "", texto, fraseLink].filter(Boolean).join(" ");
     atualizado.historico = [
       ...atual.historico,
       evento(frase, meuNome, aplicados.length === 1 ? aplicados[0].url : undefined),
@@ -1006,6 +983,47 @@ export function AdminPainel({
     setNovoEncerramento("");
     setLinksAndamento({});
     setEscolhaLink(false);
+    setPagAndData("");
+    setPagAndValor("");
+    setPagAndDescricao("");
+  }
+
+  async function lancarPagamento() {
+    if (!andamentoId) return;
+    const atual = lista.find((item) => item.id === andamentoId);
+    if (!atual?.pagamentoDemanda) return;
+    if (!pagAndData) {
+      onToast("Informe a data do pagamento.");
+      return;
+    }
+    const valorNovo = reaisParaCentavos(pagAndValor);
+    if (valorNovo == null) {
+      onToast("Informe o valor do pagamento.");
+      return;
+    }
+    const descricao = pagAndDescricao.trim();
+    const pagamentos = [
+      ...atual.pagamentos,
+      { id: crypto.randomUUID(), data: pagAndData, valorCentavos: valorNovo, descricao },
+    ];
+    const atualizado: ProcessoAdmin = {
+      ...atual,
+      pagamentos,
+      valorTotalCentavos: somaPagamentos(pagamentos),
+      valorMensalCentavos: null,
+      valorEstimadoCentavos: null,
+      historico: [
+        ...atual.historico,
+        evento(`Lançou pagamento de ${formatarReais(valorNovo)}${descricao ? ` (${descricao})` : ""}.`, meuNome),
+      ],
+    };
+    const ok = await persistir(
+      lista.map((item) => (item.id === atualizado.id ? atualizado : item)),
+      atualizado,
+      null,
+      "Pagamento lançado",
+    );
+    if (ok !== true) return;
     setPagAndData("");
     setPagAndValor("");
     setPagAndDescricao("");
@@ -1927,7 +1945,14 @@ export function AdminPainel({
                 Adicionar link
               </button>
               {lista.find((item) => item.id === andamentoId)?.pagamentoDemanda && (
-                <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3">
+                <div
+                  className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3"
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    void lancarPagamento();
+                  }}
+                >
                   <p className="text-sm font-medium text-ink">Lançar pagamento</p>
                   {(lista.find((item) => item.id === andamentoId)?.pagamentos.length ?? 0) > 0 && (
                     <ul className="flex flex-col gap-1 text-sm text-muted">
@@ -1948,6 +1973,13 @@ export function AdminPainel({
                   <Campo label="Descrição">
                     <input value={pagAndDescricao} onChange={(e) => setPagAndDescricao(e.target.value)} className={inputCls} placeholder="Opcional" />
                   </Campo>
+                  <button
+                    type="button"
+                    onClick={() => void lancarPagamento()}
+                    className="inline-flex h-11 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet"
+                  >
+                    Lançar pagamento
+                  </button>
                 </div>
               )}
               {(() => {
