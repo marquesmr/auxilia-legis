@@ -1841,7 +1841,7 @@ export function PrazosApp() {
       <AjudaFlutuante nome={meuNome} area={area} />
       <AvisoManutencao aviso={avisoManutencao} onFechar={() => fecharAvisoManutencao(avisoManutencao, setAvisoManutencao)} />
       </div>
-      <div className="mt-6 hidden xl:col-start-2 xl:row-start-2 xl:block">
+      <div className="mt-6 hidden xl:sticky xl:top-6 xl:z-20 xl:col-start-2 xl:row-start-2 xl:block xl:self-start">
         <CalendarioExpediente dias={diasMarcados} />
         <div id="lei-busca-nav" />
       </div>
