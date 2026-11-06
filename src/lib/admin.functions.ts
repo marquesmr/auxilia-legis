@@ -153,7 +153,6 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
   const modo = modoValor(tipo, status);
   const pagamentoDemanda = bruto.pagamentoDemanda === true && !simples && status !== "cancelado";
   const pagamentos = pagamentoDemanda ? pagamentosOk(bruto.pagamentos) : [];
-  if (pagamentoDemanda && pagamentos.length === 0) throw new Error("Informe ao menos um pagamento.");
   if (modo === "contrato") {
     if (!contratado) throw new Error("Informe os dados do contratado.");
     if (!vigenciaInicio || !vigenciaFim) throw new Error("Informe a vigência do contrato.");
