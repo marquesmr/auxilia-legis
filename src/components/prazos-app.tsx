@@ -81,6 +81,8 @@ const BotaoRelatorio = lazy(() => import("@/components/botao-relatorio").then((m
 import { NOME_APLICACAO } from "@/lib/nome-aplicacao";
 import { registrarAcesso } from "@/lib/lembrar-acesso";
 import { AvisoSenha } from "@/components/aviso-senha";
+import { TutorialInicio } from "@/components/tutorial-inicio";
+import { concluirTutorial, estadoTutorial } from "@/lib/inicio.functions";
 import { useConfirmarExclusao } from "@/components/confirmar-exclusao";
 
 type Filtro = "abertos" | "atencao" | "vencidos" | "prazo" | "concluidos" | "todos";
@@ -309,6 +311,8 @@ export function PrazosApp() {
   const [area, setArea] = useState<Area>("legislativo");
   const [modulo, setModulo] = useState<Area | null>(null);
   const [moduloLido, setModuloLido] = useState(false);
+  const [tutorialAberto, setTutorialAberto] = useState(false);
+  const [tutorialChecado, setTutorialChecado] = useState("");
   const [trava, setTrava] = useState<string | null>(null);
   const [avisoManutencao, setAvisoManutencao] = useState<{ inicio: string; fim: string } | null>(null);
   const [souGestor, setSouGestor] = useState(false);
@@ -958,6 +962,21 @@ export function PrazosApp() {
       },
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     );
+  }
+
+  useEffect(() => {
+    if (!user?.id || !modulo || tutorialChecado === user.id) return;
+    setTutorialChecado(user.id);
+    void estadoTutorial({ data: {} })
+      .then((resultado) => {
+        if (resultado.mostrar) setTutorialAberto(true);
+      })
+      .catch(() => undefined);
+  }, [user?.id, modulo, tutorialChecado]);
+
+  function fecharTutorial() {
+    setTutorialAberto(false);
+    void concluirTutorial({ data: {} }).catch(() => undefined);
   }
 
   function entrarModulo(escolha: Area) {
@@ -1839,6 +1858,7 @@ export function PrazosApp() {
         </p>
       )}
       <AjudaFlutuante nome={meuNome} area={area} />
+      <TutorialInicio nome={meuNome} aberto={tutorialAberto} onFechar={fecharTutorial} />
       <AvisoManutencao aviso={avisoManutencao} onFechar={() => fecharAvisoManutencao(avisoManutencao, setAvisoManutencao)} />
       </div>
       <div className="mt-6 hidden xl:sticky xl:top-6 xl:z-20 xl:col-start-2 xl:row-start-2 xl:block xl:self-start">

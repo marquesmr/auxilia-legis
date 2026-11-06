@@ -38,3 +38,45 @@ export const carregarInicio = createServerFn({ method: "POST" })
       status,
     };
   });
+
+const CORTE_TUTORIAL = "2026-11-06T18:05:00.000Z";
+
+async function sqlTutorial() {
+  const { getSql } = await import("./db");
+  const sql = await getSql();
+  await sql`
+    create table if not exists tutorial_visto (
+      user_id text primary key,
+      visto_em timestamptz not null default now()
+    )
+  `;
+  return sql;
+}
+
+export const estadoTutorial = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(() => ({}))
+  .handler(async ({ context }) => {
+    const sql = await sqlTutorial();
+    const visto = await sql`select user_id from tutorial_visto where user_id = ${context.userId} limit 1`;
+    if (visto.length > 0) return { mostrar: false };
+    const conta = await sql<{ criado: string | Date | null }>`
+      select "createdAt" as criado from "user" where id = ${context.userId} limit 1
+    `;
+    const bruto = conta[0]?.criado;
+    if (!bruto) return { mostrar: false };
+    const criado = new Date(bruto).getTime();
+    return { mostrar: Number.isFinite(criado) && criado >= new Date(CORTE_TUTORIAL).getTime() };
+  });
+
+export const concluirTutorial = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(() => ({}))
+  .handler(async ({ context }) => {
+    const sql = await sqlTutorial();
+    await sql`
+      insert into tutorial_visto (user_id) values (${context.userId})
+      on conflict (user_id) do nothing
+    `;
+    return { ok: true };
+  });
