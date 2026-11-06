@@ -1114,17 +1114,10 @@ export function AdminPainel({
         .filter((item) => statusRelatorio === "todos" || item.status === statusRelatorio)
         .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }))
     : [];
-  const linhasDemanda = relatorio
-    ? itensRelatorio.flatMap((item) => {
-        if (!item.pagamentoDemanda) return [];
-        const noPeriodo = item.pagamentos.filter((pagamento) => pagamento.data >= relatorio.inicio && pagamento.data <= relatorio.fim);
-        const soma = noPeriodo.length > 0 ? somaPagamentos(noPeriodo) : (valorSomado(item) ?? 0);
-        return [{ id: item.id, processo: rotuloNumero(item.numero, item.numeroAno) || item.tipo, referencia: item.referencia, soma }];
-      })
-    : [];
-  const totalRelatorio = itensRelatorio.reduce((soma, item) => soma + (item.pagamentoDemanda ? 0 : (valorSomado(item) ?? 0)), 0) + linhasDemanda.reduce((soma, linha) => soma + linha.soma, 0);
-  const mensalRelatorio = itensRelatorio.reduce((soma, item) => soma + (item.valorMensalCentavos ?? 0), 0);
-  const demandaRelatorio = linhasDemanda.reduce((soma, linha) => soma + linha.soma, 0);
+  const totalRelatorio = relatorio
+    ? itensRelatorio.reduce((soma, item) => soma + (valorNoRelatorio(item, relatorio.inicio, relatorio.fim) ?? 0), 0)
+    : 0;
+  const mensalRelatorio = itensRelatorio.reduce((soma, item) => soma + (item.pagamentoDemanda ? 0 : (item.valorMensalCentavos ?? 0)), 0);
 
   const moverPara = useCallback(
     async (id: string, equipeId: string | null) => {
@@ -1361,27 +1354,6 @@ export function AdminPainel({
                   Valor total no recorte: {formatarReais(totalRelatorio || null)} · mensal:{" "}
                   {formatarReais(mensalRelatorio || null)}
                 </p>
-                <section className="mt-4 rounded-2xl border border-line bg-paper p-4">
-                  <h3 className="text-sm font-medium text-ink">Pagamentos por demanda</h3>
-                  {linhasDemanda.length === 0 ? (
-                    <p className="mt-2 text-sm text-muted">Nenhum pagamento por demanda neste período.</p>
-                  ) : (
-                    <>
-                      <p className="mt-2 font-display text-2xl text-ink">{formatarReais(demandaRelatorio)}</p>
-                      <ul className="mt-3 flex flex-col gap-2">
-                        {linhasDemanda.map((linha) => (
-                          <li key={linha.id} className="flex items-start justify-between gap-3 text-sm">
-                            <span className="min-w-0 text-ink">
-                              <span className="font-medium">{linha.processo}</span>
-                              {linha.referencia ? <span className="block text-muted">{linha.referencia}</span> : null}
-                            </span>
-                            <span className="shrink-0 font-medium text-ink">{formatarReais(linha.soma)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </section>
                 <div className="mt-4">
                   <GraficoAdmin processos={itensRelatorio} />
                 </div>
@@ -1391,7 +1363,7 @@ export function AdminPainel({
                   <>
                     <ul className="relatorio-cards mt-4 flex flex-col gap-3 md:hidden">
                       {itensRelatorio.map((item) => (
-                        <CartaoProcesso key={item.id} item={item} />
+                        <CartaoProcesso key={item.id} item={item} valor={relatorio ? valorNoRelatorio(item, relatorio.inicio, relatorio.fim) : null} />
                       ))}
                     </ul>
                     <div className="relatorio-tabela-wrap mt-4 hidden md:block">
@@ -1432,8 +1404,8 @@ export function AdminPainel({
                               )}
                             </td>
                             <td className="col-fixa py-2 text-ink">
-                              {item.pagamentoDemanda ? (
-                                formatarReais(valorSomado(item))
+                              {item.pagamentoDemanda || item.pagamentos.length > 0 ? (
+                                formatarReais(relatorio ? valorNoRelatorio(item, relatorio.inicio, relatorio.fim) : valorSomado(item))
                               ) : item.valorTotalCentavos != null ? (
                                 <>
                                   {formatarReais(item.valorTotalCentavos)}
@@ -3294,15 +3266,24 @@ function SegundoContratado({
   );
 }
 
-function CartaoProcesso({ item }: { item: ProcessoAdmin }) {
+function valorNoRelatorio(item: ProcessoAdmin, inicio: string, fim: string): number | null {
+  if (item.pagamentoDemanda || item.pagamentos.length > 0) {
+    const noPeriodo = item.pagamentos.filter((pagamento) => pagamento.data >= inicio && pagamento.data <= fim);
+    if (noPeriodo.length > 0) return somaPagamentos(noPeriodo);
+    return valorSomado(item);
+  }
+  return item.valorTotalCentavos;
+}
+
+function CartaoProcesso({ item, valor }: { item: ProcessoAdmin; valor?: number | null }) {
   const marco = marcoAdmin(item);
   return (
     <li className="rounded-xl border border-line bg-paper p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
         <p className="font-medium text-ink">{rotuloNumero(item.numero, item.numeroAno)}</p>
         <p className="shrink-0 text-right text-ink">
-          {item.pagamentoDemanda ? (
-            formatarReais(valorSomado(item))
+          {item.pagamentoDemanda || item.pagamentos.length > 0 ? (
+            formatarReais(valor ?? valorSomado(item))
           ) : item.valorTotalCentavos != null ? formatarReais(item.valorTotalCentavos) : item.valorEstimadoCentavos != null ? `${formatarReais(item.valorEstimadoCentavos)} estimado` : "—"}
         </p>
       </div>
