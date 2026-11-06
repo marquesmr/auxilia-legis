@@ -224,25 +224,23 @@ function NavegacaoBusca({
   onIndice: (valor: number | ((atual: number) => number)) => void;
 }) {
   return (
-    <div className="mt-3 flex h-11 items-center justify-between rounded-xl border border-line bg-sheet px-1">
+    <div className="mt-3 flex items-center justify-between gap-2">
       <button
         type="button"
-        aria-label="Ocorrência anterior"
         onClick={() => onIndice((atual) => (atual - 1 + total) % total)}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-xl leading-none text-ink"
+        className="h-11 rounded-xl border border-line bg-sheet px-3 text-sm text-ink"
       >
-        ‹
+        Anterior
       </button>
-      <span className="text-sm font-medium text-ink">
-        {indice + 1}/{total}
+      <span className="text-sm text-muted">
+        {indice + 1} de {total}
       </span>
       <button
         type="button"
-        aria-label="Próxima ocorrência"
         onClick={() => onIndice((atual) => (atual + 1) % total)}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-xl leading-none text-ink"
+        className="h-11 rounded-xl border border-line bg-sheet px-3 text-sm text-ink"
       >
-        ›
+        Próximo
       </button>
     </div>
   );
