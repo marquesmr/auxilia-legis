@@ -1843,6 +1843,7 @@ export function PrazosApp() {
       </div>
       <div className="mt-6 hidden xl:col-start-2 xl:row-start-2 xl:block">
         <CalendarioExpediente dias={diasMarcados} />
+        <div id="lei-busca-nav" />
       </div>
     </div>
   );

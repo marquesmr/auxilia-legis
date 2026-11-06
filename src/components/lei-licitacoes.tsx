@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import textoLei from "@/lib/lei-14133.html?raw";
 
 const OFICIAIS = [
@@ -71,6 +72,11 @@ export function LeiLicitacoes() {
   const [html, setHtml] = useState(textoLei);
   const [indice, setIndice] = useState(0);
   const [total, setTotal] = useState(0);
+  const [ancoraBusca, setAncoraBusca] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setAncoraBusca(document.getElementById("lei-busca-nav"));
+  }, []);
 
   useEffect(() => {
     const marcas = document.querySelectorAll<HTMLElement>("#topo-lei mark.lei-marca");
@@ -147,18 +153,6 @@ export function LeiLicitacoes() {
         <button type="submit" className="h-11 rounded-xl bg-pine px-4 text-sm font-medium text-sheet">
           Buscar
         </button>
-        {total > 1 && (
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setIndice((atual) => (atual - 1 + total) % total)} className="h-11 rounded-xl border border-line bg-sheet px-3 text-sm text-ink">
-              Anterior
-            </button>
-            <span className="text-sm text-muted">{indice + 1} de {total}</span>
-            <button type="button" onClick={() => setIndice((atual) => (atual + 1) % total)} className="h-11 rounded-xl border border-line bg-sheet px-3 text-sm text-ink">
-              Próximo
-            </button>
-          </div>
-        )}
-        {total === 1 && <span className="text-sm text-muted">1 ocorrência</span>}
         {aviso && <p className="text-sm text-seal">{aviso}</p>}
       </form>
       <div className="mt-4 flex flex-wrap gap-2">
@@ -185,6 +179,12 @@ export function LeiLicitacoes() {
       >
         Voltar ao topo
       </button>
+      {total > 0 && (
+        <div className="xl:hidden">
+          <NavegacaoBusca indice={indice} total={total} onIndice={setIndice} />
+        </div>
+      )}
+      {ancoraBusca && total > 0 && createPortal(<NavegacaoBusca indice={indice} total={total} onIndice={setIndice} />, ancoraBusca)}
       <style>{`
         .lei-texto { color: var(--color-ink); font-size: 0.95rem; line-height: 1.65; }
         .lei-texto .lei-notas, .lei-texto .lei-titulo, .lei-texto .lei-capitulo, .lei-texto .lei-secao, .lei-texto .lei-nome { text-align: center; }
@@ -210,6 +210,40 @@ export function LeiLicitacoes() {
         .lei-texto mark.lei-marca { background: #f3d48a; color: inherit; border-radius: 2px; }
         .lei-texto mark.lei-marca-atual { background: #e09a2b; }
       `}</style>
+    </div>
+  );
+}
+
+function NavegacaoBusca({
+  indice,
+  total,
+  onIndice,
+}: {
+  indice: number;
+  total: number;
+  onIndice: (valor: number | ((atual: number) => number)) => void;
+}) {
+  return (
+    <div className="mt-3 flex h-11 items-center justify-between rounded-xl border border-line bg-sheet px-1">
+      <button
+        type="button"
+        aria-label="Ocorrência anterior"
+        onClick={() => onIndice((atual) => (atual - 1 + total) % total)}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-xl leading-none text-ink"
+      >
+        ‹
+      </button>
+      <span className="text-sm font-medium text-ink">
+        {indice + 1}/{total}
+      </span>
+      <button
+        type="button"
+        aria-label="Próxima ocorrência"
+        onClick={() => onIndice((atual) => (atual + 1) % total)}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-xl leading-none text-ink"
+      >
+        ›
+      </button>
     </div>
   );
 }
