@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { formatarReais, MODALIDADES, rotuloNumero, statusAdminLabel, type ProcessoAdmin } from "@/lib/admin";
-import { corGrafico } from "@/lib/cores-grafico";
+import { caminhoPizza, corGrafico } from "@/lib/cores-grafico";
 import { listaCodigos } from "@/lib/status-catalogo";
 
 type Vista = "situacao" | "tipo" | "anual" | "mensal" | "valorTipo";
@@ -134,43 +134,23 @@ function Rosca({ fatias, centro, legenda }: { fatias: Fatia[]; centro: string; l
 }
 
 function Donut({ fatias, centro, legenda }: { fatias: (Fatia & { cor: string })[]; centro: string; legenda: string }) {
-  const r = 58;
-  const c = 2 * Math.PI * r;
   const total = fatias.reduce((soma, item) => soma + item.valor, 0);
-  const varias = fatias.length > 1;
-  const folga = varias ? 6 : 0;
-  let offset = 0;
-  const miudo = centro.length > 8;
+  let angulo = -90;
+  const miudo = centro.length > 14;
   return (
-    <svg viewBox="0 0 160 160" className="mx-auto size-44 max-w-full sm:size-52" role="img" aria-label={legenda}>
-      <circle cx="80" cy="80" r={r} fill="var(--color-sheet)" stroke="var(--color-line)" strokeWidth="16" />
-      {fatias.map((fatia) => {
-        const bruto = total > 0 ? (fatia.valor / total) * c : 0;
-        const len = Math.max(0, bruto - folga);
-        const el = (
-          <circle
-            key={fatia.label}
-            cx="80"
-            cy="80"
-            r={r}
-            fill="none"
-            stroke={fatia.cor}
-            strokeWidth="16"
-            strokeLinecap="round"
-            strokeDasharray={`${len} ${c - len}`}
-            strokeDashoffset={-offset}
-            transform="rotate(-90 80 80)"
-          />
-        );
-        offset += bruto;
-        return el;
-      })}
-      <text x="80" y={miudo ? 78 : 76} textAnchor="middle" fill="var(--color-ink)" fontSize={miudo ? 12 : 22} fontFamily="Fraunces, Georgia, serif">
-        {centro}
-      </text>
-      <text x="80" y={miudo ? 96 : 98} textAnchor="middle" fill="var(--color-muted)" fontSize="11" fontFamily="Outfit, sans-serif">
-        {legenda}
-      </text>
-    </svg>
+    <div className="mx-auto w-full max-w-52">
+      <svg viewBox="0 0 160 160" className="mx-auto size-44 max-w-full sm:size-52" role="img" aria-label={legenda}>
+        {fatias.map((fatia) => {
+          const fim = angulo + (total > 0 ? (fatia.valor / total) * 360 : 0);
+          const caminho = caminhoPizza(80, 80, 72, angulo, fim);
+          angulo = fim;
+          return <path key={fatia.label} d={caminho} fill={fatia.cor} stroke="var(--color-sheet)" strokeWidth="1" />;
+        })}
+      </svg>
+      <p className="mt-1 text-center">
+        <span className={"block font-display leading-tight text-ink " + (miudo ? "text-sm" : "text-xl")}>{centro}</span>
+        <span className="text-xs text-muted">{legenda}</span>
+      </p>
+    </div>
   );
 }

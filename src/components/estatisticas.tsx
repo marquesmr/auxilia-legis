@@ -1,5 +1,5 @@
 import { classeResposta, rotuloRetorno, TIPOS_LEI, type Processo, urgencia } from "@/lib/prazos";
-import { pintarContagem } from "@/lib/cores-grafico";
+import { caminhoPizza, pintarContagem } from "@/lib/cores-grafico";
 import { encerraStatus } from "@/lib/status-catalogo";
 
 const ORDEM_TIPO = ["Requerimentos", "Indicações", "Projetos de Lei", "Outros"] as const;
@@ -143,39 +143,23 @@ function Donut({
   total: number;
   centro?: string;
 }) {
-  const r = 46;
-  const c = 2 * Math.PI * r;
-  let offset = 0;
   const usadas = fatias.filter((f) => f.n > 0);
+  const soma = usadas.reduce((acumulado, fatia) => acumulado + fatia.n, 0) || total;
+  let angulo = -90;
   return (
-    <svg viewBox="0 0 140 140" className="mx-auto mt-2 size-40" role="img" aria-label={`${total} processos no gráfico`}>
-      <circle cx="70" cy="70" r={r} fill="none" stroke="var(--color-line)" strokeWidth="16" />
-      {usadas.map((fatia) => {
-        const len = (fatia.n / total) * c;
-        const el = (
-          <circle
-            key={fatia.label}
-            cx="70"
-            cy="70"
-            r={r}
-            fill="none"
-            stroke={fatia.cor}
-            strokeWidth="16"
-            strokeLinecap="round"
-            strokeDasharray={`${len} ${c - len}`}
-            strokeDashoffset={-offset}
-            transform="rotate(-90 70 70)"
-          />
-        );
-        offset += len;
-        return el;
-      })}
-      <text x="70" y="66" textAnchor="middle" fill="var(--color-ink)" fontSize="28" fontFamily="Fraunces, Georgia, serif">
-        {total}
-      </text>
-      <text x="70" y="84" textAnchor="middle" fill="var(--color-muted)" fontSize="11" fontFamily="Outfit, sans-serif">
-        {centro}
-      </text>
-    </svg>
+    <div className="mx-auto mt-2 w-44 max-w-full">
+      <svg viewBox="0 0 140 140" className="mx-auto size-40" role="img" aria-label={`${total} processos no gráfico`}>
+        {usadas.map((fatia) => {
+          const fim = angulo + (fatia.n / soma) * 360;
+          const caminho = caminhoPizza(70, 70, 62, angulo, fim);
+          angulo = fim;
+          return <path key={fatia.label} d={caminho} fill={fatia.cor} stroke="var(--color-sheet)" strokeWidth="1" />;
+        })}
+      </svg>
+      <p className="mt-1 text-center">
+        <span className="block font-display text-3xl leading-none text-ink">{total}</span>
+        <span className="text-xs text-muted">{centro}</span>
+      </p>
+    </div>
   );
 }
