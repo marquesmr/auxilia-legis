@@ -992,6 +992,28 @@ export function AdminPainel({
     setPagAndDescricao("");
   }
 
+  function gravarProcesso(atualizado: ProcessoAdmin, aviso: string) {
+    const proximo = listaViva.current.map((item) => (item.id === atualizado.id ? atualizado : item));
+    ++listaGeracao.current;
+    listaViva.current = proximo;
+    setLista(proximo);
+    onToast(aviso);
+    const equipe = equipeAtual;
+    filaPagamento.current = filaPagamento.current
+      .catch(() => undefined)
+      .then(() => salvarAdmin({ data: atualizado }))
+      .catch((err: unknown) => {
+        onToast(err instanceof Error ? err.message : "Não foi possível gravar o pagamento.");
+        void listarAdmin({ data: equipe })
+          .then((frescos) => {
+            ++listaGeracao.current;
+            listaViva.current = frescos;
+            setLista(frescos);
+          })
+          .catch(() => undefined);
+      });
+  }
+
   function lancarPagamento() {
     if (!andamentoId) return;
     const atual = listaViva.current.find((item) => item.id === andamentoId);
@@ -1021,28 +1043,40 @@ export function AdminPainel({
         evento(`Lançou pagamento de ${formatarReais(valorNovo)}${descricao ? ` (${descricao})` : ""}.`, meuNome),
       ],
     };
-    const proximo = listaViva.current.map((item) => (item.id === atualizado.id ? atualizado : item));
-    ++listaGeracao.current;
-    listaViva.current = proximo;
-    setLista(proximo);
     setPagAndData("");
     setPagAndValor("");
     setPagAndDescricao("");
-    onToast("Pagamento lançado");
-    const equipe = equipeAtual;
-    filaPagamento.current = filaPagamento.current
-      .catch(() => undefined)
-      .then(() => salvarAdmin({ data: atualizado }))
-      .catch((err: unknown) => {
-        onToast(err instanceof Error ? err.message : "Não foi possível lançar o pagamento.");
-        void listarAdmin({ data: equipe })
-          .then((frescos) => {
-            ++listaGeracao.current;
-            listaViva.current = frescos;
-            setLista(frescos);
-          })
-          .catch(() => undefined);
-      });
+    gravarProcesso(atualizado, "Pagamento lançado");
+  }
+
+  function editarPagamento(processoId: string, pagamentoId: string, data: string, valorTexto: string) {
+    const atual = listaViva.current.find((item) => item.id === processoId);
+    const anterior = atual?.pagamentos.find((item) => item.id === pagamentoId);
+    if (!atual || !anterior) return;
+    if (!data) {
+      onToast("Informe a data do pagamento.");
+      return;
+    }
+    const valorNovo = reaisParaCentavos(valorTexto);
+    if (valorNovo == null) {
+      onToast("Informe o valor do pagamento.");
+      return;
+    }
+    const pagamentos = atual.pagamentos.map((item) => (item.id === pagamentoId ? { ...item, data, valorCentavos: valorNovo } : item));
+    gravarProcesso(
+      {
+        ...atual,
+        pagamentos,
+        valorTotalCentavos: somaPagamentos(pagamentos),
+        valorMensalCentavos: null,
+        valorEstimadoCentavos: null,
+        historico: [
+          ...atual.historico,
+          evento(`Alterou o pagamento de ${formatDate(anterior.data) || "sem data"} para ${formatDate(data)}, no valor de ${formatarReais(valorNovo)}.`, meuNome),
+        ],
+      },
+      "Lançamento alterado",
+    );
   }
 
   function pagamentoNoPeriodo(item: ProcessoAdmin, inicio: string, fim: string) {
@@ -1534,6 +1568,7 @@ export function AdminPainel({
                       setPagAndDescricao("");
                     }}
                     onExcluir={() => setDeleteId(item.id)}
+                    onEditarPagamento={(pagamentoId, data, valor) => editarPagamento(item.id, pagamentoId, data, valor)}
                   />
                 ))}
               </ul>
@@ -2008,11 +2043,14 @@ export function AdminPainel({
                 >
                   <p className="text-sm font-medium text-ink">Lançar pagamento</p>
                   {(lista.find((item) => item.id === andamentoId)?.pagamentos.length ?? 0) > 0 && (
-                    <ul className="flex flex-col gap-1 text-sm text-muted">
+                    <ul className="flex flex-col gap-1 text-sm text-ink">
                       {lista.find((item) => item.id === andamentoId)?.pagamentos.map((item) => (
-                        <li key={item.id}>
-                          {formatDate(item.data)} · {formatarReais(item.valorCentavos)}
-                          {item.descricao ? ` · ${item.descricao}` : ""}
+                        <li key={item.id} className="flex items-center justify-between gap-2">
+                          <span className="min-w-0 text-muted">
+                            {formatDate(item.data)} · {formatarReais(item.valorCentavos)}
+                            {item.descricao ? ` · ${item.descricao}` : ""}
+                          </span>
+                          <MenuPagamento pagamento={item} onSalvar={(data, valor) => editarPagamento(andamentoId ?? "", item.id, data, valor)} />
                         </li>
                       ))}
                     </ul>
@@ -2192,6 +2230,7 @@ function CardAdmin({
   onEditar,
   onAndamento,
   onExcluir,
+  onEditarPagamento,
 }: {
   processo: ProcessoAdmin;
   equipes: { id: string; nome: string }[];
@@ -2199,6 +2238,7 @@ function CardAdmin({
   onEditar: () => void;
   onAndamento: () => void;
   onExcluir: () => void;
+  onEditarPagamento: (pagamentoId: string, data: string, valor: string) => void;
 }) {
   const [detalhes, setDetalhes] = useState(false);
   const [moverAberto, setMoverAberto] = useState(false);
@@ -2327,12 +2367,13 @@ function CardAdmin({
               {processo.pagamentoDemanda && processo.pagamentos.length > 0 && (
                 <ul className="mt-3 flex flex-col gap-1 text-sm">
                   {processo.pagamentos.map((item) => (
-                    <li key={item.id} className="flex items-start justify-between gap-3">
-                      <span className="text-ink">
+                    <li key={item.id} className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 text-ink">
                         {item.data ? formatDate(item.data) : "Sem data"}
                         {item.descricao ? ` · ${item.descricao}` : ""}
+                        <span className="ml-2 font-medium">{formatarReais(item.valorCentavos)}</span>
                       </span>
-                      <span className="shrink-0 font-medium text-ink">{formatarReais(item.valorCentavos)}</span>
+                      <MenuPagamento pagamento={item} onSalvar={(data, valor) => onEditarPagamento(item.id, data, valor)} />
                     </li>
                   ))}
                 </ul>
@@ -2528,6 +2569,58 @@ function NumeroControle({ linha }: { linha: LinhaControle }) {
       ) : null}
       {formatarPeca(linha.numero, linha.ano)}
     </span>
+  );
+}
+
+function MenuPagamento({
+  pagamento,
+  onSalvar,
+}: {
+  pagamento: { data: string; valorCentavos: number };
+  onSalvar: (data: string, valor: string) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [data, setData] = useState(pagamento.data);
+  const [valor, setValor] = useState(centavosParaCampo(pagamento.valorCentavos));
+  useEffect(() => {
+    setData(pagamento.data);
+    setValor(centavosParaCampo(pagamento.valorCentavos));
+  }, [pagamento.data, pagamento.valorCentavos]);
+  return (
+    <div className="relative shrink-0" onKeyDown={(evento) => evento.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setAberto((atual) => !atual)}
+        className="grid size-8 place-items-center rounded-lg text-muted"
+        aria-label="Ações do pagamento"
+        aria-expanded={aberto}
+      >
+        <MoreVertical className="size-4" />
+      </button>
+      {aberto && (
+        <div className="absolute right-0 z-30 mt-1 w-56 rounded-xl border border-line bg-sheet p-3 shadow-lg">
+          <p className="text-sm font-medium text-ink">Editar lançamento</p>
+          <label className="mt-2 block text-xs font-medium text-ink">
+            Data
+            <input type="date" value={data} onChange={(evento) => setData(evento.target.value)} className={`${inputCls} mt-1`} />
+          </label>
+          <label className="mt-2 block text-xs font-medium text-ink">
+            Valor
+            <input value={valor} onChange={(evento) => setValor(mascaraReais(evento.target.value))} className={`${inputCls} mt-1`} inputMode="decimal" placeholder="0,00" />
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              onSalvar(data, valor);
+              setAberto(false);
+            }}
+            className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg bg-pine text-sm font-medium text-sheet"
+          >
+            Salvar
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
