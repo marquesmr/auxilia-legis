@@ -1069,43 +1069,49 @@ export function AdminPainel({
       </aside>
 
       <section className="min-w-0">
-        <div className="mb-4 flex flex-wrap gap-2">
-          <GuiaBotao ativo={guia === "lista"} onClick={() => setGuia("lista")}>
-            Lista
-          </GuiaBotao>
-          <GuiaBotao ativo={guia === "estatisticas"} onClick={() => setGuia("estatisticas")}>
-            <BarChart3 className="size-4" />
-            Estatísticas
-          </GuiaBotao>
-          <GuiaBotao ativo={guia === "relatorio"} onClick={() => setGuia("relatorio")}>
-            <FileText className="size-4" />
-            Relatório
-          </GuiaBotao>
-          <GuiaBotao ativo={guia === "comunicacoes"} onClick={() => setGuia("comunicacoes")}>
-            Comunicações Internas
-          </GuiaBotao>
-          <GuiaBotao ativo={guia === "setores"} onClick={() => setGuia("setores")}>
-            Comunicações Internas - Setores
-          </GuiaBotao>
-          <GuiaBotao ativo={guia === "pareceres"} onClick={() => setGuia("pareceres")}>
-            Pareceres do Agente de Contratações
-          </GuiaBotao>
-          <GuiaBotao ativo={guia === "links"} onClick={() => setGuia("links")}>
-            <Link2 className="size-4" />
-            Links
-          </GuiaBotao>
-          <GuiaBotao ativo={guia === "lei"} onClick={() => setGuia("lei")}>
-            <Scale className="size-4" />
-            Lei de Licitações
-          </GuiaBotao>
-          <GuiaBotao ativo={guia === "cnpj"} onClick={() => setGuia("cnpj")}>
-            <Search className="size-4" />
-            Consulta CPF/CNPJ
-          </GuiaBotao>
+        <div className="mb-4 flex flex-col gap-2 xl:flex-row xl:items-stretch">
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <div className="flex flex-wrap gap-2 xl:flex-nowrap">
+              <GuiaBotao ativo={guia === "lista"} onClick={() => setGuia("lista")}>
+                Lista
+              </GuiaBotao>
+              <GuiaBotao ativo={guia === "estatisticas"} onClick={() => setGuia("estatisticas")}>
+                <BarChart3 className="size-4" />
+                Estatísticas
+              </GuiaBotao>
+              <GuiaBotao ativo={guia === "relatorio"} onClick={() => setGuia("relatorio")}>
+                <FileText className="size-4" />
+                Relatório
+              </GuiaBotao>
+              <GuiaBotao ativo={guia === "comunicacoes"} onClick={() => setGuia("comunicacoes")}>
+                Comunicações Internas
+              </GuiaBotao>
+              <GuiaBotao ativo={guia === "setores"} onClick={() => setGuia("setores")} className="xl:min-w-fit xl:flex-1">
+                Comunicações Internas - Setores
+              </GuiaBotao>
+            </div>
+            <div className="flex flex-wrap gap-2 xl:flex-nowrap">
+              <GuiaBotao ativo={guia === "pareceres"} onClick={() => setGuia("pareceres")}>
+                Pareceres do Agente de Contratações
+              </GuiaBotao>
+              <GuiaBotao ativo={guia === "links"} onClick={() => setGuia("links")}>
+                <Link2 className="size-4" />
+                Links
+              </GuiaBotao>
+              <GuiaBotao ativo={guia === "lei"} onClick={() => setGuia("lei")}>
+                <Scale className="size-4" />
+                Lei de Licitações
+              </GuiaBotao>
+              <GuiaBotao ativo={guia === "cnpj"} onClick={() => setGuia("cnpj")} className="xl:min-w-fit xl:flex-1">
+                <Search className="size-4" />
+                Consulta CPF/CNPJ
+              </GuiaBotao>
+            </div>
+          </div>
           <button
             type="button"
             onClick={abrirFormulario}
-            className="inline-flex h-11 items-center gap-2 rounded-xl bg-pine px-4 text-sm font-medium text-sheet"
+            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-pine px-4 text-sm font-medium text-sheet xl:h-auto xl:w-40"
           >
             <Plus className="size-4" />
             Novo processo
@@ -3569,13 +3575,15 @@ function Resumo({ valor, rotulo, tom }: { valor: number; rotulo: string; tom: "s
   );
 }
 
-function GuiaBotao({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: ReactNode }) {
+function GuiaBotao({ ativo, onClick, children, className = "" }: { ativo: boolean; onClick: () => void; children: ReactNode; className?: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={
-        "inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium " +
+        "inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-medium whitespace-nowrap " +
+        className +
+        " " +
         (ativo ? "bg-ink text-sheet" : "border border-line bg-sheet text-ink")
       }
     >
