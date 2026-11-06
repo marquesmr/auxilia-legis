@@ -1358,10 +1358,7 @@ export function AdminPainel({
                             </td>
                             <td className="col-fixa py-2 text-ink">
                               {item.pagamentoDemanda ? (
-                                <>
-                                  {formatarReais(item.valorTotalCentavos)}
-                                  <span className="block text-xs text-muted">soma dos pagamentos</span>
-                                </>
+                                formatarReais(item.valorTotalCentavos)
                               ) : item.valorTotalCentavos != null ? (
                                 <>
                                   {formatarReais(item.valorTotalCentavos)}
@@ -3171,10 +3168,7 @@ function CartaoProcesso({ item }: { item: ProcessoAdmin }) {
         <p className="font-medium text-ink">{rotuloNumero(item.numero, item.numeroAno)}</p>
         <p className="shrink-0 text-right text-ink">
           {item.pagamentoDemanda ? (
-            <>
-              {formatarReais(item.valorTotalCentavos)}
-              <span className="block text-xs text-muted">soma dos pagamentos</span>
-            </>
+            formatarReais(item.valorTotalCentavos)
           ) : item.valorTotalCentavos != null ? formatarReais(item.valorTotalCentavos) : item.valorEstimadoCentavos != null ? `${formatarReais(item.valorEstimadoCentavos)} estimado` : "—"}
         </p>
       </div>
