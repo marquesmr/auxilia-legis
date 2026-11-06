@@ -53,7 +53,7 @@ export function LeiLicitacoes() {
   }
 
   return (
-    <div className="rounded-2xl border border-line bg-sheet p-4 sm:p-6">
+    <div id="topo-lei" className="rounded-2xl border border-line bg-sheet p-4 sm:p-6">
       <h2 className="font-display text-2xl text-ink sm:text-3xl">Lei de Licitações</h2>
       <p className="mt-1 text-sm text-muted">
         Lei nº 14.133, de 1º de abril de 2021, no texto compilado. O artigo citado nesta lei abre aqui. Lei, decreto e vigência citados abrem a página oficial.
@@ -95,15 +95,36 @@ export function LeiLicitacoes() {
         ))}
       </div>
       <article className="lei-texto mt-6" onClick={aoClicar} dangerouslySetInnerHTML={{ __html: textoLei }} />
+      <div className="sticky bottom-4 z-30 mt-4 flex justify-start">
+        <button
+          type="button"
+          onClick={() => irPara("topo-lei")}
+          className="rounded-full border border-line bg-sheet px-4 py-2 text-sm font-medium text-ink shadow-md"
+        >
+          Voltar ao topo
+        </button>
+      </div>
       <style>{`
         .lei-texto { color: var(--color-ink); font-size: 0.95rem; line-height: 1.65; }
         .lei-texto .lei-notas, .lei-texto .lei-titulo, .lei-texto .lei-capitulo, .lei-texto .lei-secao { text-align: center; }
         .lei-texto .lei-titulo { margin: 2rem 0 0.25rem; font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; scroll-margin-top: 5rem; }
         .lei-texto .lei-capitulo, .lei-texto .lei-secao { margin: 1.25rem 0 0.2rem; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.02em; }
         .lei-texto p { margin: 0.55rem 0; text-align: justify; }
-        .lei-texto .lei-art, .lei-texto .lei-inciso, .lei-texto .lei-alinea, .lei-texto .lei-par { scroll-margin-top: 5rem; }
+        .lei-texto .lei-art, .lei-texto .lei-inciso, .lei-texto .lei-alinea, .lei-texto .lei-par, #topo-lei { scroll-margin-top: 5rem; }
+        .lei-texto .lei-citacao {
+          margin: 0.2rem 0 0.2rem 0.35rem;
+          padding: 0.15rem 0 0.15rem 0.9rem;
+          border-left: 3px solid color-mix(in srgb, var(--color-pine) 45%, transparent);
+          text-align: justify;
+        }
+        .lei-texto .lei-omissao {
+          margin: 0.35rem 0.5rem 0.35rem 0.35rem;
+          height: 0.85rem;
+          border-left: 3px solid color-mix(in srgb, var(--color-pine) 45%, transparent);
+          border-bottom: 1px dotted var(--color-muted);
+        }
         .lei-texto a { color: var(--color-pine); text-decoration: underline; text-underline-offset: 2px; }
-        .lei-texto del { color: var(--color-muted); }
+        .lei-texto del { color: var(--color-muted); text-decoration: line-through; }
       `}</style>
     </div>
   );
