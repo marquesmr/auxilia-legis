@@ -591,6 +591,9 @@ export function AdminPainel({
   const [anotacoesCi, setAnotacoesCi] = useState<{ ano: number; numero: number; destino: string; desativada: boolean }[]>([]);
   const sinalVisto = useRef(sinalNovo);
   const listaGeracao = useRef(0);
+  const listaViva = useRef<ProcessoAdmin[]>([]);
+  const filaPagamento = useRef(Promise.resolve());
+  listaViva.current = lista;
   const cargaVista = useRef(0);
 
   useEffect(() => {
@@ -988,9 +991,9 @@ export function AdminPainel({
     setPagAndDescricao("");
   }
 
-  async function lancarPagamento() {
+  function lancarPagamento() {
     if (!andamentoId) return;
-    const atual = lista.find((item) => item.id === andamentoId);
+    const atual = listaViva.current.find((item) => item.id === andamentoId);
     if (!atual?.pagamentoDemanda) return;
     if (!pagAndData) {
       onToast("Informe a data do pagamento.");
@@ -1017,16 +1020,28 @@ export function AdminPainel({
         evento(`Lançou pagamento de ${formatarReais(valorNovo)}${descricao ? ` (${descricao})` : ""}.`, meuNome),
       ],
     };
-    const ok = await persistir(
-      lista.map((item) => (item.id === atualizado.id ? atualizado : item)),
-      atualizado,
-      null,
-      "Pagamento lançado",
-    );
-    if (ok !== true) return;
+    const proximo = listaViva.current.map((item) => (item.id === atualizado.id ? atualizado : item));
+    ++listaGeracao.current;
+    listaViva.current = proximo;
+    setLista(proximo);
     setPagAndData("");
     setPagAndValor("");
     setPagAndDescricao("");
+    onToast("Pagamento lançado");
+    const equipe = equipeAtual;
+    filaPagamento.current = filaPagamento.current
+      .catch(() => undefined)
+      .then(() => salvarAdmin({ data: atualizado }))
+      .catch((err: unknown) => {
+        onToast(err instanceof Error ? err.message : "Não foi possível lançar o pagamento.");
+        void listarAdmin({ data: equipe })
+          .then((frescos) => {
+            ++listaGeracao.current;
+            listaViva.current = frescos;
+            setLista(frescos);
+          })
+          .catch(() => undefined);
+      });
   }
 
   function gerarRelatorio() {
