@@ -169,7 +169,7 @@ export function LeiLicitacoes() {
         ))}
       </div>
       <article className="lei-texto mt-6" onClick={aoClicar} dangerouslySetInnerHTML={{ __html: html }} />
-      <div className="sticky bottom-4 z-30 mt-4 flex justify-start">
+      <div className="sticky bottom-4 z-30 mt-4 flex justify-end">
         <button
           type="button"
           onClick={() => irPara("topo-lei")}
