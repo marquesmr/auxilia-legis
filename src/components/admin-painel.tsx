@@ -1074,9 +1074,23 @@ export function AdminPainel({
     });
   }
 
-  const totalRelatorio = relatorio?.itens.reduce((soma, item) => soma + (valorSomado(item) ?? 0), 0) ?? 0;
-  const mensalRelatorio = relatorio?.itens.reduce((soma, item) => soma + (item.valorMensalCentavos ?? 0), 0) ?? 0;
-  const demandaRelatorio = relatorio?.itens.reduce((soma, item) => soma + (item.pagamentoDemanda ? (valorSomado(item) ?? 0) : 0), 0) ?? 0;
+  const itensRelatorio = relatorio
+    ? lista
+        .filter((item) => cruzaPeriodo(item, relatorio.inicio, relatorio.fim) || pagamentoNoPeriodo(item, relatorio.inicio, relatorio.fim))
+        .filter((item) => statusRelatorio === "todos" || item.status === statusRelatorio)
+        .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }))
+    : [];
+  const linhasDemanda = relatorio
+    ? itensRelatorio.flatMap((item) => {
+        if (!item.pagamentoDemanda) return [];
+        const noPeriodo = item.pagamentos.filter((pagamento) => pagamento.data >= relatorio.inicio && pagamento.data <= relatorio.fim);
+        const soma = noPeriodo.length > 0 ? somaPagamentos(noPeriodo) : (valorSomado(item) ?? 0);
+        return [{ id: item.id, processo: rotuloNumero(item.numero, item.numeroAno) || item.tipo, referencia: item.referencia, soma }];
+      })
+    : [];
+  const totalRelatorio = itensRelatorio.reduce((soma, item) => soma + (item.pagamentoDemanda ? 0 : (valorSomado(item) ?? 0)), 0) + linhasDemanda.reduce((soma, linha) => soma + linha.soma, 0);
+  const mensalRelatorio = itensRelatorio.reduce((soma, item) => soma + (item.valorMensalCentavos ?? 0), 0);
+  const demandaRelatorio = linhasDemanda.reduce((soma, linha) => soma + linha.soma, 0);
 
   const moverPara = useCallback(
     async (id: string, equipeId: string | null) => {
@@ -1304,7 +1318,7 @@ export function AdminPainel({
                     <p className="mt-1 text-sm text-muted">
                       {formatDate(relatorio.inicio)} a {formatDate(relatorio.fim)} ·{" "}
                       {statusRelatorio === "todos" ? "todas as situações" : statusAdminLabel(statusRelatorio).toLowerCase()} ·{" "}
-                      {relatorio.itens.length} {relatorio.itens.length === 1 ? "processo" : "processos"}
+                      {itensRelatorio.length} {itensRelatorio.length === 1 ? "processo" : "processos"}
                     </p>
                   </div>
                   <BotaoRelatorio />
@@ -1312,17 +1326,37 @@ export function AdminPainel({
                 <p className="mt-3 text-sm text-ink">
                   Valor total no recorte: {formatarReais(totalRelatorio || null)} · mensal:{" "}
                   {formatarReais(mensalRelatorio || null)}
-                  {relatorio.itens.some((item) => item.pagamentoDemanda) ? ` · pagamentos por demanda: ${formatarReais(demandaRelatorio)}` : ""}
                 </p>
+                <section className="mt-4 rounded-2xl border border-line bg-paper p-4">
+                  <h3 className="text-sm font-medium text-ink">Pagamentos por demanda</h3>
+                  {linhasDemanda.length === 0 ? (
+                    <p className="mt-2 text-sm text-muted">Nenhum pagamento por demanda neste período.</p>
+                  ) : (
+                    <>
+                      <p className="mt-2 font-display text-2xl text-ink">{formatarReais(demandaRelatorio)}</p>
+                      <ul className="mt-3 flex flex-col gap-2">
+                        {linhasDemanda.map((linha) => (
+                          <li key={linha.id} className="flex items-start justify-between gap-3 text-sm">
+                            <span className="min-w-0 text-ink">
+                              <span className="font-medium">{linha.processo}</span>
+                              {linha.referencia ? <span className="block text-muted">{linha.referencia}</span> : null}
+                            </span>
+                            <span className="shrink-0 font-medium text-ink">{formatarReais(linha.soma)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </section>
                 <div className="mt-4">
-                  <GraficoAdmin processos={relatorio.itens} />
+                  <GraficoAdmin processos={itensRelatorio} />
                 </div>
-                {relatorio.itens.length === 0 ? (
+                {itensRelatorio.length === 0 ? (
                   <p className="mt-4 text-sm text-muted">Nenhum processo neste período.</p>
                 ) : (
                   <>
                     <ul className="relatorio-cards mt-4 flex flex-col gap-3 md:hidden">
-                      {relatorio.itens.map((item) => (
+                      {itensRelatorio.map((item) => (
                         <CartaoProcesso key={item.id} item={item} />
                       ))}
                     </ul>
@@ -1340,7 +1374,7 @@ export function AdminPainel({
                         </tr>
                       </thead>
                       <tbody>
-                        {relatorio.itens.map((item) => (
+                        {itensRelatorio.map((item) => (
                           <tr key={item.id} className="border-b border-line align-top">
                             <td className="col-fixa py-2 pr-3 font-medium text-ink">{rotuloNumero(item.numero, item.numeroAno)}</td>
                             <td className="py-2 pr-3 text-ink">{item.referencia || "—"}</td>
