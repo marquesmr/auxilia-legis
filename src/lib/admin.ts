@@ -121,6 +121,13 @@ export function statusAdminLabel(status: StatusAdmin): string {
   return nomeStatus("administrativo", status);
 }
 
+export type PagamentoDemanda = {
+  id: string;
+  data: string;
+  valorCentavos: number;
+  descricao: string;
+};
+
 export type ProcessoAdmin = {
   id: string;
   numero: string;
@@ -146,6 +153,8 @@ export type ProcessoAdmin = {
   valorTotalCentavos: number | null;
   valorMensalCentavos: number | null;
   valorEstimadoCentavos: number | null;
+  pagamentoDemanda: boolean;
+  pagamentos: PagamentoDemanda[];
   ciNumero: number | null;
   ciAno: number | null;
   ciOrigem: string;
@@ -228,6 +237,10 @@ export function precisaAvisoAdmin(p: ProcessoAdmin, now = new Date()): boolean {
   if (tipoSimples(p.tipo)) return false;
   const u = urgenciaAdmin(p, now);
   return u === "vencido" || u === "hoje" || u === "proximo";
+}
+
+export function somaPagamentos(pagamentos: PagamentoDemanda[]): number {
+  return pagamentos.reduce((soma, item) => soma + item.valorCentavos, 0);
 }
 
 export function reaisParaCentavos(texto: string): number | null {

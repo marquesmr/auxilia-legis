@@ -31,6 +31,7 @@ import {
   reaisParaCentavos,
   rotuloNumero,
   rotuloTipo,
+  somaPagamentos,
   statusAdminLabel,
   urgenciaAdmin,
   type Modalidade,
@@ -81,6 +82,8 @@ type FormAdmin = {
   valorTotal: string;
   valorMensal: string;
   valorEstimado: string;
+  pagamentoDemanda: boolean;
+  pagamentos: { id: string; data: string; valor: string; descricao: string }[];
   ciNumero: string;
   ciAno: number;
   ciOrigem: string;
@@ -193,6 +196,8 @@ function vazio(): FormAdmin {
     valorTotal: "",
     valorMensal: "",
     valorEstimado: "",
+    pagamentoDemanda: false,
+    pagamentos: [],
     ciNumero: "",
     ciAno: new Date().getFullYear(),
     ciOrigem: "",
@@ -247,6 +252,13 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
     valorTotal: centavosParaCampo(p.valorTotalCentavos),
     valorMensal: centavosParaCampo(p.valorMensalCentavos),
     valorEstimado: centavosParaCampo(p.valorEstimadoCentavos),
+    pagamentoDemanda: p.pagamentoDemanda,
+    pagamentos: p.pagamentos.map((item) => ({
+      id: item.id,
+      data: item.data,
+      valor: centavosParaCampo(item.valorCentavos),
+      descricao: item.descricao,
+    })),
     ciNumero: p.ciNumero != null ? String(p.ciNumero) : "",
     ciAno: p.ciAno ?? new Date().getFullYear(),
     ciOrigem: p.ciOrigem,
@@ -324,16 +336,20 @@ function validar(form: FormAdmin): string[] {
     const digitos = form.documento.replace(/\D/g, "");
     if (digitos.length !== 11 && digitos.length !== 14) erros.push("Informe o CPF ou o CNPJ.");
     if (digitos.length === 11 && !form.nascimento) erros.push("Informe a data de nascimento.");
-    if (reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor da contratação ou aquisição.");
+    if (!form.pagamentoDemanda && reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor da contratação ou aquisição.");
   } else if (form.status === "execucao") {
     if (!form.contratado.trim()) erros.push("Informe os dados do contratado.");
     if (!form.vigenciaInicio || !form.vigenciaFim) erros.push("Informe a vigência do contrato.");
     else if (form.vigenciaFim < form.vigenciaInicio) erros.push("A vigência termina antes de começar.");
-    if (reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor anual do contrato.");
-    if (reaisParaCentavos(form.valorMensal) == null) erros.push("Informe o valor mensal do contrato.");
+    if (!form.pagamentoDemanda && reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor anual do contrato.");
+    if (!form.pagamentoDemanda && reaisParaCentavos(form.valorMensal) == null) erros.push("Informe o valor mensal do contrato.");
     if (form.documento.replace(/\D/g, "").length === 11 && !form.nascimento) erros.push("Informe a data de nascimento.");
-  } else if (form.status !== "encerrado" && form.valorEstimado.trim() && reaisParaCentavos(form.valorEstimado) == null) {
+  } else if (!form.pagamentoDemanda && form.valorEstimado.trim() && reaisParaCentavos(form.valorEstimado) == null) {
     erros.push("O valor estimado está inválido.");
+  }
+  if (form.pagamentoDemanda && form.status !== "cancelado") {
+    if (form.pagamentos.length === 0) erros.push("Informe ao menos um pagamento.");
+    else if (form.pagamentos.some((item) => reaisParaCentavos(item.valor) == null)) erros.push("Informe o valor de cada pagamento.");
   }
   if (permiteDoisContratados(form.tipo) && (form.status === "encerrado" || form.status === "execucao")) {
     const nome2 = form.contratado2.trim();
@@ -414,6 +430,8 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
       valorTotalCentavos: null,
       valorMensalCentavos: null,
       valorEstimadoCentavos: form.status === "execucao" || form.status === "encerrado" ? null : reaisParaCentavos(form.valorEstimado),
+      pagamentoDemanda: false,
+      pagamentos: [],
       ciNumero: numeroPeca(form.ciNumero),
       ciAno: form.ciAno,
       ciOrigem: form.ciOrigem.trim(),
@@ -447,6 +465,14 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
       : execucao
         ? form.vigenciaFim || form.dataInicio
         : previsao || form.dataInicio;
+  const demanda = form.pagamentoDemanda && !cancelado;
+  const pagamentos = demanda
+    ? form.pagamentos.flatMap((item) => {
+        const valor = reaisParaCentavos(item.valor);
+        if (valor == null) return [];
+        return [{ id: item.id, data: item.data, valorCentavos: valor, descricao: item.descricao.trim() }];
+      })
+    : [];
   return {
     id: base.id,
     numero: String(numeroPeca(form.numero) ?? ""),
@@ -469,9 +495,11 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     contratado2: (execucao || encerrado) && permiteDoisContratados(form.tipo) ? form.contratado2.trim() : "",
     documento2: (execucao || encerrado) && permiteDoisContratados(form.tipo) ? form.documento2.trim() : "",
     nascimento2: (execucao || encerrado) && permiteDoisContratados(form.tipo) && form.documento2.replace(/\D/g, "").length === 11 ? form.nascimento2 || null : null,
-    valorTotalCentavos: comValor || execucao ? reaisParaCentavos(form.valorTotal) : null,
-    valorMensalCentavos: execucao ? reaisParaCentavos(form.valorMensal) : null,
-    valorEstimadoCentavos: !execucao && !encerrado ? reaisParaCentavos(form.valorEstimado) : null,
+    valorTotalCentavos: demanda ? somaPagamentos(pagamentos) : comValor || execucao ? reaisParaCentavos(form.valorTotal) : null,
+    valorMensalCentavos: demanda ? null : execucao ? reaisParaCentavos(form.valorMensal) : null,
+    valorEstimadoCentavos: demanda || execucao || encerrado ? null : reaisParaCentavos(form.valorEstimado),
+    pagamentoDemanda: demanda,
+    pagamentos,
     ciNumero: numeroPeca(form.ciNumero),
     ciAno: form.ciAno,
     ciOrigem: form.ciOrigem.trim(),
@@ -877,7 +905,7 @@ export function AdminPainel({
           onToast("Informe a data de nascimento.");
           return;
         }
-        if (valor == null) {
+        if (valor == null && !atual.pagamentoDemanda) {
           onToast("Informe o valor da contratação ou aquisição.");
           return;
         }
@@ -909,7 +937,7 @@ export function AdminPainel({
           atualizado.documento2 = "";
           atualizado.nascimento2 = null;
         }
-        atualizado.valorTotalCentavos = valor;
+        atualizado.valorTotalCentavos = atual.pagamentoDemanda ? somaPagamentos(atual.pagamentos) : valor;
         atualizado.valorMensalCentavos = null;
         atualizado.possuiContrato = false;
       }
@@ -919,7 +947,10 @@ export function AdminPainel({
         onToast("Informe a vigência do contrato.");
         return;
       }
-      if (!atual.contratado || atual.valorTotalCentavos == null || atual.valorMensalCentavos == null) {
+      const valoresProntos = atual.pagamentoDemanda
+        ? atual.pagamentos.length > 0
+        : atual.valorTotalCentavos != null && atual.valorMensalCentavos != null;
+      if (!atual.contratado || !valoresProntos) {
         onToast("Complete contratado e valores em Editar antes de mudar para execução.");
         return;
       }
@@ -1254,7 +1285,12 @@ export function AdminPainel({
                               )}
                             </td>
                             <td className="col-fixa py-2 text-ink">
-                              {item.valorTotalCentavos != null ? (
+                              {item.pagamentoDemanda ? (
+                                <>
+                                  {formatarReais(item.valorTotalCentavos)}
+                                  <span className="block text-xs text-muted">soma dos pagamentos</span>
+                                </>
+                              ) : item.valorTotalCentavos != null ? (
                                 <>
                                   {formatarReais(item.valorTotalCentavos)}
                                   {item.valorMensalCentavos != null ? (
@@ -1630,7 +1666,7 @@ export function AdminPainel({
                   </select>
                 </Campo>
                 )}
-                {form.status !== "execucao" && form.status !== "encerrado" && (
+                {form.status !== "execucao" && form.status !== "encerrado" && !form.pagamentoDemanda && (
                   <Campo label="Valor estimado">
                     <input
                       value={form.valorEstimado}
@@ -1675,16 +1711,18 @@ export function AdminPainel({
                         onChange={(contratado2, documento2, nascimento2) => setForm({ ...form, contratado2, documento2, nascimento2 })}
                       />
                     )}
-                    <Campo label="Valor da contratação ou aquisição">
-                      <input
-                        value={form.valorTotal}
-                        onChange={(e) => setForm({ ...form, valorTotal: mascaraReais(e.target.value) })}
-                        className={inputCls}
-                        inputMode="decimal"
-                        placeholder="0,00"
-                        required
-                      />
-                    </Campo>
+                    {!form.pagamentoDemanda && (
+                      <Campo label="Valor da contratação ou aquisição">
+                        <input
+                          value={form.valorTotal}
+                          onChange={(e) => setForm({ ...form, valorTotal: mascaraReais(e.target.value) })}
+                          className={inputCls}
+                          inputMode="decimal"
+                          placeholder="0,00"
+                          required
+                        />
+                      </Campo>
+                    )}
                   </div>
                 )}
                 {form.status === "execucao" && (
@@ -1728,30 +1766,33 @@ export function AdminPainel({
                         onChange={(contratado2, documento2, nascimento2) => setForm({ ...form, contratado2, documento2, nascimento2 })}
                       />
                     )}
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Campo label="Valor anual">
-                        <input
-                          value={form.valorTotal}
-                          onChange={(e) => setForm({ ...form, valorTotal: mascaraReais(e.target.value) })}
-                          className={inputCls}
-                          inputMode="decimal"
-                          placeholder="0,00"
-                          required
-                        />
-                      </Campo>
-                      <Campo label="Valor mensal">
-                        <input
-                          value={form.valorMensal}
-                          onChange={(e) => setForm({ ...form, valorMensal: mascaraReais(e.target.value) })}
-                          className={inputCls}
-                          inputMode="decimal"
-                          placeholder="0,00"
-                          required
-                        />
-                      </Campo>
-                    </div>
+                    {!form.pagamentoDemanda && (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Campo label="Valor anual">
+                          <input
+                            value={form.valorTotal}
+                            onChange={(e) => setForm({ ...form, valorTotal: mascaraReais(e.target.value) })}
+                            className={inputCls}
+                            inputMode="decimal"
+                            placeholder="0,00"
+                            required
+                          />
+                        </Campo>
+                        <Campo label="Valor mensal">
+                          <input
+                            value={form.valorMensal}
+                            onChange={(e) => setForm({ ...form, valorMensal: mascaraReais(e.target.value) })}
+                            className={inputCls}
+                            inputMode="decimal"
+                            placeholder="0,00"
+                            required
+                          />
+                        </Campo>
+                      </div>
+                    )}
                   </div>
                 )}
+                {form.status !== "cancelado" && <PagamentoPorDemanda form={form} onChange={setForm} />}
                 <Campo label="Nota do lançamento">
                   <textarea
                     value={form.nota}
@@ -1901,9 +1942,11 @@ export function AdminPainel({
                               }}
                             />
                           )}
-                          <Campo label="Valor da contratação ou aquisição">
-                            <input value={valorAnd} onChange={(e) => setValorAnd(mascaraReais(e.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" required />
-                          </Campo>
+                          {!atual?.pagamentoDemanda && (
+                            <Campo label="Valor da contratação ou aquisição">
+                              <input value={valorAnd} onChange={(e) => setValorAnd(mascaraReais(e.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" required />
+                            </Campo>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2114,18 +2157,35 @@ function CardAdmin({
                   </>
                 ) : null}
                 <Info rotulo="Vigência" valor={processo.vigenciaInicio ? `${formatDate(processo.vigenciaInicio)} a ${processo.vigenciaFim ? formatDate(processo.vigenciaFim) : "—"}` : "—"} largo />
-                <Info rotulo="Valor estimado" valor={formatarReais(processo.valorEstimadoCentavos)} />
-                {processo.possuiContrato ? (
+                {processo.pagamentoDemanda ? (
+                  <Info rotulo="Pagamento por demanda" valor={formatarReais(processo.valorTotalCentavos)} largo />
+                ) : (
+                  <Info rotulo="Valor estimado" valor={formatarReais(processo.valorEstimadoCentavos)} />
+                )}
+                {!processo.pagamentoDemanda && (processo.possuiContrato ? (
                   <>
                     <Info rotulo="Valor anual" valor={formatarReais(processo.valorTotalCentavos)} />
                     <Info rotulo="Valor mensal" valor={formatarReais(processo.valorMensalCentavos)} />
                   </>
                 ) : (
                   <Info rotulo="Valor da contratação" valor={formatarReais(processo.valorTotalCentavos)} />
-                )}
+                ))}
                 <Info rotulo="Lançado por" valor={processo.autorNome || "sem nome"} />
                 <Info rotulo="Equipe" valor={equipes.find((equipe) => equipe.id === processo.equipeId)?.nome ?? "Só meus"} />
               </dl>
+              {processo.pagamentoDemanda && processo.pagamentos.length > 0 && (
+                <ul className="mt-3 flex flex-col gap-1 text-sm">
+                  {processo.pagamentos.map((item) => (
+                    <li key={item.id} className="flex items-start justify-between gap-3">
+                      <span className="text-ink">
+                        {item.data ? formatDate(item.data) : "Sem data"}
+                        {item.descricao ? ` · ${item.descricao}` : ""}
+                      </span>
+                      <span className="shrink-0 font-medium text-ink">{formatarReais(item.valorCentavos)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="mt-4 flex flex-col gap-2">
                 {processo.linkAberturaNa ? (
                   <p className="inline-flex h-11 items-center rounded-xl border border-line bg-paper px-3 text-sm font-medium text-ink">Publicação: N/A</p>
@@ -2933,6 +2993,74 @@ function BandeiraBrasil() {
   );
 }
 
+function PagamentoPorDemanda({ form, onChange }: { form: FormAdmin; onChange: (form: FormAdmin) => void }) {
+  const soma = form.pagamentos.reduce((total, item) => total + (reaisParaCentavos(item.valor) ?? 0), 0);
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3">
+      <label className="flex items-center gap-2 text-sm font-medium text-ink">
+        <input
+          type="checkbox"
+          checked={form.pagamentoDemanda}
+          onChange={(e) => onChange({ ...form, pagamentoDemanda: e.target.checked })}
+        />
+        Pagamento por demanda
+      </label>
+      {form.pagamentoDemanda && (
+        <>
+          {form.pagamentos.map((item) => (
+            <div key={item.id} className="grid gap-2 sm:grid-cols-[9.5rem_8.5rem_1fr_auto]">
+              <input
+                type="date"
+                value={item.data}
+                onChange={(e) => onChange({ ...form, pagamentos: form.pagamentos.map((atual) => (atual.id === item.id ? { ...atual, data: e.target.value } : atual)) })}
+                className={inputCls}
+                aria-label="Data do pagamento"
+              />
+              <input
+                value={item.valor}
+                onChange={(e) => onChange({ ...form, pagamentos: form.pagamentos.map((atual) => (atual.id === item.id ? { ...atual, valor: mascaraReais(e.target.value) } : atual)) })}
+                className={inputCls}
+                inputMode="decimal"
+                placeholder="0,00"
+                aria-label="Valor do pagamento"
+              />
+              <input
+                value={item.descricao}
+                onChange={(e) => onChange({ ...form, pagamentos: form.pagamentos.map((atual) => (atual.id === item.id ? { ...atual, descricao: e.target.value } : atual)) })}
+                className={inputCls}
+                placeholder="Descrição"
+                aria-label="Descrição do pagamento"
+              />
+              <button
+                type="button"
+                onClick={() => onChange({ ...form, pagamentos: form.pagamentos.filter((atual) => atual.id !== item.id) })}
+                className="grid size-11 place-items-center rounded-xl border border-line text-seal"
+                aria-label="Remover pagamento"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() =>
+              onChange({
+                ...form,
+                pagamentos: [...form.pagamentos, { id: crypto.randomUUID(), data: todayIso(), valor: "", descricao: "" }],
+              })
+            }
+            className="inline-flex h-10 items-center gap-2 text-sm font-medium text-pine"
+          >
+            <Plus className="size-4" />
+            Adicionar pagamento
+          </button>
+          <p className="text-sm text-ink">Soma: {formatarReais(form.pagamentos.length ? soma : null)}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SegundoContratado({
   nome,
   documento,
@@ -2980,7 +3108,12 @@ function CartaoProcesso({ item }: { item: ProcessoAdmin }) {
       <div className="flex items-start justify-between gap-3">
         <p className="font-medium text-ink">{rotuloNumero(item.numero, item.numeroAno)}</p>
         <p className="shrink-0 text-right text-ink">
-          {item.valorTotalCentavos != null ? formatarReais(item.valorTotalCentavos) : item.valorEstimadoCentavos != null ? `${formatarReais(item.valorEstimadoCentavos)} estimado` : "—"}
+          {item.pagamentoDemanda ? (
+            <>
+              {formatarReais(item.valorTotalCentavos)}
+              <span className="block text-xs text-muted">soma dos pagamentos</span>
+            </>
+          ) : item.valorTotalCentavos != null ? formatarReais(item.valorTotalCentavos) : item.valorEstimadoCentavos != null ? `${formatarReais(item.valorEstimadoCentavos)} estimado` : "—"}
         </p>
       </div>
       <p className="mt-1 break-words text-pine">{rotuloTipo(item.tipo, item.tipoNumero, item.tipoAno)}</p>

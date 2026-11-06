@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, permiteDoisContratados, tipoSimples, type ProcessoAdmin } from "@/lib/admin";
+import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, permiteDoisContratados, somaPagamentos, tipoSimples, type PagamentoDemanda, type ProcessoAdmin } from "@/lib/admin";
 import { todayIso, type Andamento } from "@/lib/prazos";
 
 function nascimentoDe(documento: string, valor: unknown, erro: string): string | null {
@@ -58,6 +58,20 @@ function centavosOk(value: unknown): number | null {
   const n = Number(value);
   if (!Number.isInteger(n) || n < 0 || n > 100_000_000_000) throw new Error("Valor inválido");
   return n;
+}
+
+function pagamentosOk(value: unknown): PagamentoDemanda[] {
+  const lista = Array.isArray(value) ? value : [];
+  return lista.slice(0, 200).flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const bruto = item as Partial<PagamentoDemanda>;
+    const valor = centavosOk(bruto.valorCentavos);
+    if (valor == null) return [];
+    const data = typeof bruto.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(bruto.data) ? bruto.data : "";
+    const id = typeof bruto.id === "string" && bruto.id.trim() ? bruto.id.trim().slice(0, 80) : crypto.randomUUID();
+    const descricao = typeof bruto.descricao === "string" ? bruto.descricao.trim().slice(0, 160) : "";
+    return [{ id, data, valorCentavos: valor, descricao }];
+  });
 }
 
 function anoOpcional(value: unknown): number | null {
@@ -137,17 +151,20 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
   if (!simples && pedePrevisao(status) && !previsaoEtapa) throw new Error("Informe a data do prazo.");
   if (!simples && status === "encerrado" && !encerramentoInformado) throw new Error("Informe a data de encerramento.");
   const modo = modoValor(tipo, status);
+  const pagamentoDemanda = bruto.pagamentoDemanda === true && !simples && status !== "cancelado";
+  const pagamentos = pagamentoDemanda ? pagamentosOk(bruto.pagamentos) : [];
+  if (pagamentoDemanda && pagamentos.length === 0) throw new Error("Informe ao menos um pagamento.");
   if (modo === "contrato") {
     if (!contratado) throw new Error("Informe os dados do contratado.");
     if (!vigenciaInicio || !vigenciaFim) throw new Error("Informe a vigência do contrato.");
     if (vigenciaFim < vigenciaInicio) throw new Error("A vigência termina antes de começar.");
-    if (valorTotalCentavos == null) throw new Error("Informe o valor anual do contrato.");
-    if (valorMensalCentavos == null) throw new Error("Informe o valor mensal do contrato.");
+    if (!pagamentoDemanda && valorTotalCentavos == null) throw new Error("Informe o valor anual do contrato.");
+    if (!pagamentoDemanda && valorMensalCentavos == null) throw new Error("Informe o valor mensal do contrato.");
   } else if (modo === "total") {
     if (!contratado) throw new Error("Informe o contratado.");
     const digitos = documento.replace(/\D/g, "");
     if (digitos.length !== 11 && digitos.length !== 14) throw new Error("Informe o CPF ou o CNPJ.");
-    if (valorTotalCentavos == null) throw new Error("Informe o valor da contratação ou aquisição.");
+    if (!pagamentoDemanda && valorTotalCentavos == null) throw new Error("Informe o valor da contratação ou aquisição.");
   }
   const guardaContratado = !simples && (possuiContrato || modo === "total");
   const nome2 = typeof bruto.contratado2 === "string" ? bruto.contratado2.trim() : "";
@@ -193,9 +210,11 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     contratado2,
     documento2,
     nascimento2: documento2 ? nascimentoDe(documento2, bruto.nascimento2, "Informe a data de nascimento do segundo contratado.") : null,
-    valorTotalCentavos: modo === "contrato" || modo === "total" ? valorTotalCentavos : null,
-    valorMensalCentavos: modo === "contrato" ? valorMensalCentavos : null,
-    valorEstimadoCentavos: modo === "estimado" ? valorEstimadoCentavos : null,
+    valorTotalCentavos: pagamentoDemanda ? somaPagamentos(pagamentos) : modo === "contrato" || modo === "total" ? valorTotalCentavos : null,
+    valorMensalCentavos: pagamentoDemanda ? null : modo === "contrato" ? valorMensalCentavos : null,
+    valorEstimadoCentavos: pagamentoDemanda || modo !== "estimado" ? null : valorEstimadoCentavos,
+    pagamentoDemanda,
+    pagamentos,
     ciNumero: ci.numero,
     ciAno: ci.ano,
     ciOrigem: ciOrigem.slice(0, 160),
@@ -244,6 +263,8 @@ type Linha = {
   valor_total_centavos: number | null;
   valor_mensal_centavos: number | null;
   valor_estimado_centavos: number | null;
+  pagamento_demanda: boolean | number | string | null;
+  pagamentos: string | PagamentoDemanda[] | null;
   ci_numero: number | null;
   ci_ano: number | null;
   ci_origem: string | null;
@@ -293,6 +314,15 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
   const possui = bool(linha.possui_contrato);
   const encerramento = String(linha.encerramento).slice(0, 10);
   const previsao = dia(linha.previsao_etapa) ?? (pedePrevisao(status) ? encerramento : null);
+  const pagamentoDemanda = bool(linha.pagamento_demanda ?? false);
+  let pagamentos: PagamentoDemanda[] = [];
+  if (pagamentoDemanda) {
+    try {
+      pagamentos = pagamentosOk(typeof linha.pagamentos === "string" ? JSON.parse(linha.pagamentos || "[]") : linha.pagamentos);
+    } catch {
+      pagamentos = [];
+    }
+  }
   return {
     id: linha.id,
     numero: linha.numero,
@@ -318,6 +348,8 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
     valorTotalCentavos: linha.valor_total_centavos != null ? Number(linha.valor_total_centavos) : null,
     valorMensalCentavos: possui && linha.valor_mensal_centavos != null ? Number(linha.valor_mensal_centavos) : null,
     valorEstimadoCentavos: linha.valor_estimado_centavos != null ? Number(linha.valor_estimado_centavos) : null,
+    pagamentoDemanda,
+    pagamentos,
     ciNumero: inteiroOuNulo(linha.ci_numero),
     ciAno: inteiroOuNulo(linha.ci_ano),
     ciOrigem: linha.ci_origem ?? "",
@@ -342,7 +374,7 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
 }
 
 let schemaPronto: { versao: number; pendente: Promise<void> } | null = null;
-const SCHEMA_ADMIN = 16;
+const SCHEMA_ADMIN = 17;
 
 /** Garante as colunas novas mesmo se a migração ainda não tiver rodado nesta instância. */
 async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
@@ -375,6 +407,8 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
         "alter table processos_admin add column if not exists contratado_2 text not null default ''",
         "alter table processos_admin add column if not exists documento_2 text not null default ''",
         "alter table processos_admin add column if not exists nascimento_2 date",
+        "alter table processos_admin add column if not exists pagamento_demanda boolean not null default false",
+        "alter table processos_admin add column if not exists pagamentos text not null default '[]'",
         "alter table processos_admin add column if not exists em_manutencao boolean not null default false",
         "alter table processos_admin add column if not exists status_em date",
         "create table if not exists ci_inutilizada (ano integer not null, numero integer not null, primary key (ano, numero))",
@@ -394,7 +428,7 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
 const SELECT_ADMIN = `
   p.id, p.numero, p.numero_ano, p.referencia, p.objeto, p.tipo, p.tipo_numero, p.tipo_ano, p.data_inicio, p.previsao_etapa, p.encerramento,
   p.alerta_dias, p.possui_contrato, p.vigencia_inicio, p.vigencia_fim,
-  p.contratado, p.documento, p.nascimento, p.contratado_2, p.documento_2, p.nascimento_2, p.valor_total_centavos, p.valor_mensal_centavos, p.valor_estimado_centavos,
+  p.contratado, p.documento, p.nascimento, p.contratado_2, p.documento_2, p.nascimento_2, p.valor_total_centavos, p.valor_mensal_centavos, p.valor_estimado_centavos, p.pagamento_demanda, p.pagamentos,
   p.ci_numero, p.ci_ano, p.ci_origem, p.link_abertura, p.link_abertura_na, p.link_homologacao, p.link_homologacao_na, p.link_pncp, p.link_pncp_na, p.link_retificacao, p.link_cancelamento, p.link_cancelamento_na, p.parecer_numero, p.parecer_ano, p.parecer_na,
   p.status, p.historico, p.team_id,
   coalesce(nullif(p.autor_id, ''), p.user_id) as autor_id,
@@ -573,6 +607,8 @@ export const salvarAdmin = createServerFn({ method: "POST" })
             valor_total_centavos = ${data.valorTotalCentavos},
             valor_mensal_centavos = ${data.valorMensalCentavos},
             valor_estimado_centavos = ${data.valorEstimadoCentavos},
+            pagamento_demanda = ${data.pagamentoDemanda},
+            pagamentos = ${JSON.stringify(data.pagamentos)},
             ci_numero = ${data.ciNumero},
             ci_ano = ${data.ciAno},
             ci_origem = ${data.ciOrigem},
@@ -602,14 +638,14 @@ export const salvarAdmin = createServerFn({ method: "POST" })
           insert into processos_admin (
             id, user_id, team_id, numero, numero_ano, referencia, objeto, tipo, tipo_numero, tipo_ano, data_inicio, previsao_etapa, encerramento,
             alerta_dias, possui_contrato, vigencia_inicio, vigencia_fim, contratado, documento, nascimento, contratado_2, documento_2, nascimento_2,
-            valor_total_centavos, valor_mensal_centavos, valor_estimado_centavos, ci_numero, ci_ano, ci_origem,
+            valor_total_centavos, valor_mensal_centavos, valor_estimado_centavos, pagamento_demanda, pagamentos, ci_numero, ci_ano, ci_origem,
             link_abertura, link_abertura_na, link_homologacao, link_homologacao_na, link_pncp, link_pncp_na, link_retificacao, link_cancelamento, link_cancelamento_na,
             parecer_numero, parecer_ano, parecer_na, status, status_em, historico, autor_id, autor_nome, em_manutencao
           ) values (
             ${data.id}, ${context.userId}, ${data.equipeId}, ${data.numero}, ${data.numeroAno}, ${data.referencia},
             ${data.objeto}, ${data.tipo}, ${data.tipoNumero}, ${data.tipoAno}, ${data.dataInicio}, ${data.previsaoEtapa}, ${data.encerramento}, ${data.alertaDias},
             ${data.possuiContrato}, ${data.vigenciaInicio}, ${data.vigenciaFim}, ${data.contratado},
-            ${data.documento}, ${data.nascimento}, ${data.contratado2}, ${data.documento2}, ${data.nascimento2}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos},
+            ${data.documento}, ${data.nascimento}, ${data.contratado2}, ${data.documento2}, ${data.nascimento2}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos}, ${data.pagamentoDemanda}, ${JSON.stringify(data.pagamentos)},
             ${data.ciNumero}, ${data.ciAno}, ${data.ciOrigem}, ${data.linkAbertura}, ${data.linkAberturaNa}, ${data.linkHomologacao}, ${data.linkHomologacaoNa}, ${data.linkPncp}, ${data.linkPncpNa}, ${data.linkRetificacao}, ${data.linkCancelamento}, ${data.linkCancelamentoNa}, ${data.parecerNumero}, ${data.parecerAno}, ${data.parecerNa},
             ${data.status}, current_date,
             ${historicoJson}, ${context.userId}, ${autorNome}, false
