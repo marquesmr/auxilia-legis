@@ -14,7 +14,7 @@ export const Route = createFileRoute("/termos")({
 function Termos() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
-      <p className="text-xs text-muted">Programa Auxilia Legis · Site e aplicativo · Atualizado em 3 de novembro de 2026</p>
+      <p className="text-xs text-muted">Programa Auxilia Legis · Site e aplicativo · Atualizado em 9 de novembro de 2026</p>
       <h1 className="mt-2 font-display text-4xl text-ink">Termos de Serviço</h1>
       <div className="mt-6 space-y-3 text-sm leading-relaxed text-ink">
         <TextoDosTermos />

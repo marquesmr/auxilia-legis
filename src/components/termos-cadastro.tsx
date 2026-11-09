@@ -22,7 +22,7 @@ export function TermosCadastro({ onContinuar, onVoltar }: { onContinuar: () => v
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 px-3 py-4 sm:items-center">
       <div className="flex max-h-[min(44rem,100%)] w-full max-w-xl flex-col rounded-2xl border border-line bg-sheet p-5">
         <h2 className="font-display text-2xl text-ink">Termos de Uso e Diretrizes</h2>
-        <p className="mt-1 text-xs text-muted">Programa Auxilia Legis · Atualizado em 3 de novembro de 2026</p>
+        <p className="mt-1 text-xs text-muted">Programa Auxilia Legis · Atualizado em 9 de novembro de 2026</p>
         <div
           ref={leitura}
           onScroll={medir}
@@ -75,7 +75,7 @@ export function TextoDosTermos() {
         O Programa é disponibilizado por Carlos Marques, com sede em Mário Campos/MG, doravante denominado Titular. Ao criar uma conta, marcar a opção de aceite ou utilizar o Programa, o usuário declara ter lido, compreendido e concordado integralmente com estes Termos, bem como com a Política de Privacidade vinculada. Se não concordar, não crie conta nem utilize o Programa.
       </p>
       <p className="text-justify">
-        O uso do Programa por pessoa jurídica pressupõe que o representante possui poderes para vincular a entidade. A conta criada por e-mail pede a data de nascimento. Menor de 18 anos não cria conta: o e-mail fica restrito por 7 dias, salvo liberação após contato com auxilialegis@marquestecnologies.com.
+        O uso do Programa por pessoa jurídica pressupõe que o representante possui poderes para vincular a entidade. A conta criada por e-mail pede a data de nascimento. Menor de 18 anos não cria conta: o e-mail fica restrito por 7 dias. A liberação, quando cabível, usa a data confirmada por e-mail e essa data não pode ser alterada no formulário. O e-mail também pode permanecer bloqueado para análise, até confirmação enviada a auxilialegis@marquestecnologies.com.
       </p>
       <h3 className="pt-1 font-medium">2. Descrição do serviço</h3>
       <p className="text-justify">
@@ -83,6 +83,15 @@ export function TextoDosTermos() {
       </p>
       <p className="text-justify">
         O Programa não é sistema oficial de qualquer órgão público, Poder Legislativo, Judiciário ou entidade administrativa. Não substitui diários oficiais, sistemas de protocolo, certidões, intimações eletrônicas ou controles jurídicos formais.
+      </p>
+      <p className="text-justify">
+        Depois do login a pessoa escolhe o módulo legislativo ou o administrativo. No administrativo há lançamento e andamento de processo, pagamento por demanda, comunicação interna, controle de links, consulta de CPF e de CNPJ e o texto da Lei nº 14.133/2021 para leitura. Há calendário de feriados e pontos facultativos, equipe compartilhada, com convite por e-mail válido por 24 horas e vínculo a um ou mais módulos, ajuda interna denominada Lexis, calculadora de uso local e aviso quando houver manutenção marcada.
+      </p>
+      <p className="text-justify">
+        O texto da lei reproduzido no Programa é apoio de leitura. Prevalece a publicação oficial. A consulta de CPF ou CNPJ reflete bases públicas e pode estar incompleta ou desatualizada. Certidão, inclusive a de falência e concordata, só vale a que o órgão emitir no sítio dele. A calculadora não envia a conta digitada. A Lexis responde dúvida sobre o funcionamento do Programa e não substitui parecer, assessoria ou consultoria.
+      </p>
+      <p className="text-justify">
+        Durante o horário informado no aviso de manutenção o Programa pode continuar aberto e pode haver instabilidade. O Titular não se responsabiliza por perda de dado ligada a esse período.
       </p>
       <p className="text-justify">
         As informações cadastradas são de responsabilidade exclusiva do usuário que as lançou. O Programa apenas organiza e exibe o que foi informado. O Titular não confere, não valida e não tem como saber se a conta é compartilhada, se os dados são de terceiros, se estão corretos, completos ou se o uso infringe estes Termos ou a lei. Tudo o que entra no sistema — processos, partes, documentos, prazos, comunicações e qualquer outro conteúdo — não é de responsabilidade do Titular, criador do Programa.
@@ -106,7 +115,7 @@ export function TextoDosTermos() {
         As notificações e alertas são recursos auxiliares e dependem de fatores externos, como permissão do navegador, conexão, dispositivo ligado e dados corretamente cadastrados. O Auxilia Legis não garante o cumprimento de prazos. A responsabilidade pelo acompanhamento, correção, protocolo e cumprimento de qualquer prazo é exclusiva do usuário e de seus profissionais habilitados.
       </p>
       <p className="text-justify">
-        O Programa não presta consultoria jurídica, não interpreta normas e não substitui a atuação de advogado, assessor parlamentar ou profissional competente. Em caso de dúvida sobre prazos legais ou regimentais, o usuário deve consultar as fontes oficiais e profissionais habilitados. O Titular não se responsabiliza por perda de prazo, preclusão, decadência, prescrição ou qualquer prejuízo decorrente de falha de notificação, imprecisão de dados cadastrados ou uso do Programa.
+        O Programa não presta consultoria jurídica, não interpreta normas e não substitui a atuação de advogado, assessor parlamentar ou profissional competente. Em caso de dúvida sobre prazos legais ou regimentais, o usuário deve consultar as fontes oficiais e profissionais habilitados. O Titular não se responsabiliza por perda de prazo, preclusão, decadência, prescrição ou qualquer prejuízo decorrente de falha de notificação, imprecisão de dados cadastrados, resultado de consulta cadastral, feriado lido de imagem, cidade obtida do aparelho ou uso do Programa.
       </p>
       <h3 className="pt-1 font-medium">6. Proteção de dados pessoais</h3>
       <p className="text-justify">
@@ -116,7 +125,7 @@ export function TextoDosTermos() {
         As cópias de segurança são cifradas pelo próprio sistema. A chave não vai no arquivo. Nem o Titular, nem quem guardar o arquivo no computador ou no Google Drive, lê o conteúdo. Só o sistema decifra, e apenas no momento da restauração.
       </p>
       <p className="text-justify">
-        O usuário tem os direitos previstos no art. 18 da LGPD, como acesso, correção, eliminação, portabilidade e informação sobre compartilhamentos. Pedidos devem ser encaminhados a auxilialegis@marquestecnologies.com. Dados poderão ser mantidos pelo prazo necessário ao cumprimento de obrigações legais ou ao exercício regular de direitos.
+        O usuário tem os direitos previstos no art. 18 da LGPD, como acesso, correção, eliminação, portabilidade e informação sobre compartilhamentos. Pedidos devem ser encaminhados a auxilialegis@marquestecnologies.com. Dados poderão ser mantidos pelo prazo necessário ao cumprimento de obrigações legais ou ao exercício regular de direitos. A consulta de documento de terceiro, o convite enviado a um e-mail e o feriado extraído de imagem são atos de quem os realiza. O Titular não confere se o documento pertence à pessoa indicada, se o convidado autorizou o convite ou se a imagem está correta.
       </p>
       <h3 className="pt-1 font-medium">7. Propriedade intelectual</h3>
       <p className="text-justify">

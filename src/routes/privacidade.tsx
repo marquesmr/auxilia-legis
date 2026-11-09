@@ -21,7 +21,7 @@ function Titulo({ children }: { children: string }) {
 function Privacidade() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
-      <p className="text-xs text-muted">Programa Auxilia Legis · Vigente a partir de 3 de novembro de 2026</p>
+      <p className="text-xs text-muted">Programa Auxilia Legis · Vigente a partir de 9 de novembro de 2026</p>
       <h1 className="mt-2 font-display text-4xl text-ink">Política de Privacidade</h1>
       <div className="mt-6 space-y-3 text-sm leading-relaxed text-ink">
         <p className="text-justify">
@@ -44,7 +44,19 @@ function Privacidade() {
           Dados lançados pelo usuário: número e ano do processo, tipo, parte, assunto, status, prazos, andamentos, valores, vigência, documento do contratado, links de publicação e o histórico de quem alterou o quê. No administrativo, isso pode incluir CPF, CNPJ e comunicações internas. Preferências de tema, cor e área de abertura também são gravadas na conta.
         </p>
         <p className="text-justify">
-          Dados de equipe: nome da equipe, e-mail dos convidados e a indicação de quais processos foram compartilhados. Dados técnicos: identificador de sessão, data e hora de uso, e registros necessários à segurança e à auditoria da área restrita. O navegador só envia notificação se o usuário autorizar; essa permissão fica no próprio aparelho.
+          Dados de equipe: nome da equipe, módulos a que ela se vincula, e-mail e nome dos convidados, quem enviou o convite e a indicação de quais processos foram compartilhados. O convite vale 24 horas. O identificador do link fica até o aceite, o cancelamento ou o vencimento. Dados técnicos: identificador de sessão, data e hora de uso, e registros necessários à segurança e à auditoria da área restrita. O navegador só envia notificação se o usuário autorizar; essa permissão fica no próprio aparelho.
+        </p>
+        <p className="text-justify">
+          No processo administrativo o usuário pode lançar, além do já descrito, um segundo contratado ou fornecedor, a data de nascimento quando o documento é CPF, cada pagamento por demanda com data e valor, o destino ou a desativação de comunicação interna, e os links de abertura, homologação, PNCP, retificação e cancelamento, ou a marca de que o link não se aplica. A data de nascimento da pessoa física não aparece no detalhe do processo. Ela permanece gravada para a consulta do CPF e acompanha o processo até a exclusão dele ou da conta.
+        </p>
+        <p className="text-justify">
+          Localização. Se o usuário permitir no aparelho, a latitude e a longitude são enviadas uma vez para identificar a cidade e a unidade da federação. Só a cidade e a UF ficam na conta, para exibir feriado e ponto facultativo municipal daquele município. A coordenada não é armazenada. Se a permissão for negada, o Programa avisa que o feriado municipal pode não aparecer.
+        </p>
+        <p className="text-justify">
+          Consulta cadastral. Na área administrativa o usuário pode informar um CPF, um CNPJ ou o começo do nome de uma empresa. O número ou o nome segue a bases públicas, apenas para mostrar o resultado na tela. O Programa não emite certidão e não guarda arquivo de certidão. Ele indica os sítios oficiais relacionados à Lei nº 14.133/2021, inclusive falência e concordata em Minas Gerais. A conferência no órgão é de quem consulta.
+        </p>
+        <p className="text-justify">
+          Calendário. A imagem enviada na área restrita serve só para ler feriados, pontos facultativos e recessos. Ela segue a um serviço de leitura de texto. Se o texto precisar ser organizado, o trecho lido segue ao mesmo modelo da ajuda, sem a lista de processos da conta. A imagem não é guardada. Permanecem as datas depois de aprovadas, nacionais ou municipais. A calculadora funciona no aparelho e não envia a conta digitada.
         </p>
 
         <Titulo>3. Finalidades e bases legais</Titulo>
@@ -52,7 +64,7 @@ function Privacidade() {
           A conta, a sincronização dos processos, os avisos de prazo e o compartilhamento com a equipe existem para executar o serviço pedido pelo usuário, com base no art. 7º, V, da LGPD. A guarda de sessão, a prevenção de abuso, os registros da área restrita e a cópia de segurança do sistema apoiam-se no legítimo interesse do controlador, art. 7º, IX, limitado ao necessário para segurança e continuidade. A conservação para defesa de direito em processo apoia-se no art. 7º, VI, e no art. 16.
         </p>
         <p className="text-justify">
-          O envio opcional do backup ao Google Drive e a permissão de notificação do navegador dependem de ação do usuário. O login com Google ou X só ocorre se a pessoa escolher esse caminho. Não há venda de dados, não há publicidade comportamental e não há decisão automatizada que produza efeito jurídico sobre o titular.
+          O envio opcional do backup ao Google Drive, a permissão de notificação do navegador, a permissão de localização e a consulta de CPF ou CNPJ dependem de ação do usuário. O login com Google ou X só ocorre se a pessoa escolher esse caminho. A consulta de documento de terceiro é pedida por quem usa o Programa; neste ponto o Programa atua como operador e transmite só o dado necessário à resposta. Não há venda de dados, não há publicidade comportamental e não há decisão automatizada que produza efeito jurídico sobre o titular.
         </p>
 
         <Titulo>4. Com quem os dados são compartilhados</Titulo>
@@ -63,7 +75,10 @@ function Privacidade() {
           Operadores e serviços usados para o funcionamento: a infraestrutura de hospedagem e armazenamento (Vercel e o respectivo armazenamento de arquivos); o Google, quando o usuário entra com a conta Google ou envia um backup ao próprio Drive; a X Corp., quando o usuário entra com a conta X; e a caixa de e-mail auxilialegis@marquestecnologies.com, usada apenas para enviar códigos de confirmação e de senha. Esses agentes recebem só o que a respectiva função exige.
         </p>
         <p className="text-justify">
-          A ajuda do canto da tela envia a pergunta, o primeiro nome e o histórico recente daquela conversa a um modelo de linguagem de terceiro (LLM7), somente para formular a resposta. Não envia a lista de processos, documentos nem senhas. A pergunta não deve conter dado sensível ou de terceiro.
+          A ajuda do canto da tela, de nome Lexis, envia a pergunta, o primeiro nome e o histórico recente daquela conversa a um modelo de linguagem de terceiro (LLM7), somente para formular a resposta. Não envia a lista de processos, documentos nem senhas. A pergunta não deve conter dado sensível ou de terceiro.
+        </p>
+        <p className="text-justify">
+          A consulta de documento usa bases públicas, entre elas BrasilAPI, CNPJá, CNPJ.ws, ReceitaWS e Minha Receita. A busca pelo nome usa o serviço público do Fichário. Essas bases recebem o número ou o nome pesquisado, não a senha nem a lista de processos. A cidade é obtida pelo Nominatim, do OpenStreetMap, que recebe a coordenada e devolve o município. A imagem do calendário é lida pelo OCR.space. A caixa auxilialegis@marquestecnologies.com também envia convite de equipe, aviso de restrição ou liberação de e-mail e o aviso desta Política. Cada destinatário recebe só o que a função exige.
         </p>
 
         <Titulo>5. Backups cifrados</Titulo>
@@ -79,12 +94,12 @@ function Privacidade() {
 
         <Titulo>6. Transferência internacional</Titulo>
         <p className="text-justify">
-          A hospedagem, o login Google, o login X e o modelo da ajuda podem tratar dados fora do Brasil. A transferência observa o art. 33 da LGPD, em especial a execução de contrato e o recurso a cláusulas e garantias oferecidas por esses fornecedores. Não se afirma, nesta Política, que cada país de destino tenha decisão de adequação da Autoridade Nacional de Proteção de Dados.
+          A hospedagem, o login Google, o login X, o modelo da ajuda, as bases de consulta de CNPJ e CPF, o Nominatim, o OCR.space e o Fichário podem tratar dados fora do Brasil. A transferência observa o art. 33 da LGPD, em especial a execução de contrato e o recurso a cláusulas e garantias oferecidas por esses fornecedores. Não se afirma, nesta Política, que cada país de destino tenha decisão de adequação da Autoridade Nacional de Proteção de Dados.
         </p>
 
         <Titulo>7. Retenção e eliminação</Titulo>
         <p className="text-justify">
-          Os dados da conta e dos processos permanecem enquanto a conta existir. Códigos de e-mail são temporários e deixam de servir depois do uso ou do prazo de validade. Cópias de segurança são mantidas para restauração e não são apagadas a cada lançamento. Ao excluir a conta, os dados vinculados são eliminados, ressalvadas cópias de segurança já geradas e o que for necessário para cumprir obrigação legal ou exercer direito, pelo prazo correspondente, nos termos do art. 16 da LGPD.
+          Os dados da conta e dos processos permanecem enquanto a conta existir. Códigos de e-mail são temporários e deixam de servir depois do uso ou do prazo de validade. O convite de equipe é apagado no aceite, no cancelamento ou ao fim das 24 horas. A coordenada de localização e a imagem do calendário não são conservadas. Cópias de segurança são mantidas para restauração e não são apagadas a cada lançamento. Ao excluir a conta, os dados vinculados são eliminados, ressalvadas cópias de segurança já geradas e o que for necessário para cumprir obrigação legal ou exercer direito, pelo prazo correspondente, nos termos do art. 16 da LGPD.
         </p>
 
         <Titulo>8. Segurança</Titulo>
@@ -102,7 +117,7 @@ function Privacidade() {
 
         <Titulo>10. Crianças e adolescentes</Titulo>
         <p className="text-justify">
-          O Programa não se destina a menor de 18 anos. Na criação da conta por e-mail a data de nascimento pode ser qualquer uma até hoje. Se a data mostrar menos de 18 anos, a conta não é criada e aquele e-mail fica restrito por 7 dias. A restrição aparece na área restrita. Se a data foi preenchida errada, a pessoa maior de 18 anos pode escrever para auxilialegis@marquestecnologies.com e enviar um comprovante. Esse comprovante fica apenas na caixa de e-mail e não é guardado no Programa. Antes do prazo, a liberação só ocorre depois desse contato. Não se coleta dado de criança para abrir conta.
+          O Programa não se destina a menor de 18 anos. Na criação da conta por e-mail a data de nascimento pode ser qualquer uma até hoje. Se a data mostrar menos de 18 anos, a conta não é criada e aquele e-mail fica restrito por 7 dias. A restrição aparece na área restrita. Se a data foi preenchida errada, a pessoa maior de 18 anos pode escrever para auxilialegis@marquestecnologies.com e enviar um comprovante. Esse comprovante fica apenas na caixa de e-mail e não é guardado no Programa. Na área restrita o e-mail pode ser liberado com a data confirmada, que não poderá ser alterada no formulário, ou mantido bloqueado para análise até nova confirmação por e-mail. Não se coleta dado de criança para abrir conta.
         </p>
 
         <Titulo>11. Alterações</Titulo>
