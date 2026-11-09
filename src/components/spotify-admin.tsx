@@ -39,7 +39,6 @@ export function SpotifyAdmin() {
   const [configurado, setConfigurado] = useState(false);
   const [retorno, setRetorno] = useState("https://www.auxilialegis.online/api/spotify/callback");
   const [nome, setNome] = useState("");
-  const [tocando, setTocando] = useState("");
   const [playlists, setPlaylists] = useState<{ id: string; nome: string; url: string }[]>([]);
   const [ocupado, setOcupado] = useState(false);
   const embed = embedSpotify(link);
@@ -49,7 +48,6 @@ export function SpotifyAdmin() {
     setConfigurado(estado.configurado);
     setRetorno(estado.retorno);
     setNome(estado.vinculado ? estado.nome : "");
-    setTocando(estado.tocando);
     if (estado.vinculado) {
       const lista = await listarPlaylistsSpotify().catch(() => []);
       setPlaylists(lista);
@@ -104,7 +102,6 @@ export function SpotifyAdmin() {
               void sairSpotify()
                 .then(() => {
                   setNome("");
-                  setTocando("");
                   setPlaylists([]);
                   setAviso("Conta desvinculada.");
                 })
@@ -118,7 +115,22 @@ export function SpotifyAdmin() {
         ) : null}
       </div>
       {nome ? <p className="mt-2 text-sm text-ink">{nome}</p> : null}
-      {tocando ? <p className="mt-1 text-xs text-muted">Tocando: {tocando}</p> : null}
+      {playlists.length > 0 ? (
+        <select
+          className="mt-2 h-11 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink"
+          value={playlists.some((item) => item.url === link) ? link : ""}
+          onChange={(evento) => {
+            if (evento.target.value) usarLink(evento.target.value);
+          }}
+        >
+          <option value="">Playlist</option>
+          {playlists.map((item) => (
+            <option key={item.id} value={item.url}>
+              {item.nome}
+            </option>
+          ))}
+        </select>
+      ) : null}
       {aviso ? <p className="mt-2 text-xs text-pine">{aviso}</p> : null}
       {erro ? <p className="mt-2 text-xs text-seal">{erro}</p> : null}
 
@@ -175,33 +187,13 @@ export function SpotifyAdmin() {
         </button>
       ) : null}
 
-      {playlists.length > 0 ? (
-        <label className="mt-3 block text-xs text-muted">
-          Playlist da conta
-          <select
-            className="mt-1 h-11 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink"
-            defaultValue=""
-            onChange={(evento) => {
-              if (evento.target.value) usarLink(evento.target.value);
-            }}
-          >
-            <option value="">Escolha</option>
-            {playlists.map((item) => (
-              <option key={item.id} value={item.url}>
-                {item.nome}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-
       {embed && !editando ? (
         <>
           <iframe
             title="Spotify"
             src={embed}
             className="mt-3 w-full rounded-xl"
-            style={{ height: 152, border: 0 }}
+            style={{ height: 352, border: 0 }}
             allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
             loading="lazy"
           />
