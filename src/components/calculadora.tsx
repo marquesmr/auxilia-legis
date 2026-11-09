@@ -168,7 +168,10 @@ function JanelaCalculadora({ onFechar }: { onFechar: () => void }) {
         </button>
       </div>
       <div className="px-3 pt-3">
-        <p className="min-h-12 break-all text-right font-display text-3xl leading-tight text-ink">{tela}</p>
+        <p className="min-h-5 break-all text-right text-sm text-muted">
+          {operacao && acumulado != null ? `${mostrarNumero(acumulado)} ${operacao}` : ""}
+        </p>
+        <p className="min-h-10 break-all text-right font-display text-3xl leading-tight text-ink">{operacao && substituir ? "0" : tela}</p>
       </div>
       <div className="grid grid-cols-4 gap-2 p-3">
         {["C", "⌫", "%", "÷", "7", "8", "9", "×", "4", "5", "6", "−", "1", "2", "3", "+", "0", ",", "="].map((tecla) => (
