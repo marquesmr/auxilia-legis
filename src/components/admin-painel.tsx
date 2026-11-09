@@ -687,13 +687,12 @@ export function AdminPainel({
     const fator = ordemDir === "asc" ? 1 : -1;
     return [...itens].sort((a, b) => {
       const numero = a.numero.localeCompare(b.numero, "pt-BR", { numeric: true });
-      const cmp =
-        ordemCampo === "numero"
-          ? numero
-          : ordemCampo === "tipo"
-            ? a.tipo.localeCompare(b.tipo, "pt-BR") || numero
-            : dataAlvo(a).localeCompare(dataAlvo(b)) || numero;
-      return cmp * fator;
+      if (ordemCampo === "numero") return numero * fator;
+      if (ordemCampo === "tipo") return (a.tipo.localeCompare(b.tipo, "pt-BR") || numero) * fator;
+      const faixa = faixaPrazo(a.status) - faixaPrazo(b.status);
+      if (faixa !== 0) return faixa;
+      if (faixaPrazo(a.status) >= 2) return numero;
+      return (dataAlvo(a).localeCompare(dataAlvo(b)) || numero) * fator;
     });
   }, [lista, filtro, busca, tipoAba, ordemCampo, ordemDir]);
 
@@ -3319,6 +3318,13 @@ function mensalNoRelatorio(item: ProcessoAdmin, inicio: string, fim: string): nu
     if (item.pagamentos.length > 0) return somaPagamentos(item.pagamentos);
   }
   return item.valorMensalCentavos;
+}
+
+function faixaPrazo(status: string): number {
+  if (status === "cancelado") return 3;
+  if (encerraStatus("administrativo", status)) return 2;
+  if (status === "execucao") return 1;
+  return 0;
 }
 
 function CartaoProcesso({ item, mensal }: { item: ProcessoAdmin; mensal?: number | null }) {
