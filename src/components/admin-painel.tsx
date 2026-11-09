@@ -3550,6 +3550,7 @@ function CertidoesLei({ consulta }: { consulta: ConsultaDocumento }) {
       nome: cnpj ? "Inscrição no CNPJ" : "Inscrição no CPF",
       fundamento: "Art. 68, I",
       situacao: inscricao,
+      url: cnpj ? "https://solucoes.receita.fazenda.gov.br/Servicos/cnpjreva/Cnpjreva_Solicitacao.asp" : undefined,
     },
     {
       nome: "Certidão conjunta da Fazenda Nacional",
@@ -3592,7 +3593,7 @@ function CertidoesLei({ consulta }: { consulta: ConsultaDocumento }) {
   return (
     <section className="mt-6">
       <h3 className="font-display text-xl text-ink">Certidões da Lei 14.133/2021</h3>
-      <p className="mt-1 text-sm text-muted">Art. 68. A inscrição já foi consultada aqui. As outras certidões são emitidas no órgão, e o botão abre a página para baixar o PDF.</p>
+      <p className="mt-1 text-sm text-muted">Art. 68. A situação da inscrição aparece na consulta. O botão abre o comprovante oficial para salvar em PDF. As outras certidões são emitidas no órgão.</p>
       <ul className="mt-3 overflow-hidden rounded-2xl border border-line">
         {itens.map((item, indice) => (
           <li key={item.nome} className={"flex flex-col gap-2 border-b border-line px-3 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between " + (indice % 2 === 0 ? "bg-pine/5" : "bg-sheet")}>
