@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, Check, Copy, FilePen, FileText, Link2, Megaphone, MoreVertical, Pencil, Plus, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, Check, Copy, FilePen, FileText, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -1094,6 +1094,27 @@ export function AdminPainel({
     );
   }
 
+  function reordenarPagamento(processoId: string, origemId: string, destinoId: string) {
+    if (!origemId || origemId === destinoId) return;
+    const atual = listaViva.current.find((item) => item.id === processoId);
+    if (!atual) return;
+    const pagamentos = [...atual.pagamentos];
+    const de = pagamentos.findIndex((item) => item.id === origemId);
+    const para = pagamentos.findIndex((item) => item.id === destinoId);
+    if (de < 0 || para < 0) return;
+    const [movido] = pagamentos.splice(de, 1);
+    pagamentos.splice(para, 0, movido);
+    gravarProcesso(
+      {
+        ...atual,
+        pagamentos,
+        valorMensalCentavos: somaPagamentos(pagamentos),
+        historico: [...atual.historico, evento("Reordenou os pagamentos por demanda.", meuNome)],
+      },
+      "Ordem atualizada",
+    );
+  }
+
   function pagamentoNoPeriodo(item: ProcessoAdmin, inicio: string, fim: string) {
     return item.pagamentoDemanda && item.pagamentos.some((pagamento) => pagamento.data >= inicio && pagamento.data <= fim);
   }
@@ -1550,6 +1571,7 @@ export function AdminPainel({
                     onExcluir={() => setDeleteId(item.id)}
                     onEditarPagamento={(pagamentoId, data, valor) => editarPagamento(item.id, pagamentoId, data, valor)}
                     onRemoverPagamento={(pagamentoId) => removerPagamento(item.id, pagamentoId)}
+                    onReordenarPagamento={(origemId, destinoId) => reordenarPagamento(item.id, origemId, destinoId)}
                   />
                 ))}
               </ul>
@@ -2025,21 +2047,12 @@ export function AdminPainel({
                 >
                   <p className="text-sm font-medium text-ink">Lançar pagamento</p>
                   {(lista.find((item) => item.id === andamentoId)?.pagamentos.length ?? 0) > 0 && (
-                    <ul className="flex flex-col gap-1 text-sm text-ink">
-                      {lista.find((item) => item.id === andamentoId)?.pagamentos.map((item) => (
-                        <li key={item.id} className="flex items-center justify-between gap-2">
-                          <span className="min-w-0 text-muted">
-                            {formatDate(item.data)} · {formatarReais(item.valorCentavos)}
-                            {item.descricao ? ` · ${item.descricao}` : ""}
-                          </span>
-                          <MenuPagamento
-                            pagamento={item}
-                            onSalvar={(data, valor) => editarPagamento(andamentoId ?? "", item.id, data, valor)}
-                            onRemover={() => removerPagamento(andamentoId ?? "", item.id)}
-                          />
-                        </li>
-                      ))}
-                    </ul>
+                    <ListaPagamentos
+                      pagamentos={lista.find((item) => item.id === andamentoId)?.pagamentos ?? []}
+                      onSalvar={(pagamentoId, data, valor) => editarPagamento(andamentoId ?? "", pagamentoId, data, valor)}
+                      onRemover={(pagamentoId) => removerPagamento(andamentoId ?? "", pagamentoId)}
+                      onReordenar={(origemId, destinoId) => reordenarPagamento(andamentoId ?? "", origemId, destinoId)}
+                    />
                   )}
                   <Campo label="Data do pagamento">
                     <input type="date" value={pagAndData} onChange={(e) => setPagAndData(e.target.value)} className={inputCls} />
@@ -2216,6 +2229,7 @@ function CardAdmin({
   onExcluir,
   onEditarPagamento,
   onRemoverPagamento,
+  onReordenarPagamento,
 }: {
   processo: ProcessoAdmin;
   equipes: { id: string; nome: string }[];
@@ -2225,6 +2239,7 @@ function CardAdmin({
   onExcluir: () => void;
   onEditarPagamento: (pagamentoId: string, data: string, valor: string) => void;
   onRemoverPagamento: (pagamentoId: string) => void;
+  onReordenarPagamento: (origemId: string, destinoId: string) => void;
 }) {
   const [detalhes, setDetalhes] = useState(false);
   const [moverAberto, setMoverAberto] = useState(false);
@@ -2354,22 +2369,12 @@ function CardAdmin({
                 <Info rotulo="Equipe" valor={equipes.find((equipe) => equipe.id === processo.equipeId)?.nome ?? "Só meus"} />
               </dl>
               {processo.pagamentoDemanda && processo.pagamentos.length > 0 && (
-                <ul className="mt-3 flex flex-col gap-1 text-sm">
-                  {processo.pagamentos.map((item) => (
-                    <li key={item.id} className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 text-ink">
-                        {item.data ? formatDate(item.data) : "Sem data"}
-                        {item.descricao ? ` · ${item.descricao}` : ""}
-                        <span className="ml-2 font-medium">{formatarReais(item.valorCentavos)}</span>
-                      </span>
-                      <MenuPagamento
-                        pagamento={item}
-                        onSalvar={(data, valor) => onEditarPagamento(item.id, data, valor)}
-                        onRemover={() => onRemoverPagamento(item.id)}
-                      />
-                    </li>
-                  ))}
-                </ul>
+                <ListaPagamentos
+                  pagamentos={processo.pagamentos}
+                  onSalvar={(pagamentoId, data, valor) => onEditarPagamento(pagamentoId, data, valor)}
+                  onRemover={(pagamentoId) => onRemoverPagamento(pagamentoId)}
+                  onReordenar={onReordenarPagamento}
+                />
               )}
               <div className="mt-4 flex flex-col gap-2">
                 {processo.linkAberturaNa ? (
@@ -2562,6 +2567,73 @@ function NumeroControle({ linha }: { linha: LinhaControle }) {
       ) : null}
       {formatarPeca(linha.numero, linha.ano)}
     </span>
+  );
+}
+
+function ListaPagamentos({
+  pagamentos,
+  onSalvar,
+  onRemover,
+  onReordenar,
+}: {
+  pagamentos: ProcessoAdmin["pagamentos"];
+  onSalvar: (pagamentoId: string, data: string, valor: string) => void;
+  onRemover: (pagamentoId: string) => void;
+  onReordenar: (origemId: string, destinoId: string) => void;
+}) {
+  const [sobre, setSobre] = useState<string | null>(null);
+  const origem = useRef<string | null>(null);
+
+  function soltar(destino: string) {
+    const id = origem.current;
+    origem.current = null;
+    setSobre(null);
+    if (id) onReordenar(id, destino);
+  }
+
+  return (
+    <ul className="mt-1 flex flex-col gap-1 text-sm">
+      {pagamentos.length > 1 ? <li className="text-xs text-muted">Arraste para organizar.</li> : null}
+      {pagamentos.map((item) => (
+        <li
+          key={item.id}
+          data-pagamento={item.id}
+          className={"flex items-center justify-between gap-2 rounded-lg px-1 " + (sobre === item.id ? "bg-pine-soft" : "")}
+        >
+          <button
+            type="button"
+            aria-label="Arrastar pagamento"
+            className="grid size-8 shrink-0 cursor-grab touch-none place-items-center text-muted active:cursor-grabbing"
+            onPointerDown={(evento) => {
+              origem.current = item.id;
+              evento.currentTarget.setPointerCapture(evento.pointerId);
+              evento.stopPropagation();
+            }}
+            onPointerMove={(evento) => {
+              if (!origem.current) return;
+              const alvo = document.elementFromPoint(evento.clientX, evento.clientY)?.closest("[data-pagamento]");
+              setSobre(alvo?.getAttribute("data-pagamento") ?? null);
+            }}
+            onPointerUp={(evento) => {
+              const alvo = document.elementFromPoint(evento.clientX, evento.clientY)?.closest("[data-pagamento]");
+              soltar(alvo?.getAttribute("data-pagamento") ?? item.id);
+            }}
+            onPointerCancel={() => {
+              origem.current = null;
+              setSobre(null);
+            }}
+          >
+            <GripVertical className="size-4" />
+          </button>
+          <span className="min-w-0 flex-1 text-ink">
+            {item.data ? formatDate(item.data) : "Sem data"}
+            {item.descricao ? ` · ${item.descricao}` : ""}
+            <span className="ml-2 font-medium">{formatarReais(item.valorCentavos)}</span>
+          </span>
+          <MenuPagamento pagamento={item} onSalvar={(data, valor) => onSalvar(item.id, data, valor)} onRemover={() => onRemover(item.id)} />
+        </li>
+      ))}
+    </ul>
   );
 }
 
