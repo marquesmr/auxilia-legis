@@ -258,6 +258,49 @@ async function buscarJson(url: string): Promise<Record<string, unknown> | "ausen
   return item;
 }
 
+export type ResultadoNomeCnpj = {
+  cnpj: string;
+  razaoSocial: string;
+  nomeFantasia: string;
+  municipio: string;
+  uf: string;
+};
+
+export const buscarCnpjPorNome = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    const bruto = input && typeof input === "object" && !Array.isArray(input) ? (input as { nome?: unknown }) : {};
+    const nome = typeof bruto.nome === "string" ? bruto.nome.trim().replace(/\s+/g, " ") : "";
+    if (nome.length < 3) throw new Error("Informe pelo menos 3 letras do nome.");
+    if (nome.length > 80) throw new Error("O nome está longo demais.");
+    return { nome };
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ data }): Promise<ResultadoNomeCnpj[]> => {
+    const resposta = await fetch(`https://cnpj.genesisinnovation.io/api/v1/busca?q=${encodeURIComponent(data.nome)}`, {
+      headers: { accept: "application/json", "user-agent": "AuxiliaLegis/1.0" },
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!resposta.ok) throw new Error("Não foi possível buscar o CNPJ pelo nome agora. Tente de novo.");
+    const json = objeto(await resposta.json());
+    const lista = json && Array.isArray(json.resultados) ? json.resultados : [];
+    return lista.slice(0, 20).flatMap((item) => {
+      const empresa = objeto(item);
+      if (!empresa) return [];
+      const digitos = texto(empresa.cnpj).replace(/\D/g, "");
+      const razaoSocial = texto(empresa.razao_social);
+      if (digitos.length !== 14 || !razaoSocial) return [];
+      return [
+        {
+          cnpj: formatarCnpj(digitos),
+          razaoSocial,
+          nomeFantasia: texto(empresa.nome_fantasia),
+          municipio: texto(empresa.municipio),
+          uf: texto(empresa.uf),
+        },
+      ];
+    });
+  });
+
 export const consultarDocumento = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     const bruto = input && typeof input === "object" && !Array.isArray(input) ? (input as { documento?: unknown; nascimento?: unknown }) : { documento: input, nascimento: "" };

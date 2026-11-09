@@ -42,7 +42,7 @@ import {
   type LinhaControle,
 } from "@/lib/admin";
 import { apagarAdmin, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao } from "@/lib/admin.functions";
-import { consultarDocumento, type ConsultaDocumento } from "@/lib/cnpj.functions";
+import { buscarCnpjPorNome, consultarDocumento, type ConsultaDocumento, type ResultadoNomeCnpj } from "@/lib/cnpj.functions";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { CampoMes } from "@/components/campo-mes";
 import { SoltarProcessoContext } from "@/components/soltar-processo";
@@ -3539,9 +3539,12 @@ function PainelConsulta({
 }) {
   const [numero, setNumero] = useState(numeroInicial ?? "");
   const [nascimento, setNascimento] = useState(nascimentoInicial ?? "");
+  const [nome, setNome] = useState("");
+  const [encontrados, setEncontrados] = useState<ResultadoNomeCnpj[]>([]);
   const [consulta, setConsulta] = useState<ConsultaDocumento | null>(null);
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [buscandoNome, setBuscandoNome] = useState(false);
 
   const consultar = useCallback(async (valor: string, dataNascimento: string) => {
     const digitos = valor.replace(/\D/g, "");
@@ -3567,6 +3570,28 @@ function PainelConsulta({
     }
   }, []);
 
+  const buscarNome = useCallback(async (valor: string) => {
+    const termo = valor.trim();
+    if (termo.length < 3) {
+      setErro("Informe pelo menos 3 letras do nome.");
+      setEncontrados([]);
+      return;
+    }
+    setBuscandoNome(true);
+    setErro("");
+    setConsulta(null);
+    try {
+      const lista = await buscarCnpjPorNome({ data: { nome: termo } });
+      setEncontrados(lista);
+      if (lista.length === 0) setErro("Nenhuma empresa encontrada com esse começo de nome.");
+    } catch (err) {
+      setEncontrados([]);
+      setErro(mensagemErro(err));
+    } finally {
+      setBuscandoNome(false);
+    }
+  }, []);
+
   useEffect(() => {
     const digitos = (numeroInicial ?? "").replace(/\D/g, "");
     if (digitos.length === 14 || (digitos.length === 11 && nascimentoInicial)) void consultar(numeroInicial ?? "", nascimentoInicial ?? "");
@@ -3579,9 +3604,58 @@ function PainelConsulta({
       {!embutido && (
         <>
           <h2 className="font-display text-2xl text-ink">Consulta CPF/CNPJ</h2>
-          <p className="mt-1 text-sm text-muted">Consulta o CNPJ e, no CPF, usa a data de nascimento sem gravá-la no detalhe do processo.</p>
+          <p className="mt-1 text-sm text-muted">Consulta o CNPJ e, no CPF, usa a data de nascimento sem gravá-la no detalhe do processo. O nome busca pelo começo da razão social ou do nome fantasia.</p>
         </>
       )}
+      {!embutido && (
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <input
+            value={nome}
+            onChange={(evento) => setNome(evento.target.value)}
+            autoComplete="off"
+            placeholder="Nome ou razão social"
+            className={inputCls + " sm:max-w-md"}
+            onKeyDown={(evento) => {
+              if (evento.key !== "Enter") return;
+              evento.preventDefault();
+              void buscarNome(nome);
+            }}
+          />
+          <button
+            type="button"
+            disabled={buscandoNome}
+            onClick={() => void buscarNome(nome)}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-sheet px-4 text-sm font-medium text-ink disabled:opacity-60"
+          >
+            <Search className="size-4" />
+            {buscandoNome ? "Buscando…" : "Buscar por nome"}
+          </button>
+        </div>
+      )}
+      {encontrados.length > 0 ? (
+        <ul className="mt-3 flex flex-col gap-2">
+          {encontrados.map((item) => (
+            <li key={item.cnpj}>
+              <button
+                type="button"
+                onClick={() => {
+                  setNumero(item.cnpj);
+                  setEncontrados([]);
+                  void consultar(item.cnpj, "");
+                }}
+                className="w-full rounded-xl border border-line bg-paper px-3 py-2 text-left text-sm hover:border-pine"
+              >
+                <span className="block font-medium text-ink">{item.razaoSocial}</span>
+                <span className="block text-muted">
+                  {item.cnpj}
+                  {item.nomeFantasia ? ` · ${item.nomeFantasia}` : ""}
+                  {item.municipio ? ` · ${item.municipio}${item.uf ? `/${item.uf}` : ""}` : ""}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className={(embutido ? "" : "mt-4 ") + "flex flex-col gap-2 sm:flex-row"}>
         <input
           value={numero}
