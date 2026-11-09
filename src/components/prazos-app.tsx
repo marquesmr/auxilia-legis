@@ -69,6 +69,7 @@ import { definirStatus, encerraStatus, nomeStatus, statusDaArea } from "@/lib/st
 import { carregarInicio } from "@/lib/inicio.functions";
 import { AvisoContaExcluida } from "@/components/aviso-exclusao";
 import { CalendarioExpediente } from "@/components/calendario-expediente";
+import { CalculadoraAbaixo } from "@/components/calculadora";
 import { SpotifyAdmin } from "@/components/spotify-admin";
 import { MOTIVOS_SAIDA } from "@/lib/motivos-saida";
 import { signOut } from "@/lib/auth/client";
@@ -1052,7 +1053,7 @@ export function PrazosApp() {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-[100rem] px-4 py-6 md:px-8 md:py-8 xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-x-6">
+    <div className="mx-auto min-h-screen max-w-[100rem] px-4 py-6 md:px-8 md:py-8 xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:gap-x-6">
       <header className="flex flex-col gap-4 border-b border-line pb-6 md:flex-row md:items-center md:justify-between xl:col-start-1">
         <h1 className="font-display text-2xl leading-tight text-ink sm:text-3xl">
           {area === "administrativo" ? "Processos Administrativo" : "Processos Legislativos"}
@@ -1862,10 +1863,15 @@ export function PrazosApp() {
       <TutorialInicio nome={meuNome} aberto={tutorialAberto} onFechar={fecharTutorial} />
       <AvisoManutencao aviso={avisoManutencao} onFechar={() => fecharAvisoManutencao(avisoManutencao, setAvisoManutencao)} />
       </div>
-      <div className="mt-6 hidden xl:sticky xl:top-6 xl:z-20 xl:col-start-2 xl:row-start-2 xl:block xl:self-start">
-        <CalendarioExpediente dias={diasMarcados} />
-        <div id="lei-busca-nav" />
-        {souGestor ? <SpotifyAdmin /> : null}
+      <div className="mt-6 hidden xl:col-start-2 xl:row-start-2 xl:block">
+        <div className="sticky top-6 flex max-h-[calc(100vh-3rem)] min-h-0 flex-col gap-2 overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <CalendarioExpediente dias={diasMarcados} comCalculadora={false} />
+          </div>
+          <div id="lei-busca-nav" />
+          <CalculadoraAbaixo />
+          {souGestor ? <SpotifyAdmin /> : null}
+        </div>
       </div>
     </div>
   );

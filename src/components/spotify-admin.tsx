@@ -90,7 +90,7 @@ export function SpotifyAdmin() {
   }
 
   return (
-    <section className="mt-3 rounded-2xl border border-line bg-sheet p-3">
+    <section className="mt-0 shrink-0 rounded-2xl border border-line bg-sheet p-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-display text-lg leading-none text-ink">Spotify</h2>
         {nome ? (
