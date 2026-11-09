@@ -17,6 +17,7 @@ import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as TermosRouteImport } from './routes/termos'
 import { Route as ApiAvisoPoliticaRouteImport } from './routes/api/aviso-politica'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiSpotifyCallbackRouteImport } from './routes/api/spotify/callback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -58,6 +59,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSpotifyCallbackRoute = ApiSpotifyCallbackRouteImport.update({
+  id: '/api/spotify/callback',
+  path: '/api/spotify/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -68,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/termos': typeof TermosRoute
   '/api/aviso-politica': typeof ApiAvisoPoliticaRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/spotify/callback': typeof ApiSpotifyCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByTo {
   '/termos': typeof TermosRoute
   '/api/aviso-politica': typeof ApiAvisoPoliticaRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/spotify/callback': typeof ApiSpotifyCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +97,7 @@ export interface FileRoutesById {
   '/termos': typeof TermosRoute
   '/api/aviso-politica': typeof ApiAvisoPoliticaRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/spotify/callback': typeof ApiSpotifyCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +110,7 @@ export interface FileRouteTypes {
     | '/termos'
     | '/api/aviso-politica'
     | '/api/auth/$'
+    | '/api/spotify/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/termos'
     | '/api/aviso-politica'
     | '/api/auth/$'
+    | '/api/spotify/callback'
   id:
     | '__root__'
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/termos'
     | '/api/aviso-politica'
     | '/api/auth/$'
+    | '/api/spotify/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -132,6 +144,7 @@ export interface RootRouteChildren {
   TermosRoute: typeof TermosRoute
   ApiAvisoPoliticaRoute: typeof ApiAvisoPoliticaRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiSpotifyCallbackRoute: typeof ApiSpotifyCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/spotify/callback': {
+      id: '/api/spotify/callback'
+      path: '/api/spotify/callback'
+      fullPath: '/api/spotify/callback'
+      preLoaderRoute: typeof ApiSpotifyCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -204,6 +224,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermosRoute: TermosRoute,
   ApiAvisoPoliticaRoute: ApiAvisoPoliticaRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiSpotifyCallbackRoute: ApiSpotifyCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

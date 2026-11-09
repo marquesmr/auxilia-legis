@@ -78,7 +78,7 @@ function Privacidade() {
           A ajuda do canto da tela, de nome Lexis, envia a pergunta, o primeiro nome e o histórico recente daquela conversa a um modelo de linguagem de terceiro (LLM7), somente para formular a resposta. Não envia a lista de processos, documentos nem senhas. A pergunta não deve conter dado sensível ou de terceiro.
         </p>
         <p className="text-justify">
-          Quem tem acesso de administrador pode ver, na coluna do calendário, um player do Spotify. O link escolhido fica apenas no navegador dessa pessoa e não é gravado no Programa. O quadro é carregado diretamente do Spotify. Quem não administra não vê esse player.
+          Quem tem acesso de administrador pode ver, na coluna do calendário, um player do Spotify. Se vincular a conta, o Programa guarda o identificador, o nome e o token de renovação, este cifrado. A lista de playlists é lida só para escolher o que tocar. Desvincular apaga esses dados. O quadro do player é carregado diretamente do Spotify. Quem não administra não vê esse player.
         </p>
         <p className="text-justify">
           A consulta de documento usa bases públicas, entre elas BrasilAPI, CNPJá, CNPJ.ws, ReceitaWS e Minha Receita. A busca pelo nome usa o serviço público do Fichário. Essas bases recebem o número ou o nome pesquisado, não a senha nem a lista de processos. A cidade é obtida pelo Nominatim, do OpenStreetMap, que recebe a coordenada e devolve o município. A imagem do calendário é lida pelo OCR.space. A caixa auxilialegis@marquestecnologies.com também envia convite de equipe, aviso de restrição ou liberação de e-mail e o aviso desta Política. Cada destinatário recebe só o que a função exige.
