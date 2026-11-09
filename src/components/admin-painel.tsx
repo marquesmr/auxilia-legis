@@ -692,6 +692,8 @@ export function AdminPainel({
       const faixa = faixaPrazo(a.status) - faixaPrazo(b.status);
       if (faixa !== 0) return faixa;
       if (faixaPrazo(a.status) >= 2) return numero;
+      const semDia = (semDiaPrazo(a) ? 1 : 0) - (semDiaPrazo(b) ? 1 : 0);
+      if (semDia !== 0) return semDia;
       return (dataAlvo(a).localeCompare(dataAlvo(b)) || numero) * fator;
     });
   }, [lista, filtro, busca, tipoAba, ordemCampo, ordemDir]);
@@ -3318,6 +3320,12 @@ function mensalNoRelatorio(item: ProcessoAdmin, inicio: string, fim: string): nu
     if (item.pagamentos.length > 0) return somaPagamentos(item.pagamentos);
   }
   return item.valorMensalCentavos;
+}
+
+function semDiaPrazo(p: ProcessoAdmin): boolean {
+  if (tipoSimples(p.tipo)) return true;
+  if (p.status === "execucao") return !p.vigenciaFim;
+  return !p.previsaoEtapa;
 }
 
 function faixaPrazo(status: string): number {
