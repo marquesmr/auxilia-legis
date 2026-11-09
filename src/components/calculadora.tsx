@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as EventoTeclado } from "react";
 import { createPortal } from "react-dom";
 import { Calculator, X } from "lucide-react";
 
@@ -42,6 +42,7 @@ function JanelaCalculadora({ onFechar }: { onFechar: () => void }) {
   const [operacao, setOperacao] = useState<Operacao | null>(null);
   const [substituir, setSubstituir] = useState(false);
   const arraste = useRef<{ dx: number; dy: number } | null>(null);
+  const caixa = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const largura = 280;
@@ -51,6 +52,10 @@ function JanelaCalculadora({ onFechar }: { onFechar: () => void }) {
     });
     setPronta(true);
   }, []);
+
+  useEffect(() => {
+    if (pronta) caixa.current?.focus();
+  }, [pronta]);
 
   function calcular(esquerda: number, sinal: Operacao, direita: number) {
     if (sinal === "+") return esquerda + direita;
@@ -104,12 +109,38 @@ function JanelaCalculadora({ onFechar }: { onFechar: () => void }) {
     setSubstituir(true);
   }
 
+  function peloTeclado(evento: EventoTeclado<HTMLDivElement>) {
+    if (evento.ctrlKey || evento.metaKey || evento.altKey) return;
+    const codigo = evento.code;
+    let tecla = "";
+    if (evento.key === "Delete") tecla = "C";
+    else if (evento.key === "Backspace") tecla = "⌫";
+    else if (evento.key === "Enter") tecla = "=";
+    else if (/^Numpad[0-9]$/.test(codigo) || /^Digit[0-9]$/.test(codigo)) tecla = codigo.slice(-1);
+    else if (codigo === "NumpadDecimal" || evento.key === "," || evento.key === ".") tecla = ",";
+    else if (codigo === "NumpadAdd" || evento.key === "+") tecla = "+";
+    else if (codigo === "NumpadSubtract" || evento.key === "-") tecla = "−";
+    else if (codigo === "NumpadMultiply" || evento.key === "*") tecla = "×";
+    else if (codigo === "NumpadDivide" || evento.key === "/") tecla = "÷";
+    else return;
+    evento.preventDefault();
+    evento.stopPropagation();
+    apertar(tecla);
+  }
+
   if (!pronta) return null;
   return createPortal(
     <div
+      ref={caixa}
+      tabIndex={0}
       role="dialog"
       aria-label="Calculadora"
-      className="no-print fixed z-[80] w-[17.5rem] rounded-2xl border border-line bg-sheet shadow-lg"
+      onKeyDownCapture={peloTeclado}
+      onPointerDown={(evento) => {
+        if ((evento.target as HTMLElement).closest("button")) return;
+        caixa.current?.focus();
+      }}
+      className="no-print fixed z-[80] w-[17.5rem] rounded-2xl border border-line bg-sheet shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-pine"
       style={{ left: pos.x, top: pos.y }}
     >
       <div
