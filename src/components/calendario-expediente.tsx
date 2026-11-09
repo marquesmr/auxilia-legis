@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { DiaMarcado } from "@/lib/prazos";
+import { CalculadoraAbaixo } from "@/components/calculadora";
 
 const SEMANA = ["D", "S", "T", "Q", "Q", "S", "S"];
 
@@ -34,6 +35,7 @@ export function CalendarioExpediente({ dias }: { dias: DiaMarcado[] }) {
   const aberto = escolhido ? mapa.get(escolhido) : undefined;
 
   return (
+    <>
     <section className="rounded-2xl border border-line bg-sheet p-4 xl:sticky xl:top-6">
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-display text-lg capitalize leading-none text-ink">{titulo}</h2>
@@ -100,5 +102,7 @@ export function CalendarioExpediente({ dias }: { dias: DiaMarcado[] }) {
         </ul>
       )}
     </section>
+    <CalculadoraAbaixo />
+    </>
   );
 }
