@@ -2233,6 +2233,7 @@ function CardAdmin({
   onExcluir: () => void;
 }) {
   const [detalhes, setDetalhes] = useState(false);
+  const [historicoAberto, setHistoricoAberto] = useState(false);
   const [moverAberto, setMoverAberto] = useState(false);
   const u = urgenciaAdmin(processo);
   const tom = TOM[u];
@@ -2297,7 +2298,7 @@ function CardAdmin({
           </div>
         )}
       </div>
-      <Dialog.Root open={detalhes} onOpenChange={setDetalhes}>
+      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) setHistoricoAberto(false); }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
           <Dialog.Content className="fixed inset-x-3 top-4 bottom-4 z-20 flex flex-col overflow-hidden rounded-2xl border border-line bg-sheet md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[90vh] md:w-full md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2">
@@ -2410,7 +2411,7 @@ function CardAdmin({
                 <p className="mt-2 text-sm text-muted">Nenhum lançamento.</p>
               ) : (
                 <ol className="mt-2 flex flex-col gap-2">
-                  {[...processo.historico].reverse().map((item) => (
+                  {(historicoAberto ? [...processo.historico].reverse() : [...processo.historico].reverse().slice(0, 2)).map((item) => (
                     <li key={item.id} className="text-sm">
                       <span className="text-xs text-muted">
                         {new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(item.em))}
@@ -2431,6 +2432,13 @@ function CardAdmin({
                       )}
                     </li>
                   ))}
+                  {processo.historico.length > 2 && (
+                    <li>
+                      <button type="button" onClick={() => setHistoricoAberto((aberto) => !aberto)} className="text-sm font-medium text-pine">
+                        {historicoAberto ? "Exibir menos" : "Exibir mais"}
+                      </button>
+                    </li>
+                  )}
                 </ol>
               )}
             </div>
