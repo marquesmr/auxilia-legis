@@ -1569,9 +1569,6 @@ export function AdminPainel({
                       setPagAndDescricao("");
                     }}
                     onExcluir={() => setDeleteId(item.id)}
-                    onEditarPagamento={(pagamentoId, data, valor) => editarPagamento(item.id, pagamentoId, data, valor)}
-                    onRemoverPagamento={(pagamentoId) => removerPagamento(item.id, pagamentoId)}
-                    onReordenarPagamento={(origemId, destinoId) => reordenarPagamento(item.id, origemId, destinoId)}
                   />
                 ))}
               </ul>
@@ -2227,9 +2224,6 @@ function CardAdmin({
   onEditar,
   onAndamento,
   onExcluir,
-  onEditarPagamento,
-  onRemoverPagamento,
-  onReordenarPagamento,
 }: {
   processo: ProcessoAdmin;
   equipes: { id: string; nome: string }[];
@@ -2237,9 +2231,6 @@ function CardAdmin({
   onEditar: () => void;
   onAndamento: () => void;
   onExcluir: () => void;
-  onEditarPagamento: (pagamentoId: string, data: string, valor: string) => void;
-  onRemoverPagamento: (pagamentoId: string) => void;
-  onReordenarPagamento: (origemId: string, destinoId: string) => void;
 }) {
   const [detalhes, setDetalhes] = useState(false);
   const [moverAberto, setMoverAberto] = useState(false);
@@ -2369,12 +2360,15 @@ function CardAdmin({
                 <Info rotulo="Equipe" valor={equipes.find((equipe) => equipe.id === processo.equipeId)?.nome ?? "Só meus"} />
               </dl>
               {processo.pagamentoDemanda && processo.pagamentos.length > 0 && (
-                <ListaPagamentos
-                  pagamentos={processo.pagamentos}
-                  onSalvar={(pagamentoId, data, valor) => onEditarPagamento(pagamentoId, data, valor)}
-                  onRemover={(pagamentoId) => onRemoverPagamento(pagamentoId)}
-                  onReordenar={onReordenarPagamento}
-                />
+                <ul className="mt-3 flex flex-col gap-1 text-sm">
+                  {processo.pagamentos.map((item) => (
+                    <li key={item.id} className="text-ink">
+                      {item.data ? formatDate(item.data) : "Sem data"}
+                      {item.descricao ? ` · ${item.descricao}` : ""}
+                      <span className="ml-2 font-medium">{formatarReais(item.valorCentavos)}</span>
+                    </li>
+                  ))}
+                </ul>
               )}
               <div className="mt-4 flex flex-col gap-2">
                 {processo.linkAberturaNa ? (
