@@ -2301,7 +2301,15 @@ function CardAdmin({
       <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) setHistoricoAberto(false); }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-4 bottom-4 z-20 flex flex-col overflow-hidden rounded-2xl border border-line bg-sheet md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[90vh] md:w-full md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2">
+          <Dialog.Content
+            className="fixed inset-x-3 top-4 bottom-4 z-20 flex flex-col overflow-hidden rounded-2xl border border-line bg-sheet md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[90vh] md:w-full md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2"
+            onInteractOutside={(evento) => {
+              if (historicoAberto) evento.preventDefault();
+            }}
+            onPointerDownOutside={(evento) => {
+              if (historicoAberto) evento.preventDefault();
+            }}
+          >
             <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
               <div>
                 <Dialog.Title className="font-display text-2xl text-ink">
@@ -2411,7 +2419,7 @@ function CardAdmin({
                 <p className="mt-2 text-sm text-muted">Nenhum lançamento.</p>
               ) : (
                 <ol className="mt-2 flex flex-col gap-2">
-                  {(historicoAberto ? [...processo.historico].reverse() : [...processo.historico].reverse().slice(0, 2)).map((item) => (
+                  {[...processo.historico].reverse().slice(0, 2).map((item) => (
                     <li key={item.id} className="text-sm">
                       <span className="text-xs text-muted">
                         {new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(item.em))}
@@ -2434,14 +2442,50 @@ function CardAdmin({
                   ))}
                   {processo.historico.length > 2 && (
                     <li>
-                      <button type="button" onClick={() => setHistoricoAberto((aberto) => !aberto)} className="text-sm font-medium text-pine">
-                        {historicoAberto ? "Exibir menos" : "Exibir mais"}
+                      <button type="button" onClick={() => setHistoricoAberto(true)} className="text-sm font-medium text-pine">
+                        Exibir mais
                       </button>
                     </li>
                   )}
                 </ol>
               )}
             </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      <Dialog.Root open={historicoAberto} onOpenChange={setHistoricoAberto}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 flex max-h-[85vh] -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-sheet md:left-1/2 md:w-full md:max-w-lg md:-translate-x-1/2">
+            <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+              <div>
+                <Dialog.Title className="font-display text-2xl text-ink">Histórico</Dialog.Title>
+                <Dialog.Description className="mt-1 text-sm text-muted">
+                  {processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : processo.tipo}
+                </Dialog.Description>
+              </div>
+              <Dialog.Close className="grid size-10 place-items-center rounded-lg text-muted" aria-label="Fechar">
+                <X className="size-4" />
+              </Dialog.Close>
+            </div>
+            <ol className="flex flex-col gap-3 overflow-y-auto px-5 py-4">
+              {[...processo.historico].reverse().map((item) => (
+                <li key={item.id} className="text-sm">
+                  <span className="text-xs text-muted">
+                    {new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(item.em))}
+                    {" · "}
+                    {item.autorNome || "sem nome"}
+                  </span>
+                  <span className="mt-0.5 block text-justify text-ink">{item.texto}</span>
+                  {item.link && (
+                    <a href={item.link} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-pine">
+                      <Link2 className="size-3.5" />
+                      Link
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ol>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
