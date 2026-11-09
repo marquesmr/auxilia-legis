@@ -91,7 +91,7 @@ export function TextoDosTermos() {
         O texto da lei reproduzido no Programa é apoio de leitura. Prevalece a publicação oficial. A consulta de CPF ou CNPJ reflete bases públicas e pode estar incompleta ou desatualizada. Certidão, inclusive a de falência e concordata, só vale a que o órgão emitir no sítio dele. A calculadora não envia a conta digitada. A Lexis responde dúvida sobre o funcionamento do Programa e não substitui parecer, assessoria ou consultoria.
       </p>
       <p className="text-justify">
-        Durante o horário informado no aviso de manutenção o Programa pode continuar aberto e pode haver instabilidade. O Titular não se responsabiliza por perda de dado ligada a esse período.
+        Durante o horário informado no aviso de manutenção o Programa pode continuar aberto e pode haver instabilidade. O Titular não se responsabiliza por perda de dado ligada a esse período. O player do Spotify, quando aparece, é visível só para quem administra e é carregado pelo próprio Spotify. O conteúdo tocado não é do Programa.
       </p>
       <p className="text-justify">
         As informações cadastradas são de responsabilidade exclusiva do usuário que as lançou. O Programa apenas organiza e exibe o que foi informado. O Titular não confere, não valida e não tem como saber se a conta é compartilhada, se os dados são de terceiros, se estão corretos, completos ou se o uso infringe estes Termos ou a lei. Tudo o que entra no sistema — processos, partes, documentos, prazos, comunicações e qualquer outro conteúdo — não é de responsabilidade do Titular, criador do Programa.

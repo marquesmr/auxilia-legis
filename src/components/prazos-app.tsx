@@ -69,6 +69,7 @@ import { definirStatus, encerraStatus, nomeStatus, statusDaArea } from "@/lib/st
 import { carregarInicio } from "@/lib/inicio.functions";
 import { AvisoContaExcluida } from "@/components/aviso-exclusao";
 import { CalendarioExpediente } from "@/components/calendario-expediente";
+import { SpotifyAdmin } from "@/components/spotify-admin";
 import { MOTIVOS_SAIDA } from "@/lib/motivos-saida";
 import { signOut } from "@/lib/auth/client";
 import { BotaoConfiguracoes } from "@/components/configuracoes";
@@ -1864,6 +1865,7 @@ export function PrazosApp() {
       <div className="mt-6 hidden xl:sticky xl:top-6 xl:z-20 xl:col-start-2 xl:row-start-2 xl:block xl:self-start">
         <CalendarioExpediente dias={diasMarcados} />
         <div id="lei-busca-nav" />
+        {souGestor ? <SpotifyAdmin /> : null}
       </div>
     </div>
   );

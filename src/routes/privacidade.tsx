@@ -78,6 +78,9 @@ function Privacidade() {
           A ajuda do canto da tela, de nome Lexis, envia a pergunta, o primeiro nome e o histórico recente daquela conversa a um modelo de linguagem de terceiro (LLM7), somente para formular a resposta. Não envia a lista de processos, documentos nem senhas. A pergunta não deve conter dado sensível ou de terceiro.
         </p>
         <p className="text-justify">
+          Quem tem acesso de administrador pode ver, na coluna do calendário, um player do Spotify. O link escolhido fica apenas no navegador dessa pessoa e não é gravado no Programa. O quadro é carregado diretamente do Spotify. Quem não administra não vê esse player.
+        </p>
+        <p className="text-justify">
           A consulta de documento usa bases públicas, entre elas BrasilAPI, CNPJá, CNPJ.ws, ReceitaWS e Minha Receita. A busca pelo nome usa o serviço público do Fichário. Essas bases recebem o número ou o nome pesquisado, não a senha nem a lista de processos. A cidade é obtida pelo Nominatim, do OpenStreetMap, que recebe a coordenada e devolve o município. A imagem do calendário é lida pelo OCR.space. A caixa auxilialegis@marquestecnologies.com também envia convite de equipe, aviso de restrição ou liberação de e-mail e o aviso desta Política. Cada destinatário recebe só o que a função exige.
         </p>
 
@@ -94,7 +97,7 @@ function Privacidade() {
 
         <Titulo>6. Transferência internacional</Titulo>
         <p className="text-justify">
-          A hospedagem, o login Google, o login X, o modelo da ajuda, as bases de consulta de CNPJ e CPF, o Nominatim, o OCR.space e o Fichário podem tratar dados fora do Brasil. A transferência observa o art. 33 da LGPD, em especial a execução de contrato e o recurso a cláusulas e garantias oferecidas por esses fornecedores. Não se afirma, nesta Política, que cada país de destino tenha decisão de adequação da Autoridade Nacional de Proteção de Dados.
+          A hospedagem, o login Google, o login X, o modelo da ajuda, as bases de consulta de CNPJ e CPF, o Nominatim, o OCR.space, o Fichário e, para o administrador, o player do Spotify podem tratar dados fora do Brasil. A transferência observa o art. 33 da LGPD, em especial a execução de contrato e o recurso a cláusulas e garantias oferecidas por esses fornecedores. Não se afirma, nesta Política, que cada país de destino tenha decisão de adequação da Autoridade Nacional de Proteção de Dados.
         </p>
 
         <Titulo>7. Retenção e eliminação</Titulo>
