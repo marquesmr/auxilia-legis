@@ -100,7 +100,7 @@ function VistaValores({ processos, mensal }: { processos: ProcessoAdmin[]; mensa
     .sort((a, b) => b.valor - a.valor);
   const soma = fatias.reduce((total, item) => total + item.valor, 0);
   if (fatias.length === 0) return <p className="text-sm text-muted">Nenhum valor lançado neste recorte.</p>;
-  return <Rosca fatias={fatias} centro={formatarReais(soma)} legenda={mensal ? "mensal" : "anual"} />;
+  return <Rosca fatias={fatias} centro={formatarReais(soma)} legenda={mensal ? "mensal" : "anual"} colunas={!mensal} />;
 }
 
 function VistaValorTipo({ processos }: { processos: ProcessoAdmin[] }) {
@@ -113,22 +113,33 @@ function VistaValorTipo({ processos }: { processos: ProcessoAdmin[] }) {
   return <Rosca fatias={fatias} centro={formatarReais(soma)} legenda="por tipo" />;
 }
 
-function Rosca({ fatias, centro, legenda }: { fatias: Fatia[]; centro: string; legenda: string }) {
+function Rosca({ fatias, centro, legenda, colunas = false }: { fatias: Fatia[]; centro: string; legenda: string; colunas?: boolean }) {
   const pintadas = fatias.map((item, indice) => ({ ...item, cor: corGrafico(indice) }));
+  const lista = (
+    <ul className={colunas ? "grid w-full grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2" : "flex flex-col gap-2"}>
+      {pintadas.map((item) => (
+        <li key={item.label} className="flex items-start justify-between gap-3 text-sm">
+          <span className="flex min-w-0 items-start gap-2 text-ink">
+            <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ background: item.cor }} />
+            <span className="break-words">{item.label}</span>
+          </span>
+          <span className="shrink-0 font-medium text-ink">{item.texto}</span>
+        </li>
+      ))}
+    </ul>
+  );
+  if (colunas) {
+    return (
+      <div className="flex flex-col items-center gap-6">
+        <Donut fatias={pintadas} centro={centro} legenda={legenda} />
+        {lista}
+      </div>
+    );
+  }
   return (
     <div className="grid items-center gap-6 md:grid-cols-[15rem_1fr]">
       <Donut fatias={pintadas} centro={centro} legenda={legenda} />
-      <ul className="flex flex-col gap-2">
-        {pintadas.map((item) => (
-          <li key={item.label} className="flex items-start justify-between gap-3 text-sm">
-            <span className="flex min-w-0 items-start gap-2 text-ink">
-              <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ background: item.cor }} />
-              <span className="break-words">{item.label}</span>
-            </span>
-            <span className="shrink-0 font-medium text-ink">{item.texto}</span>
-          </li>
-        ))}
-      </ul>
+      {lista}
     </div>
   );
 }
