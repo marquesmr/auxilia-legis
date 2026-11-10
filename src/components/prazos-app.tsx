@@ -44,7 +44,6 @@ import {
   rotuloResposta,
   separarNumero,
   todayIso,
-  definirSemExpediente,
   urgencia,
   type DiaMarcado,
   type Urgencia,
@@ -385,7 +384,6 @@ export function PrazosApp() {
       void estadoSistema()
         .then((estado) => {
           if (!vivo) return;
-          definirSemExpediente(estado.datas);
           setDiasMarcados(estado.dias ?? []);
           setCidadeConta(estado.cidade ?? "");
           setUfConta(estado.uf ?? "");
@@ -470,7 +468,6 @@ export function PrazosApp() {
         if (pacote.abas.legislativo.length) setAbasLeg(pacote.abas.legislativo);
         setAbasAdm(pacote.abas.administrativo);
         definirStatus(pacote.status);
-        definirSemExpediente(pacote.estado.datas);
         setDiasMarcados(pacote.estado.dias ?? []);
         setCidadeConta(pacote.estado.cidade ?? "");
         setUfConta(pacote.estado.uf ?? "");
@@ -949,7 +946,6 @@ export function PrazosApp() {
             setCidadeConta(local.cidade);
             setUfConta(local.uf);
             const estado = await estadoSistema();
-            definirSemExpediente(estado.datas);
             setDiasMarcados(estado.dias ?? []);
             setToast(`Cidade definida: ${local.cidade}${local.uf ? `/${local.uf}` : ""}.`);
           })

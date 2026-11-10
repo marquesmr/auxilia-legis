@@ -60,37 +60,14 @@ export function parseDate(iso: string): Date {
   return new Date(y || 1970, (m || 1) - 1, d || 1);
 }
 
-const semExpediente = new Set<string>();
-
-export type DiaMarcado = { data: string; nome: string; tipo: "feriado" | "facultativo" | "recesso"; municipio?: string };
-
-/** Datas sem expediente (feriados e recesso), no formato AAAA-MM-DD. */
-export function definirSemExpediente(datas: string[]) {
-  semExpediente.clear();
-  for (const data of datas) if (/^\d{4}-\d{2}-\d{2}$/.test(data)) semExpediente.add(data);
-}
-
-function ehDiaUtil(data: Date): boolean {
-  const dia = data.getDay();
-  if (dia === 0 || dia === 6) return false;
-  return !semExpediente.has(todayIso(data));
-}
-
 export function daysUntil(iso: string, now = new Date()): number {
   const hoje = parseDate(todayIso(now));
-  const alvo = parseDate(iso);
+  const alvo = parseDate(iso.slice(0, 10));
   if (Number.isNaN(alvo.getTime())) return 0;
-  if (hoje.getTime() === alvo.getTime()) return 0;
-  const sinal = alvo.getTime() > hoje.getTime() ? 1 : -1;
-  const cursor = new Date(hoje);
-  let total = 0;
-  for (let passo = 0; passo < 4000; passo += 1) {
-    cursor.setDate(cursor.getDate() + sinal);
-    if (ehDiaUtil(cursor)) total += sinal;
-    if (cursor.getTime() === alvo.getTime()) break;
-  }
-  return total;
+  return Math.round((alvo.getTime() - hoje.getTime()) / 86_400_000);
 }
+
+export type DiaMarcado = { data: string; nome: string; tipo: "feriado" | "facultativo" | "recesso"; municipio?: string };
 
 export function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("pt-BR", {
