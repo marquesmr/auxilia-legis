@@ -388,10 +388,19 @@ html[data-tema="escuro"][data-cor="roxo"] {
       display: block !important;
     }
 
+    body.imprimindo .relatorio-folha section:has(.grafico-anual) {
+      break-before: avoid !important;
+      page-break-before: avoid !important;
+      break-inside: auto !important;
+      page-break-inside: auto !important;
+    }
+
     body.imprimindo .relatorio-folha .grafico-anual {
       display: flex !important;
       flex-direction: column !important;
       align-items: center !important;
+      break-before: avoid !important;
+      page-break-before: avoid !important;
       break-inside: auto !important;
       page-break-inside: auto !important;
     }
