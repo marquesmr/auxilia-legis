@@ -412,15 +412,20 @@ html[data-tema="escuro"][data-cor="roxo"] {
       margin-left: auto !important;
     }
 
-    body.imprimindo .relatorio-folha .grafico-valores.grid {
-      display: grid !important;
-      grid-template-columns: 1fr 1fr !important;
-      column-gap: 6mm !important;
-      row-gap: 1.4mm !important;
+    body.imprimindo .relatorio-folha .grafico-valores {
+      display: table !important;
       width: 100% !important;
+      border-collapse: collapse !important;
+      table-layout: fixed !important;
     }
 
-    body.imprimindo .relatorio-folha .grafico-valores li {
+    body.imprimindo .relatorio-folha .grafico-valores td {
+      border: 0.4pt solid #cfc6b8 !important;
+      padding: 1.2mm 2mm !important;
+      vertical-align: top !important;
+    }
+
+    body.imprimindo .relatorio-folha .grafico-valores tr {
       break-inside: avoid;
       page-break-inside: avoid;
     }

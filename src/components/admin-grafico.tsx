@@ -115,8 +115,8 @@ function VistaValorTipo({ processos }: { processos: ProcessoAdmin[] }) {
 
 function Rosca({ fatias, centro, legenda, colunas = false }: { fatias: Fatia[]; centro: string; legenda: string; colunas?: boolean }) {
   const pintadas = fatias.map((item, indice) => ({ ...item, cor: corGrafico(indice) }));
-  const lista = (
-    <ul className={colunas ? "grafico-valores grid w-full grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2" : "flex flex-col gap-2"}>
+  const lista = colunas ? <TabelaValores itens={pintadas} /> : (
+    <ul className="flex flex-col gap-2">
       {pintadas.map((item) => (
         <li key={item.label} className="flex items-start justify-between gap-3 text-sm">
           <span className="flex min-w-0 items-start gap-2 text-ink">
@@ -141,6 +141,38 @@ function Rosca({ fatias, centro, legenda, colunas = false }: { fatias: Fatia[]; 
       <Donut fatias={pintadas} centro={centro} legenda={legenda} />
       {lista}
     </div>
+  );
+}
+
+function TabelaValores({ itens }: { itens: (Fatia & { cor: string })[] }) {
+  const linhas: (typeof itens)[] = [];
+  for (let indice = 0; indice < itens.length; indice += 2) linhas.push(itens.slice(indice, indice + 2));
+  return (
+    <table className="grafico-valores w-full table-fixed border-collapse text-sm">
+      <tbody>
+        {linhas.map((par, indice) => (
+          <tr key={par[0]?.label ?? indice}>
+            <CelulaValor item={par[0]} />
+            <CelulaValor item={par[1]} />
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function CelulaValor({ item }: { item?: Fatia & { cor: string } }) {
+  if (!item) return <td className="border border-line px-3 py-2" />;
+  return (
+    <td className="border border-line px-3 py-2 align-top">
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex min-w-0 items-start gap-2 text-ink">
+          <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ background: item.cor }} />
+          <span className="break-words">{item.label}</span>
+        </span>
+        <span className="shrink-0 font-medium text-ink">{item.texto}</span>
+      </div>
+    </td>
   );
 }
 
