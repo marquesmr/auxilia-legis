@@ -388,6 +388,34 @@ html[data-tema="escuro"][data-cor="roxo"] {
       display: block !important;
     }
 
+    body.imprimindo .relatorio-folha .grafico-anual {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      break-inside: auto !important;
+      page-break-inside: auto !important;
+    }
+
+    body.imprimindo .relatorio-folha .grafico-anual svg {
+      width: 52mm !important;
+      height: 52mm !important;
+      margin-right: auto !important;
+      margin-left: auto !important;
+    }
+
+    body.imprimindo .relatorio-folha .grafico-valores.grid {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+      column-gap: 6mm !important;
+      row-gap: 1.4mm !important;
+      width: 100% !important;
+    }
+
+    body.imprimindo .relatorio-folha .grafico-valores li {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
     body.imprimindo .relatorio-folha svg {
       width: 42mm;
       height: 42mm;

@@ -116,7 +116,7 @@ function VistaValorTipo({ processos }: { processos: ProcessoAdmin[] }) {
 function Rosca({ fatias, centro, legenda, colunas = false }: { fatias: Fatia[]; centro: string; legenda: string; colunas?: boolean }) {
   const pintadas = fatias.map((item, indice) => ({ ...item, cor: corGrafico(indice) }));
   const lista = (
-    <ul className={colunas ? "grid w-full grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2" : "flex flex-col gap-2"}>
+    <ul className={colunas ? "grafico-valores grid w-full grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2" : "flex flex-col gap-2"}>
       {pintadas.map((item) => (
         <li key={item.label} className="flex items-start justify-between gap-3 text-sm">
           <span className="flex min-w-0 items-start gap-2 text-ink">
@@ -130,7 +130,7 @@ function Rosca({ fatias, centro, legenda, colunas = false }: { fatias: Fatia[]; 
   );
   if (colunas) {
     return (
-      <div className="flex flex-col items-center gap-6">
+      <div className="grafico-anual flex flex-col items-center gap-6">
         <Donut fatias={pintadas} centro={centro} legenda={legenda} />
         {lista}
       </div>
