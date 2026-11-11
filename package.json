@@ -61,6 +61,7 @@
     "html2canvas-pro": "^2.5.0",
     "jose": "6.2.9",
     "jspdf": "^4.2.1",
+    "jszip": "^3.10.2",
     "kysely": "^0.28.5",
     "lightningcss": "^1.28.0",
     "lucide-react": "^0.510.0",

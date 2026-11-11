@@ -453,7 +453,9 @@ function TimbradoEquipe({
   const [rodape1, setRodape1] = useState("");
   const [rodape2, setRodape2] = useState("");
   const [imagem, setImagem] = useState("");
-  const [lista, setLista] = useState<{ equipeId: string; imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string }[]>([]);
+  const [arquivo, setArquivo] = useState("");
+  const [arquivoNome, setArquivoNome] = useState("");
+  const [lista, setLista] = useState<{ equipeId: string; imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string; arquivo: string; arquivoNome: string }[]>([]);
   const [ocupado, setOcupado] = useState(false);
 
   function aplicar(equipe: string, itens: typeof lista) {
@@ -463,6 +465,8 @@ function TimbradoEquipe({
     setRodape1(atual?.rodape1 ?? "");
     setRodape2(atual?.rodape2 ?? "");
     setImagem(atual?.imagem ?? "");
+    setArquivo(atual?.arquivo ?? "");
+    setArquivoNome(atual?.arquivoNome ?? "");
   }
 
   useEffect(() => {
@@ -494,17 +498,36 @@ function TimbradoEquipe({
     leitor.readAsDataURL(arquivo);
   }
 
+  function lerWord(escolhido: File | undefined) {
+    if (!escolhido) return;
+    const nome = escolhido.name.toLowerCase();
+    if (!nome.endsWith(".docx")) {
+      onErro("Envie o timbrado em Word no formato .docx.");
+      return;
+    }
+    if (escolhido.size > 3_000_000) {
+      onErro("O Word precisa ter menos de 3 MB.");
+      return;
+    }
+    const leitor = new FileReader();
+    leitor.onload = () => {
+      setArquivo(String(leitor.result ?? ""));
+      setArquivoNome(escolhido.name);
+    };
+    leitor.readAsDataURL(escolhido);
+  }
+
   return (
     <section className="rounded-2xl border border-line bg-sheet p-4">
       <h2 className="text-sm font-medium text-ink">Timbrado da equipe</h2>
-      <p className="mt-1 text-sm text-muted">O termo de encerramento usa o timbrado da equipe do processo.</p>
+      <p className="mt-1 text-sm text-muted">Suba o timbrado em Word. O termo mantém o cabeçalho e o rodapé desse arquivo. Sem o arquivo, vale o preenchimento abaixo.</p>
       <form
         className="mt-3 flex flex-col gap-3"
         onSubmit={(evento) => {
           evento.preventDefault();
           if (!equipeId) return;
           setOcupado(true);
-          void salvarTimbradoGestao({ data: { token, equipeId, imagem, linha1, linha2, rodape1, rodape2 } })
+          void salvarTimbradoGestao({ data: { token, equipeId, imagem, linha1, linha2, rodape1, rodape2, arquivo, arquivoNome } })
             .then(() => listarTimbradosGestao({ data: token }))
             .then((itens) => {
               setLista(itens);
@@ -521,6 +544,11 @@ function TimbradoEquipe({
             </option>
           ))}
         </select>
+        <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+          Timbrado em Word
+          <input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(evento) => lerWord(evento.target.files?.[0])} className="text-sm font-normal" />
+        </label>
+        {arquivoNome ? <p className="text-sm text-muted">Arquivo: {arquivoNome}</p> : null}
         <label className="flex flex-col gap-1 text-sm font-medium text-ink">
           Brasão
           <input type="file" accept="image/*" onChange={(evento) => lerImagem(evento.target.files?.[0])} className="text-sm font-normal" />

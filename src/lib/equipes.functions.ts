@@ -81,6 +81,8 @@ export async function garantirTimbrados() {
       rodape2 text not null default ''
     )
   `;
+  await sql`alter table timbrados add column if not exists arquivo text not null default ''`;
+  await sql`alter table timbrados add column if not exists arquivo_nome text not null default ''`;
 }
 
 export type TimbradoEquipe = {
@@ -90,6 +92,8 @@ export type TimbradoEquipe = {
   linha2: string;
   rodape1: string;
   rodape2: string;
+  arquivo: string;
+  arquivoNome: string;
 };
 
 export const lerTimbradoEquipe = createServerFn({ method: "POST" })
@@ -103,12 +107,21 @@ export const lerTimbradoEquipe = createServerFn({ method: "POST" })
     await garantirTimbrados();
     const membro = await sql`select 1 as ok from equipe_membros where equipe_id = ${data} and user_id = ${context.userId} limit 1`;
     if (!membro.length) throw new Error("Você não faz parte desta equipe.");
-    const linhas = await sql<{ imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string }>`
-      select imagem, linha1, linha2, rodape1, rodape2 from timbrados where equipe_id = ${data} limit 1
+    const linhas = await sql<{ imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string; arquivo: string; arquivo_nome: string }>`
+      select imagem, linha1, linha2, rodape1, rodape2, arquivo, arquivo_nome from timbrados where equipe_id = ${data} limit 1
     `;
     const item = linhas[0];
-    if (!item || (!item.linha1.trim() && !item.imagem)) return null;
-    return { equipeId: data, imagem: item.imagem, linha1: item.linha1, linha2: item.linha2, rodape1: item.rodape1, rodape2: item.rodape2 };
+    if (!item || (!item.linha1.trim() && !item.imagem && !item.arquivo)) return null;
+    return {
+      equipeId: data,
+      imagem: item.imagem,
+      linha1: item.linha1,
+      linha2: item.linha2,
+      rodape1: item.rodape1,
+      rodape2: item.rodape2,
+      arquivo: item.arquivo,
+      arquivoNome: item.arquivo_nome,
+    };
   });
 
 async function aceitarConvites(userId: string) {

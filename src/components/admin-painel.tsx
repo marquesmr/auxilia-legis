@@ -43,6 +43,7 @@ import {
 } from "@/lib/admin";
 import { apagarAdmin, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao } from "@/lib/admin.functions";
 import { lerTimbradoEquipe, type TimbradoEquipe } from "@/lib/equipes.functions";
+import { termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
 import { buscarCnpjPorNome, consultarDocumento, type ConsultaDocumento, type ResultadoNomeCnpj } from "@/lib/cnpj.functions";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { CampoMes } from "@/components/campo-mes";
@@ -2787,8 +2788,9 @@ function CardAdmin({
                 disabled={!termoTimbre || !termoAssinante || !termoFuncao.trim()}
                 onClick={() => {
                   if (!termoTimbre) return;
-                  baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim());
-                  setTermoAberto(false);
+                  void baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim())
+                    .then(() => setTermoAberto(false))
+                    .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar o termo."));
                 }}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
               >
@@ -4390,7 +4392,7 @@ function baixarExtratos(itens: { processo: ProcessoAdmin; fundamento: string; as
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
 }
 
-function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assinante: string, funcao: string) {
+async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assinante: string, funcao: string) {
   const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
   const tipo = processo.tipo.toLocaleUpperCase("pt-BR");
   const tipoFrase = processo.tipo.toLocaleLowerCase("pt-BR");
@@ -4404,6 +4406,32 @@ function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assinante:
   const doc = mascaraDocumento(processo.documento) || processo.documento.trim() || "____________________";
   const data = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
   const lugar = timbre.linha2.trim() || timbre.linha1.trim();
+  const numeroArquivo = `Termo de encerramento ${numero.replaceAll("/", "-")}`;
+  if (timbre.arquivo) {
+    const blocos: BlocoTermo[] = [
+      { titulo: true, partes: [{ texto: `TERMO DE ENCERRAMENTO DE\nPROCESSO DE\n${tipo}` }] },
+      { centro: true, partes: [{ texto: `PROCESSO ADMINISTRATIVO Nº ${numero}`, negrito: true }] },
+      { centro: true, partes: [{ texto: peca ? `${tipo} ${peca}` : tipo, negrito: true }] },
+      { partes: [{ texto: "Considerando", negrito: true }, { texto: " o disposto na Lei nº 14.133/2021, que estabelece normas gerais de licitação e contratação para a Administração Pública;" }] },
+      { partes: [{ texto: "Considerando", negrito: true }, { texto: ` que o presente processo de ${tipoFrase}, identificado pelo nº ${numero}, foi conduzido conforme os requisitos legais e normativos aplicáveis, garantindo a regularidade da despesa pública;` }] },
+      { partes: [{ texto: "Considerando", negrito: true }, { texto: " que o pagamento referente à despesa foi devidamente realizado em favor de " }, { texto: contratado, negrito: true }, { texto: `, inscrito no ${docRotulo} ` }, { texto: doc, negrito: true }, { texto: ", conforme comprovante de pagamento anexo anteriormente;" }] },
+      { partes: [{ texto: "Considerando", negrito: true }, { texto: " que não há pendências documentais, financeiras ou administrativas relacionadas ao presente processo;" }] },
+      { partes: [{ texto: "Resolve-se", negrito: true }, { texto: " pelo " }, { texto: "encerramento do processo de", negrito: true }, { texto: ` ${tipoFrase}, com o devido arquivamento dos documentos pertinentes, garantindo a transparência e conformidade com os princípios da administração pública.` }] },
+      { partes: [{ texto: "Registra-se para os devidos fins." }] },
+      { centro: true, partes: [{ texto: lugar ? `${lugar}, ${data}.` : `${data}.` }] },
+      { centro: true, partes: [{ texto: assinante, negrito: true }] },
+      { centro: true, partes: [{ texto: funcao }] },
+    ];
+    const arquivo = await termoNoTimbrado(timbre.arquivo, blocos);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(arquivo);
+    link.download = `${numeroArquivo}.docx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+    return;
+  }
   const marca = timbre.imagem.startsWith("data:image/")
     ? `<p style="text-align:center;margin:0;"><img src="${timbre.imagem}" width="78" height="103" alt=""></p>`
     : "";

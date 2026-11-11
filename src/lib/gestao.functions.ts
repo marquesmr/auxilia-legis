@@ -704,7 +704,17 @@ export const listarTimbradosGestao = createServerFn({ method: "POST" })
 export const salvarTimbradoGestao = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!input || typeof input !== "object") throw new Error("Dados inválidos");
-    const bruto = input as { token?: unknown; equipeId?: unknown; imagem?: unknown; linha1?: unknown; linha2?: unknown; rodape1?: unknown; rodape2?: unknown };
+    const bruto = input as {
+      token?: unknown;
+      equipeId?: unknown;
+      imagem?: unknown;
+      linha1?: unknown;
+      linha2?: unknown;
+      rodape1?: unknown;
+      rodape2?: unknown;
+      arquivo?: unknown;
+      arquivoNome?: unknown;
+    };
     return {
       token: tokenOk(bruto.token),
       equipeId: idOk(bruto.equipeId),
@@ -713,6 +723,8 @@ export const salvarTimbradoGestao = createServerFn({ method: "POST" })
       linha2: typeof bruto.linha2 === "string" ? bruto.linha2 : "",
       rodape1: typeof bruto.rodape1 === "string" ? bruto.rodape1 : "",
       rodape2: typeof bruto.rodape2 === "string" ? bruto.rodape2 : "",
+      arquivo: typeof bruto.arquivo === "string" ? bruto.arquivo : "",
+      arquivoNome: typeof bruto.arquivoNome === "string" ? bruto.arquivoNome : "",
     };
   })
   .handler(async ({ data }) => {

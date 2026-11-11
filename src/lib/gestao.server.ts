@@ -1176,8 +1176,8 @@ export async function listarTimbrados() {
   const { garantirTimbrados } = await import("./equipes.functions");
   const sql = await getSql();
   await garantirTimbrados();
-  const linhas = await sql<{ equipe_id: string; imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string }>`
-    select equipe_id, imagem, linha1, linha2, rodape1, rodape2 from timbrados order by linha1 asc
+  const linhas = await sql<{ equipe_id: string; imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string; arquivo: string; arquivo_nome: string }>`
+    select equipe_id, imagem, linha1, linha2, rodape1, rodape2, arquivo, arquivo_nome from timbrados order by linha1 asc
   `;
   return linhas.map((item) => ({
     equipeId: item.equipe_id,
@@ -1186,31 +1186,47 @@ export async function listarTimbrados() {
     linha2: item.linha2,
     rodape1: item.rodape1,
     rodape2: item.rodape2,
+    arquivo: item.arquivo,
+    arquivoNome: item.arquivo_nome,
   }));
 }
 
-export async function salvarTimbrado(dados: { equipeId: string; imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string }) {
+export async function salvarTimbrado(dados: {
+  equipeId: string;
+  imagem: string;
+  linha1: string;
+  linha2: string;
+  rodape1: string;
+  rodape2: string;
+  arquivo: string;
+  arquivoNome: string;
+}) {
   const { garantirTimbrados } = await import("./equipes.functions");
   const sql = await getSql();
   await garantirTimbrados();
   const equipe = await sql<{ id: string }>`select id from equipes where id = ${dados.equipeId}`;
   if (!equipe.length) throw new Error("Equipe não encontrada.");
   const linha1 = dados.linha1.trim().slice(0, 120);
-  if (linha1.length < 2) throw new Error("Informe a primeira linha do timbrado.");
+  const arquivo = dados.arquivo.startsWith("data:application/") ? dados.arquivo : "";
+  if (!arquivo && linha1.length < 2) throw new Error("Envie o timbrado em Word ou informe a primeira linha.");
   if (dados.imagem && !dados.imagem.startsWith("data:image/")) throw new Error("A imagem do timbrado é inválida.");
   if (dados.imagem.length > 700_000) throw new Error("A imagem do timbrado é grande demais.");
+  if (arquivo.length > 4_500_000) throw new Error("O arquivo Word é grande demais.");
   const linha2 = dados.linha2.trim().slice(0, 120);
   const rodape1 = dados.rodape1.trim().slice(0, 180);
   const rodape2 = dados.rodape2.trim().slice(0, 180);
+  const arquivoNome = dados.arquivoNome.trim().slice(0, 180);
   await sql`
-    insert into timbrados (equipe_id, imagem, linha1, linha2, rodape1, rodape2)
-    values (${dados.equipeId}, ${dados.imagem}, ${linha1}, ${linha2}, ${rodape1}, ${rodape2})
+    insert into timbrados (equipe_id, imagem, linha1, linha2, rodape1, rodape2, arquivo, arquivo_nome)
+    values (${dados.equipeId}, ${dados.imagem}, ${linha1}, ${linha2}, ${rodape1}, ${rodape2}, ${arquivo}, ${arquivoNome})
     on conflict (equipe_id) do update set
       imagem = excluded.imagem,
       linha1 = excluded.linha1,
       linha2 = excluded.linha2,
       rodape1 = excluded.rodape1,
-      rodape2 = excluded.rodape2
+      rodape2 = excluded.rodape2,
+      arquivo = excluded.arquivo,
+      arquivo_nome = excluded.arquivo_nome
   `;
   return { ok: true };
 }
