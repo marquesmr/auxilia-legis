@@ -1099,16 +1099,6 @@ export function AdminPainel({
     );
   }
 
-  function numerarPagamentos(pagamentos: ProcessoAdmin["pagamentos"]) {
-    let seq = 0;
-    return pagamentos.map((item) => {
-      if (item.numero) return item;
-      seq += 1;
-      while (pagamentos.some((outro) => outro.numero === seq)) seq += 1;
-      return { ...item, numero: seq };
-    });
-  }
-
   function invalidarNumeroPagamento(processoId: string, pagamentoId: string) {
     const atual = listaViva.current.find((item) => item.id === processoId);
     if (!atual?.pagamentoDemanda) return;
@@ -3311,6 +3301,27 @@ function ControleSetores({
   );
 }
 
+function numerarPagamentos(pagamentos: ProcessoAdmin["pagamentos"]) {
+  const temNumero = pagamentos.some((item) => item.numero);
+  let seq = 0;
+  const numerados = pagamentos.map((item) => {
+    if (item.numero) return item;
+    seq += 1;
+    if (!temNumero) return { ...item, numero: seq };
+    while (pagamentos.some((outro) => outro.numero === seq)) seq += 1;
+    return { ...item, numero: seq };
+  });
+  if (!temNumero) return numerados;
+  const ocupados = new Set(numerados.map((item) => item.numero));
+  const maior = Math.max(0, ...numerados.map((item) => item.numero ?? 0));
+  const buracos: ProcessoAdmin["pagamentos"] = [];
+  for (let numero = 1; numero < maior; numero += 1) {
+    if (ocupados.has(numero)) continue;
+    buracos.push({ id: `buraco-${numero}`, data: "", valorCentavos: 0, descricao: "", numero, invalido: true });
+  }
+  return [...numerados, ...buracos];
+}
+
 function MenuInverter({ podeCima, podeBaixo, onInverter }: { podeCima: boolean; podeBaixo: boolean; onInverter: (lado: "cima" | "baixo") => void }) {
   const [aberto, setAberto] = useState(false);
   return (
@@ -3402,7 +3413,7 @@ function RelatorioPagamentos({
     .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
   const escolhido = opcoes.find((item) => item.id === id) ?? null;
   const pagamentos = escolhido?.pagamentoDemanda
-    ? [...escolhido.pagamentos].sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0) || escolhido.pagamentos.indexOf(a) - escolhido.pagamentos.indexOf(b))
+    ? numerarPagamentos(escolhido.pagamentos).sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0))
     : escolhido?.valorMensalCentavos != null
       ? [{ id: "mensal", data: escolhido.vigenciaInicio ?? escolhido.dataInicio, valorCentavos: escolhido.valorMensalCentavos, descricao: "" }]
       : escolhido?.valorTotalCentavos != null
