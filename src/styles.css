@@ -388,6 +388,27 @@ html[data-tema="escuro"][data-cor="roxo"] {
       display: block !important;
     }
 
+    body.imprimindo .relatorio-folha .relatorio-ficha {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+      column-gap: 8mm !important;
+      row-gap: 2.5mm !important;
+    }
+
+    body.imprimindo .relatorio-folha .relatorio-ficha .col-span-2 {
+      grid-column: 1 / -1 !important;
+    }
+
+    body.imprimindo .relatorio-folha .relatorio-ficha dt {
+      font-size: 8pt;
+      color: #6d665c;
+    }
+
+    body.imprimindo .relatorio-folha .relatorio-ficha dd {
+      font-size: 10pt;
+      color: #1b1915;
+    }
+
     body.imprimindo .relatorio-folha section:has(.grafico-anual) {
       break-before: avoid !important;
       page-break-before: avoid !important;

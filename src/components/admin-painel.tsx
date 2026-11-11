@@ -3475,7 +3475,7 @@ function RelatorioPagamentos({
               <p className="mt-1 text-sm text-muted">{rotuloTipo(escolhido.tipo, escolhido.tipoNumero, escolhido.tipoAno)}{escolhido.contratado ? ` · ${escolhido.contratado}` : ""}</p>
             </div>
           </div>
-          <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
+          <dl className="relatorio-ficha mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
             <Info rotulo="Número do processo" valor={escolhido.numero ? rotuloNumero(escolhido.numero, escolhido.numeroAno) : "—"} />
             <Info rotulo="Número do tipo" valor={escolhido.tipoNumero != null ? `${String(escolhido.tipoNumero).padStart(2, "0")}/${escolhido.tipoAno ?? ""}` : "—"} />
             <Info rotulo="Referência" valor={escolhido.referencia || "—"} />
