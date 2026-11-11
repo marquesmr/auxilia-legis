@@ -2790,11 +2790,11 @@ function CardAdmin({
                   if (!termoTimbre) return;
                   void baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim(), "imprimir")
                     .then(() => setTermoAberto(false))
-                    .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível imprimir o termo."));
+                    .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível abrir o PDF."));
                 }}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink disabled:opacity-50"
               >
-                Imprimir
+                Abrir PDF
               </button>
               <button
                 type="button"
@@ -4405,61 +4405,12 @@ function baixarExtratos(itens: { processo: ProcessoAdmin; fundamento: string; as
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
 }
 
-async function imprimirDocx(janela: Window, arquivo: Blob) {
-  const { renderAsync } = await import("docx-preview");
-  const doc = janela.document;
-  doc.open();
-  doc.write("<!DOCTYPE html><html><head><meta charset='utf-8'><title>Termo de encerramento</title><style>@page{size:A4;margin:0;}html,body{margin:0;background:#fff;}.docx-wrapper{background:#fff!important;padding:0!important;}.docx-wrapper>section.docx{box-shadow:none!important;margin:0 auto!important;}</style></head><body><div id='folha'></div></body></html>");
-  doc.close();
-  const destino = doc.getElementById("folha");
-  if (!destino) throw new Error("Não foi possível preparar a impressão.");
-  const criar = (elem: { ns?: string; tagName: string; className?: string; style?: Record<string, string> | string; children?: unknown[] } | Node | string): Node => {
-    if (typeof elem === "string") return doc.createTextNode(elem);
-    if (elem instanceof Node) return elem;
-    const { ns, tagName, className, style, children, ...props } = elem;
-    if (tagName === "#fragment") {
-      const fragmento = doc.createDocumentFragment();
-      for (const filho of children ?? []) fragmento.appendChild(criar(filho as never));
-      return fragmento;
-    }
-    if (tagName === "#comment") return doc.createComment(typeof children?.[0] === "string" ? children[0] : "");
-    const no = (ns ? doc.createElementNS(ns, tagName) : doc.createElement(tagName)) as HTMLElement;
-    if (className) no.setAttribute("class", className);
-    if (typeof style === "string") no.setAttribute("style", style);
-    else if (style) {
-      const regras = Object.entries(style)
-        .filter(([chave, valor]) => valor != null && !/^\d+$/.test(chave))
-        .map(([chave, valor]) => `${chave.replace(/[A-Z]/g, (letra) => `-${letra.toLowerCase()}`)}: ${valor}`);
-      if (regras.length) no.setAttribute("style", regras.join("; "));
-    }
-    for (const [chave, valor] of Object.entries(props)) {
-      if (valor == null || /^\d+$/.test(chave) || chave === "style") continue;
-      if (typeof valor === "string" || typeof valor === "number") no.setAttribute(chave, String(valor));
-      else (no as unknown as Record<string, unknown>)[chave] = valor;
-    }
-    for (const filho of children ?? []) no.appendChild(criar(filho as never));
-    return no;
-  };
-  await renderAsync(arquivo, destino, doc.head, {
-    inWrapper: true,
-    hideWrapperOnPrint: true,
-    breakPages: true,
-    renderHeaders: true,
-    renderFooters: true,
-    useBase64URL: true,
-    ignoreLastRenderedPageBreak: true,
-    h: criar as never,
-  });
-  janela.focus();
-  janela.print();
-}
-
 async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assinante: string, funcao: string, modo: "word" | "imprimir" = "word") {
   const janela = modo === "imprimir" ? window.open("", "_blank") : null;
-  if (modo === "imprimir" && !janela) throw new Error("O navegador bloqueou a impressão. Permita pop-ups deste site.");
+  if (modo === "imprimir" && !janela) throw new Error("O navegador bloqueou a abertura do PDF. Permita pop-ups deste site.");
   if (janela) {
     janela.document.open();
-    janela.document.write("<!DOCTYPE html><html><head><meta charset='utf-8'><title>Termo de encerramento</title></head><body><p style='font-family:Arial,sans-serif'>Preparando a impressão…</p></body></html>");
+    janela.document.write("<!DOCTYPE html><html><head><meta charset='utf-8'><title>Termo de encerramento</title></head><body><p style='font-family:Arial,sans-serif'>Abrindo o PDF…</p></body></html>");
     janela.document.close();
   }
   const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
@@ -4477,26 +4428,39 @@ async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assi
   const cidade = timbre.linha2.trim() || (timbre.arquivo ? await cidadeDoTimbrado(timbre.arquivo) : "") || timbre.linha1.trim();
   const dataCompleta = cidade ? `${cidade}, ${data}.` : `${data}.`;
   const numeroArquivo = `Termo de encerramento ${numero.replaceAll("/", "-")}`;
-  if (timbre.arquivo) {
-    const blocos: BlocoTermo[] = [
-      { titulo: true, partes: [{ texto: `TERMO DE ENCERRAMENTO DE PROCESSO DE ${tipo}` }] },
-      { junto: true, partes: [{ texto: `PROCESSO ADMINISTRATIVO Nº ${numero}`, negrito: true }] },
-      { partes: [{ texto: peca ? `${tipo} ${peca}` : tipo, negrito: true }] },
-      { recuo: true, partes: [{ texto: "Considerando", negrito: true }, { texto: " o disposto na Lei nº 14.133/2021, que estabelece normas gerais de licitação e contratação para a Administração Pública;" }] },
-      { recuo: true, partes: [{ texto: "Considerando", negrito: true }, { texto: ` que o presente processo de ${tipoFrase}, identificado pelo nº ${numero}, foi conduzido conforme os requisitos legais e normativos aplicáveis, garantindo a regularidade da despesa pública;` }] },
-      { recuo: true, partes: [{ texto: "Considerando", negrito: true }, { texto: " que o pagamento referente à despesa foi devidamente realizado em favor de " }, { texto: contratado, negrito: true }, { texto: `, inscrito no ${docRotulo} ` }, { texto: doc, negrito: true }, { texto: ", conforme comprovante de pagamento anexo anteriormente;" }] },
-      { recuo: true, partes: [{ texto: "Considerando", negrito: true }, { texto: " que não há pendências documentais, financeiras ou administrativas relacionadas ao presente processo;" }] },
-      { recuo: true, partes: [{ texto: "Resolve-se", negrito: true }, { texto: " pelo " }, { texto: "encerramento do processo de", negrito: true }, { texto: ` ${tipoFrase}, com o devido arquivamento dos documentos pertinentes, garantindo a transparência e conformidade com os princípios da administração pública.` }] },
-      { recuo: true, partes: [{ texto: "Registra-se para os devidos fins." }] },
-      { recuo: true, partes: [{ texto: dataCompleta }] },
-      { centro: true, junto: true, antes: true, partes: [{ texto: assinante, negrito: true }] },
-      { centro: true, junto: true, partes: [{ texto: funcao }] },
-    ];
-    const arquivo = await termoNoTimbrado(timbre.arquivo, blocos);
-    if (janela) {
-      await imprimirDocx(janela, arquivo);
-      return;
+  const blocos: BlocoTermo[] = [
+    { titulo: true, partes: [{ texto: `TERMO DE ENCERRAMENTO DE PROCESSO DE ${tipo}` }] },
+    { junto: true, partes: [{ texto: `PROCESSO ADMINISTRATIVO Nº ${numero}`, negrito: true }] },
+    { partes: [{ texto: peca ? `${tipo} ${peca}` : tipo, negrito: true }] },
+    { recuo: true, partes: [{ texto: "Considerando", negrito: true }, { texto: " o disposto na Lei nº 14.133/2021, que estabelece normas gerais de licitação e contratação para a Administração Pública;" }] },
+    { recuo: true, partes: [{ texto: "Considerando", negrito: true }, { texto: ` que o presente processo de ${tipoFrase}, identificado pelo nº ${numero}, foi conduzido conforme os requisitos legais e normativos aplicáveis, garantindo a regularidade da despesa pública;` }] },
+    { recuo: true, partes: [{ texto: "Considerando", negrito: true }, { texto: " que o pagamento referente à despesa foi devidamente realizado em favor de " }, { texto: contratado, negrito: true }, { texto: `, inscrito no ${docRotulo} ` }, { texto: doc, negrito: true }, { texto: ", conforme comprovante de pagamento anexo anteriormente;" }] },
+    { recuo: true, partes: [{ texto: "Considerando", negrito: true }, { texto: " que não há pendências documentais, financeiras ou administrativas relacionadas ao presente processo;" }] },
+    { recuo: true, partes: [{ texto: "Resolve-se", negrito: true }, { texto: " pelo " }, { texto: "encerramento do processo de", negrito: true }, { texto: ` ${tipoFrase}, com o devido arquivamento dos documentos pertinentes, garantindo a transparência e conformidade com os princípios da administração pública.` }] },
+    { recuo: true, partes: [{ texto: "Registra-se para os devidos fins." }] },
+    { recuo: true, partes: [{ texto: dataCompleta }] },
+    { centro: true, junto: true, antes: true, partes: [{ texto: assinante, negrito: true }] },
+    { centro: true, junto: true, partes: [{ texto: funcao }] },
+  ];
+  if (janela) {
+    try {
+      const { pdfDoTermo } = await import("@/lib/termo-pdf");
+      const blob = await pdfDoTermo({
+        arquivo: timbre.arquivo,
+        imagem: timbre.imagem,
+        cabecalho: [timbre.linha1.trim(), timbre.linha2.trim()].filter(Boolean),
+        rodape: [timbre.rodape1.trim(), timbre.rodape2.trim()].filter(Boolean),
+        blocos,
+      });
+      janela.location.replace(URL.createObjectURL(blob));
+    } catch (erro) {
+      janela.close();
+      throw erro;
     }
+    return;
+  }
+  if (timbre.arquivo) {
+    const arquivo = await termoNoTimbrado(timbre.arquivo, blocos);
     const link = document.createElement("a");
     link.href = URL.createObjectURL(arquivo);
     link.download = `${numeroArquivo}.docx`;
