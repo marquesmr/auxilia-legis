@@ -70,7 +70,8 @@ function pagamentosOk(value: unknown): PagamentoDemanda[] {
     const data = typeof bruto.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(bruto.data) ? bruto.data : "";
     const id = typeof bruto.id === "string" && bruto.id.trim() ? bruto.id.trim().slice(0, 80) : crypto.randomUUID();
     const descricao = typeof bruto.descricao === "string" ? bruto.descricao.trim().slice(0, 160) : "";
-    return [{ id, data, valorCentavos: valor, descricao }];
+    const numero = typeof bruto.numero === "number" && Number.isInteger(bruto.numero) && bruto.numero > 0 && bruto.numero < 10000 ? bruto.numero : undefined;
+    return [{ id, data, valorCentavos: valor, descricao, ...(numero ? { numero } : {}) }];
   });
 }
 

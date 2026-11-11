@@ -126,6 +126,7 @@ export type PagamentoDemanda = {
   data: string;
   valorCentavos: number;
   descricao: string;
+  numero?: number;
 };
 
 export type ProcessoAdmin = {

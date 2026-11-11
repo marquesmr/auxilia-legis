@@ -1029,9 +1029,10 @@ export function AdminPainel({
       return;
     }
     const descricao = pagAndDescricao.trim();
+    const ultimo = atual.pagamentos.reduce((maior, item, indice) => Math.max(maior, item.numero ?? indice + 1), 0);
     const pagamentos = [
       ...atual.pagamentos,
-      { id: crypto.randomUUID(), data: pagAndData, valorCentavos: valorNovo, descricao },
+      { id: crypto.randomUUID(), data: pagAndData, valorCentavos: valorNovo, descricao, ...(atual.pagamentos.some((item) => item.numero) ? { numero: ultimo + 1 } : {}) },
     ];
     const atualizado: ProcessoAdmin = {
       ...atual,
@@ -1095,25 +1096,22 @@ export function AdminPainel({
     );
   }
 
-  function renumerarPagamento(processoId: string, pagamentoId: string, numero: number) {
+  function invalidarNumeroPagamento(processoId: string, pagamentoId: string) {
     const atual = listaViva.current.find((item) => item.id === processoId);
     if (!atual?.pagamentoDemanda) return;
-    const total = atual.pagamentos.length;
-    if (!Number.isInteger(numero) || numero < 1 || numero > total) return;
-    const pagamentos = [...atual.pagamentos];
-    const de = pagamentos.findIndex((item) => item.id === pagamentoId);
-    const para = numero - 1;
-    if (de < 0 || de === para) return;
-    const [movido] = pagamentos.splice(de, 1);
-    pagamentos.splice(para, 0, movido);
+    const numerados = atual.pagamentos.map((item, indice) => ({ ...item, numero: item.numero ?? indice + 1 }));
+    const alvo = numerados.find((item) => item.id === pagamentoId);
+    if (!alvo?.numero) return;
+    const corte = alvo.numero;
+    const pagamentos = numerados.map((item) => (item.numero != null && item.numero >= corte ? { ...item, numero: item.numero + 1 } : item));
     gravarProcesso(
       {
         ...atual,
         pagamentos,
         valorMensalCentavos: somaPagamentos(pagamentos),
-        historico: [...atual.historico, evento(`Renumerou um pagamento para ${numero}.`, meuNome)],
+        historico: [...atual.historico, evento(`Invalidou o número ${alvo.numero} dos pagamentos.`, meuNome)],
       },
-      "Numeração atualizada",
+      "Número invalidado",
     );
   }
 
@@ -1354,7 +1352,7 @@ export function AdminPainel({
               </button>
             </div>
             {modoRelatorio === "pagamentos" ? (
-              <RelatorioPagamentos processos={lista} onRenumerar={renumerarPagamento} />
+              <RelatorioPagamentos processos={lista} onInvalidar={invalidarNumeroPagamento} />
             ) : modoRelatorio === "pecas" ? (
               <RelatorioPecas
                 ano={anoPecas}
@@ -3272,41 +3270,46 @@ function ControleSetores({
   );
 }
 
-function NumeroPagamento({ numero, total, onConfirmar }: { numero: number; total: number; onConfirmar: (numero: number) => void }) {
-  const [valor, setValor] = useState(String(numero));
-  useEffect(() => setValor(String(numero)), [numero]);
-  function confirmar() {
-    const novo = Number(valor);
-    if (Number.isInteger(novo) && novo >= 1 && novo <= total && novo !== numero) onConfirmar(novo);
-    else setValor(String(numero));
-  }
+function MenuInvalidarNumero({ onInvalidar }: { onInvalidar: () => void }) {
+  const [aberto, setAberto] = useState(false);
   return (
-    <input
-      type="number"
-      min={1}
-      max={total}
-      value={valor}
-      onChange={(evento) => setValor(evento.target.value)}
-      onBlur={confirmar}
-      onKeyDown={(evento) => {
-        if (evento.key !== "Enter") return;
-        evento.preventDefault();
-        confirmar();
-      }}
-      aria-label={`Renumerar pagamento ${numero}`}
-      className="h-8 w-16 rounded-lg border border-line bg-sheet px-2 text-sm text-ink"
-    />
+    <div className="relative flex justify-end">
+      <button
+        type="button"
+        onClick={() => setAberto((atual) => !atual)}
+        className="grid size-8 place-items-center rounded-lg text-muted"
+        aria-label="Ações do número"
+        aria-expanded={aberto}
+      >
+        <MoreVertical className="size-4" />
+      </button>
+      {aberto && (
+        <div className="absolute right-0 z-30 mt-8 w-64 rounded-xl border border-line bg-sheet p-3 text-left shadow-lg">
+          <p className="text-sm text-ink">O pagamento deste número passa para o próximo, e os seguintes também.</p>
+          <button
+            type="button"
+            onClick={() => {
+              onInvalidar();
+              setAberto(false);
+            }}
+            className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg bg-seal text-sm font-medium text-sheet"
+          >
+            Invalidar número
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
-function RelatorioPagamentos({ processos, onRenumerar }: { processos: ProcessoAdmin[]; onRenumerar: (processoId: string, pagamentoId: string, numero: number) => void }) {
+function RelatorioPagamentos({ processos, onInvalidar }: { processos: ProcessoAdmin[]; onInvalidar: (processoId: string, pagamentoId: string) => void }) {
   const [id, setId] = useState("");
   const opcoes = [...processos]
     .filter((item) => !tipoSimples(item.tipo) && item.status !== "cancelado")
     .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
   const escolhido = opcoes.find((item) => item.id === id) ?? null;
   const pagamentos = escolhido?.pagamentoDemanda
-    ? escolhido.pagamentos
+    ? [...escolhido.pagamentos].sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0) || escolhido.pagamentos.indexOf(a) - escolhido.pagamentos.indexOf(b))
     : escolhido?.valorMensalCentavos != null
       ? [{ id: "mensal", data: escolhido.vigenciaInicio ?? escolhido.dataInicio, valorCentavos: escolhido.valorMensalCentavos, descricao: "" }]
       : escolhido?.valorTotalCentavos != null
@@ -3315,7 +3318,7 @@ function RelatorioPagamentos({ processos, onRenumerar }: { processos: ProcessoAd
   return (
     <div className="min-w-0 rounded-2xl border border-line bg-sheet p-4">
       <h2 className="font-display text-2xl text-ink">Pagamentos</h2>
-      <p className="mt-1 text-sm text-muted">Entram todos os processos que podem ter pagamento, exceto doação, outros e cancelados. Nos por demanda, a ordem é a do lançamento. Para renumerar, altere o número: se ele ficar entre os demais, a sequência se ajusta.</p>
+      <p className="mt-1 text-sm text-muted">Entram todos os processos que podem ter pagamento, exceto doação, outros e cancelados. Nos por demanda, a ordem é a do lançamento.</p>
       <div className="mt-4 max-w-xl">
         <Campo label="Processo">
           <select value={id} onChange={(evento) => setId(evento.target.value)} className={inputCls}>
@@ -3338,31 +3341,25 @@ function RelatorioPagamentos({ processos, onRenumerar }: { processos: ProcessoAd
           {pagamentos.length === 0 ? (
             <p className="mt-3 text-sm text-muted">Este processo ainda não tem pagamentos lançados.</p>
           ) : (
-            <div className="mt-3 overflow-x-auto">
+            <div className="mt-3">
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-line text-xs text-muted">
                     <th className="py-2 pr-3 font-medium">Nº</th>
                     <th className="py-2 pr-3 font-medium">Data</th>
-                    <th className="py-2 font-medium">Valor</th>
+                    <th className="py-2 pr-3 font-medium">Valor</th>
+                    <th className="py-2 font-medium" />
                   </tr>
                 </thead>
                 <tbody>
                   {pagamentos.map((item, indice) => (
                     <tr key={item.id} className={"border-b border-line " + (indice % 2 === 0 ? "bg-pine-soft/60" : "")}>
-                      <td className="py-2 pr-3 font-medium text-ink">
-                        {escolhido.pagamentoDemanda && pagamentos.length > 1 ? (
-                          <NumeroPagamento
-                            numero={indice + 1}
-                            total={pagamentos.length}
-                            onConfirmar={(numero) => onRenumerar(escolhido.id, item.id, numero)}
-                          />
-                        ) : (
-                          indice + 1
-                        )}
-                      </td>
+                      <td className="py-2 pr-3 font-medium text-ink">{"numero" in item && item.numero ? item.numero : indice + 1}</td>
                       <td className="py-2 pr-3 text-ink">{item.data ? formatDate(item.data) : "Sem data"}</td>
-                      <td className="py-2 font-medium text-ink">{formatarReais(item.valorCentavos)}</td>
+                      <td className="py-2 pr-3 font-medium text-ink">{formatarReais(item.valorCentavos)}</td>
+                      <td className="py-2 text-right">
+                        {escolhido.pagamentoDemanda ? <MenuInvalidarNumero onInvalidar={() => onInvalidar(escolhido.id, item.id)} /> : null}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
