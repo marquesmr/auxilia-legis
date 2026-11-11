@@ -127,6 +127,7 @@ export type PagamentoDemanda = {
   valorCentavos: number;
   descricao: string;
   numero?: number;
+  invalido?: boolean;
 };
 
 export type ProcessoAdmin = {
@@ -241,7 +242,7 @@ export function precisaAvisoAdmin(p: ProcessoAdmin, now = new Date()): boolean {
 }
 
 export function somaPagamentos(pagamentos: PagamentoDemanda[]): number {
-  return pagamentos.reduce((soma, item) => soma + item.valorCentavos, 0);
+  return pagamentos.reduce((soma, item) => soma + (item.invalido ? 0 : item.valorCentavos), 0);
 }
 
 export function valorSomado(p: ProcessoAdmin): number | null {

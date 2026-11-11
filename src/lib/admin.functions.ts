@@ -71,6 +71,8 @@ function pagamentosOk(value: unknown): PagamentoDemanda[] {
     const id = typeof bruto.id === "string" && bruto.id.trim() ? bruto.id.trim().slice(0, 80) : crypto.randomUUID();
     const descricao = typeof bruto.descricao === "string" ? bruto.descricao.trim().slice(0, 160) : "";
     const numero = typeof bruto.numero === "number" && Number.isInteger(bruto.numero) && bruto.numero > 0 && bruto.numero < 10000 ? bruto.numero : undefined;
+    if (bruto.invalido === true && numero) return [{ id, data: "", valorCentavos: 0, descricao: "", numero, invalido: true }];
+    if (valor == null) return [];
     return [{ id, data, valorCentavos: valor, descricao, ...(numero ? { numero } : {}) }];
   });
 }

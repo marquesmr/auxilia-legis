@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, Check, Copy, FilePen, FileText, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, Check, Copy, FilePen, FileText, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -86,7 +86,7 @@ type FormAdmin = {
   valorMensal: string;
   valorEstimado: string;
   pagamentoDemanda: boolean;
-  pagamentos: { id: string; data: string; valor: string; descricao: string }[];
+  pagamentos: { id: string; data: string; valor: string; descricao: string; numero?: number; invalido?: boolean }[];
   ciNumero: string;
   ciAno: number;
   ciOrigem: string;
@@ -261,6 +261,8 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
       data: item.data,
       valor: centavosParaCampo(item.valorCentavos),
       descricao: item.descricao,
+      numero: item.numero,
+      invalido: item.invalido,
     })),
     ciNumero: p.ciNumero != null ? String(p.ciNumero) : "",
     ciAno: p.ciAno ?? new Date().getFullYear(),
@@ -467,9 +469,10 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
   const demanda = form.pagamentoDemanda && !cancelado;
   const pagamentos = demanda
     ? form.pagamentos.flatMap((item) => {
+        if (item.invalido && item.numero) return [{ id: item.id, data: "", valorCentavos: 0, descricao: "", numero: item.numero, invalido: true as const }];
         const valor = reaisParaCentavos(item.valor);
         if (valor == null) return [];
-        return [{ id: item.id, data: item.data, valorCentavos: valor, descricao: item.descricao.trim() }];
+        return [{ id: item.id, data: item.data, valorCentavos: valor, descricao: item.descricao.trim(), ...(item.numero ? { numero: item.numero } : {}) }];
       })
     : [];
   return {
@@ -1096,22 +1099,60 @@ export function AdminPainel({
     );
   }
 
+  function numerarPagamentos(pagamentos: ProcessoAdmin["pagamentos"]) {
+    let seq = 0;
+    return pagamentos.map((item) => {
+      if (item.numero) return item;
+      seq += 1;
+      while (pagamentos.some((outro) => outro.numero === seq)) seq += 1;
+      return { ...item, numero: seq };
+    });
+  }
+
   function invalidarNumeroPagamento(processoId: string, pagamentoId: string) {
     const atual = listaViva.current.find((item) => item.id === processoId);
     if (!atual?.pagamentoDemanda) return;
-    const numerados = atual.pagamentos.map((item, indice) => ({ ...item, numero: item.numero ?? indice + 1 }));
-    const alvo = numerados.find((item) => item.id === pagamentoId);
+    const numerados = numerarPagamentos(atual.pagamentos);
+    const alvo = numerados.find((item) => item.id === pagamentoId && !item.invalido);
     if (!alvo?.numero) return;
     const corte = alvo.numero;
-    const pagamentos = numerados.map((item) => (item.numero != null && item.numero >= corte ? { ...item, numero: item.numero + 1 } : item));
+    const pagamentos = [
+      ...numerados.map((item) => (item.numero != null && item.numero >= corte ? { ...item, numero: item.numero + 1 } : item)),
+      { id: crypto.randomUUID(), data: "", valorCentavos: 0, descricao: "", numero: corte, invalido: true },
+    ];
     gravarProcesso(
       {
         ...atual,
         pagamentos,
         valorMensalCentavos: somaPagamentos(pagamentos),
-        historico: [...atual.historico, evento(`Invalidou o número ${alvo.numero} dos pagamentos.`, meuNome)],
+        historico: [...atual.historico, evento(`Invalidou o número ${corte} dos pagamentos.`, meuNome)],
       },
       "Número invalidado",
+    );
+  }
+
+  function inverterNumeroPagamento(processoId: string, pagamentoId: string, lado: "cima" | "baixo") {
+    const atual = listaViva.current.find((item) => item.id === processoId);
+    if (!atual?.pagamentoDemanda) return;
+    const numerados = numerarPagamentos(atual.pagamentos);
+    const ordenados = [...numerados].sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0));
+    const indice = ordenados.findIndex((item) => item.id === pagamentoId);
+    const vizinho = ordenados[lado === "cima" ? indice - 1 : indice + 1];
+    const atualNumero = ordenados[indice]?.numero;
+    if (!vizinho?.numero || !atualNumero) return;
+    const pagamentos = numerados.map((item) => {
+      if (item.id === pagamentoId) return { ...item, numero: vizinho.numero };
+      if (item.id === vizinho.id) return { ...item, numero: atualNumero };
+      return item;
+    });
+    gravarProcesso(
+      {
+        ...atual,
+        pagamentos,
+        valorMensalCentavos: somaPagamentos(pagamentos),
+        historico: [...atual.historico, evento(`Inverteu o número ${atualNumero} com o ${vizinho.numero}.`, meuNome)],
+      },
+      "Números invertidos",
     );
   }
 
@@ -1352,7 +1393,7 @@ export function AdminPainel({
               </button>
             </div>
             {modoRelatorio === "pagamentos" ? (
-              <RelatorioPagamentos processos={lista} onInvalidar={invalidarNumeroPagamento} />
+              <RelatorioPagamentos processos={lista} onInvalidar={invalidarNumeroPagamento} onInverter={inverterNumeroPagamento} />
             ) : modoRelatorio === "pecas" ? (
               <RelatorioPecas
                 ano={anoPecas}
@@ -2086,9 +2127,9 @@ export function AdminPainel({
                   }}
                 >
                   <p className="text-sm font-medium text-ink">Lançar pagamento</p>
-                  {(lista.find((item) => item.id === andamentoId)?.pagamentos.length ?? 0) > 0 && (
+                  {(lista.find((item) => item.id === andamentoId)?.pagamentos.some((item) => !item.invalido) ?? false) && (
                     <ListaPagamentos
-                      pagamentos={lista.find((item) => item.id === andamentoId)?.pagamentos ?? []}
+                      pagamentos={(lista.find((item) => item.id === andamentoId)?.pagamentos ?? []).filter((item) => !item.invalido)}
                       onSalvar={(pagamentoId, data, valor) => editarPagamento(andamentoId ?? "", pagamentoId, data, valor)}
                       onRemover={(pagamentoId) => removerPagamento(andamentoId ?? "", pagamentoId)}
                       onReordenar={(origemId, destinoId) => reordenarPagamento(andamentoId ?? "", origemId, destinoId)}
@@ -2458,9 +2499,9 @@ function CardAdmin({
                 <Info rotulo="Lançado por" valor={processo.autorNome || "sem nome"} />
                 <Info rotulo="Equipe" valor={equipes.find((equipe) => equipe.id === processo.equipeId)?.nome ?? "Só meus"} />
               </dl>
-              {processo.pagamentoDemanda && processo.pagamentos.length > 0 && (
+              {processo.pagamentoDemanda && processo.pagamentos.some((item) => !item.invalido) && (
                 <ul className="mt-3 max-h-[4.5rem] overflow-y-auto text-sm leading-6">
-                  {[...processo.pagamentos].sort((a, b) => (!a.data || !b.data ? (a.data ? -1 : b.data ? 1 : 0) : b.data.localeCompare(a.data))).map((item) => (
+                  {[...processo.pagamentos].filter((item) => !item.invalido).sort((a, b) => (!a.data || !b.data ? (a.data ? -1 : b.data ? 1 : 0) : b.data.localeCompare(a.data))).map((item) => (
                     <li key={item.id} className="truncate text-ink">
                       {item.data ? formatDate(item.data) : "Sem data"}
                       {item.descricao ? ` · ${item.descricao}` : ""}
@@ -2999,7 +3040,7 @@ function ListaPagamentos({
     <div>
       {pagamentos.length > 1 ? <p className="text-xs text-muted">Arraste para organizar.</p> : null}
       <ul className="mt-1 max-h-24 overflow-y-auto text-sm">
-      {[...pagamentos].sort((a, b) => (!a.data || !b.data ? (a.data ? -1 : b.data ? 1 : 0) : b.data.localeCompare(a.data))).map((item) => (
+      {[...pagamentos].filter((item) => !item.invalido).sort((a, b) => (!a.data || !b.data ? (a.data ? -1 : b.data ? 1 : 0) : b.data.localeCompare(a.data))).map((item) => (
         <li
           key={item.id}
           data-pagamento={item.id}
@@ -3270,6 +3311,50 @@ function ControleSetores({
   );
 }
 
+function MenuInverter({ podeCima, podeBaixo, onInverter }: { podeCima: boolean; podeBaixo: boolean; onInverter: (lado: "cima" | "baixo") => void }) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setAberto((atual) => !atual)}
+        className="grid size-8 place-items-center rounded-lg text-muted"
+        aria-label="Inverter número"
+        aria-expanded={aberto}
+      >
+        <Repeat2 className="size-4" />
+      </button>
+      {aberto && (
+        <div className="absolute right-0 z-30 mt-1 w-52 rounded-xl border border-line bg-sheet p-3 text-left shadow-lg">
+          <p className="text-sm text-ink">Inverter o número com</p>
+          <button
+            type="button"
+            disabled={!podeCima}
+            onClick={() => {
+              onInverter("cima");
+              setAberto(false);
+            }}
+            className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-lg border border-line text-sm font-medium text-ink disabled:opacity-40"
+          >
+            O de cima
+          </button>
+          <button
+            type="button"
+            disabled={!podeBaixo}
+            onClick={() => {
+              onInverter("baixo");
+              setAberto(false);
+            }}
+            className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-lg border border-line text-sm font-medium text-ink disabled:opacity-40"
+          >
+            O de baixo
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MenuInvalidarNumero({ onInvalidar }: { onInvalidar: () => void }) {
   const [aberto, setAberto] = useState(false);
   return (
@@ -3302,7 +3387,15 @@ function MenuInvalidarNumero({ onInvalidar }: { onInvalidar: () => void }) {
   );
 }
 
-function RelatorioPagamentos({ processos, onInvalidar }: { processos: ProcessoAdmin[]; onInvalidar: (processoId: string, pagamentoId: string) => void }) {
+function RelatorioPagamentos({
+  processos,
+  onInvalidar,
+  onInverter,
+}: {
+  processos: ProcessoAdmin[];
+  onInvalidar: (processoId: string, pagamentoId: string) => void;
+  onInverter: (processoId: string, pagamentoId: string, lado: "cima" | "baixo") => void;
+}) {
   const [id, setId] = useState("");
   const opcoes = [...processos]
     .filter((item) => !tipoSimples(item.tipo) && item.status !== "cancelado")
@@ -3352,16 +3445,34 @@ function RelatorioPagamentos({ processos, onInvalidar }: { processos: ProcessoAd
                   </tr>
                 </thead>
                 <tbody>
-                  {pagamentos.map((item, indice) => (
+                  {pagamentos.map((item, indice) => {
+                    const numero = "numero" in item && item.numero ? item.numero : indice + 1;
+                    const invalido = "invalido" in item && item.invalido;
+                    const anterior = pagamentos[indice - 1];
+                    const proximo = pagamentos[indice + 1];
+                    return (
                     <tr key={item.id} className={"border-b border-line " + (indice % 2 === 0 ? "bg-pine-soft/60" : "")}>
-                      <td className="py-2 pr-3 font-medium text-ink">{"numero" in item && item.numero ? item.numero : indice + 1}</td>
-                      <td className="py-2 pr-3 text-ink">{item.data ? formatDate(item.data) : "Sem data"}</td>
-                      <td className="py-2 pr-3 font-medium text-ink">{formatarReais(item.valorCentavos)}</td>
+                      <td className="py-2 pr-3 font-medium text-ink">
+                        {invalido ? <Ban className="mr-1 inline size-4 text-seal" aria-label="Número inutilizado" /> : null}
+                        {numero}
+                      </td>
+                      <td className="py-2 pr-3 text-ink">{invalido ? "Número inutilizado" : item.data ? formatDate(item.data) : "Sem data"}</td>
+                      <td className="py-2 pr-3 font-medium text-ink">{invalido ? "—" : formatarReais(item.valorCentavos)}</td>
                       <td className="py-2 text-right">
-                        {escolhido.pagamentoDemanda ? <MenuInvalidarNumero onInvalidar={() => onInvalidar(escolhido.id, item.id)} /> : null}
+                        {escolhido.pagamentoDemanda && !invalido ? (
+                          <span className="inline-flex items-center justify-end">
+                            <MenuInverter
+                              podeCima={Boolean(anterior)}
+                              podeBaixo={Boolean(proximo)}
+                              onInverter={(lado) => onInverter(escolhido.id, item.id, lado)}
+                            />
+                            <MenuInvalidarNumero onInvalidar={() => onInvalidar(escolhido.id, item.id)} />
+                          </span>
+                        ) : null}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               <p className="mt-3 text-sm font-medium text-ink">Total: {formatarReais(somaPagamentos(pagamentos))}</p>
