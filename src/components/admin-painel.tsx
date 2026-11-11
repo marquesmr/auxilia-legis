@@ -1146,6 +1146,28 @@ export function AdminPainel({
     );
   }
 
+  function arrastarPagamento(processoId: string, origemId: string, destinoId: string) {
+    if (!origemId || origemId === destinoId) return;
+    const atual = listaViva.current.find((item) => item.id === processoId);
+    if (!atual?.pagamentoDemanda) return;
+    const ordenados = numerarPagamentos(atual.pagamentos).sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0));
+    const de = ordenados.findIndex((item) => item.id === origemId);
+    const para = ordenados.findIndex((item) => item.id === destinoId);
+    if (de < 0 || para < 0) return;
+    const [movido] = ordenados.splice(de, 1);
+    ordenados.splice(para, 0, movido);
+    const pagamentos = ordenados.map((item, indice) => ({ ...item, numero: indice + 1 }));
+    gravarProcesso(
+      {
+        ...atual,
+        pagamentos,
+        valorMensalCentavos: somaPagamentos(pagamentos),
+        historico: [...atual.historico, evento("Reordenou os pagamentos arrastando.", meuNome)],
+      },
+      "Ordem atualizada",
+    );
+  }
+
   function reordenarPagamento(processoId: string, origemId: string, destinoId: string) {
     if (!origemId || origemId === destinoId) return;
     const atual = listaViva.current.find((item) => item.id === processoId);
@@ -1383,7 +1405,7 @@ export function AdminPainel({
               </button>
             </div>
             {modoRelatorio === "pagamentos" ? (
-              <RelatorioPagamentos processos={lista} onInvalidar={invalidarNumeroPagamento} onInverter={inverterNumeroPagamento} />
+              <RelatorioPagamentos processos={lista} onInvalidar={invalidarNumeroPagamento} onInverter={inverterNumeroPagamento} onArrastar={arrastarPagamento} />
             ) : modoRelatorio === "pecas" ? (
               <RelatorioPecas
                 ano={anoPecas}
@@ -3402,12 +3424,16 @@ function RelatorioPagamentos({
   processos,
   onInvalidar,
   onInverter,
+  onArrastar,
 }: {
   processos: ProcessoAdmin[];
   onInvalidar: (processoId: string, pagamentoId: string) => void;
   onInverter: (processoId: string, pagamentoId: string, lado: "cima" | "baixo") => void;
+  onArrastar: (processoId: string, origemId: string, destinoId: string) => void;
 }) {
   const [id, setId] = useState("");
+  const [sobre, setSobre] = useState<string | null>(null);
+  const origem = useRef<string | null>(null);
   const opcoes = [...processos]
     .filter((item) => !tipoSimples(item.tipo) && item.status !== "cancelado")
     .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
@@ -3437,22 +3463,53 @@ function RelatorioPagamentos({
         </Campo>
       </div>
       {escolhido && (
-        <div className="mt-4">
-          <p className="text-sm text-ink">
-            {rotuloNumero(escolhido.numero, escolhido.numeroAno)} · {escolhido.referencia || rotuloTipo(escolhido.tipo, escolhido.tipoNumero, escolhido.tipoAno)}
-            {escolhido.contratado ? ` · ${escolhido.contratado}` : ""}
-          </p>
+        <article className="relatorio-folha mt-4 rounded-2xl border border-line bg-sheet p-4 md:p-6">
+          <Timbrado />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-pine">Processos administrativos</p>
+              <h2 className="font-display text-2xl text-ink sm:text-3xl">Pagamentos · {rotuloNumero(escolhido.numero, escolhido.numeroAno)}</h2>
+              <p className="mt-1 text-sm text-muted">{rotuloTipo(escolhido.tipo, escolhido.tipoNumero, escolhido.tipoAno)}{escolhido.contratado ? ` · ${escolhido.contratado}` : ""}</p>
+            </div>
+            <BotaoRelatorio />
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
+            <Info rotulo="Número do processo" valor={escolhido.numero ? rotuloNumero(escolhido.numero, escolhido.numeroAno) : "—"} />
+            <Info rotulo="Número do tipo" valor={escolhido.tipoNumero != null ? `${String(escolhido.tipoNumero).padStart(2, "0")}/${escolhido.tipoAno ?? ""}` : "—"} />
+            <Info rotulo="Referência" valor={escolhido.referencia || "—"} />
+            <Info rotulo="Status" valor={statusAdminLabel(escolhido.status)} />
+            <Info rotulo="Objeto" valor={escolhido.objeto || "—"} largo justificar />
+            <Info rotulo="Comunicação interna" valor={escolhido.ciNumero != null ? formatarPeca(escolhido.ciNumero, escolhido.ciAno) : "—"} />
+            <Info rotulo="Origem da CI" valor={escolhido.ciOrigem || "—"} />
+            <Info rotulo="Parecer" valor={escolhido.parecerNa ? "N/A" : escolhido.parecerNumero != null ? formatarPeca(escolhido.parecerNumero, escolhido.parecerAno) : "—"} />
+            <Info rotulo="Início" valor={tipoSimples(escolhido.tipo) ? "—" : formatDate(escolhido.dataInicio)} />
+            <Info rotulo="Prazo" valor={escolhido.previsaoEtapa ? formatDate(escolhido.previsaoEtapa) : "—"} />
+            <Info rotulo="Encerramento" valor={tipoSimples(escolhido.tipo) ? "—" : formatDate(escolhido.encerramento)} />
+            <Info rotulo="Contratado ou fornecedor" valor={escolhido.contratado || "—"} />
+            <Info rotulo="CPF ou CNPJ" valor={escolhido.documento || "—"} />
+            {escolhido.contratado2 ? (
+              <>
+                <Info rotulo="Segundo contratado ou fornecedor" valor={escolhido.contratado2} />
+                <Info rotulo="CPF ou CNPJ" valor={escolhido.documento2 || "—"} />
+              </>
+            ) : null}
+            <Info rotulo="Vigência" valor={escolhido.vigenciaInicio ? `${formatDate(escolhido.vigenciaInicio)} a ${escolhido.vigenciaFim ? formatDate(escolhido.vigenciaFim) : "—"}` : "—"} largo />
+            <Info rotulo={escolhido.pagamentoDemanda || escolhido.possuiContrato ? "Valor anual" : "Valor da contratação"} valor={formatarReais(escolhido.valorTotalCentavos)} />
+            <Info rotulo="Valor mensal" valor={formatarReais(escolhido.pagamentoDemanda ? somaPagamentos(escolhido.pagamentos) : escolhido.valorMensalCentavos)} />
+            <Info rotulo="Lançado por" valor={escolhido.autorNome || "sem nome"} />
+          </dl>
           {pagamentos.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">Este processo ainda não tem pagamentos lançados.</p>
+            <p className="mt-4 text-sm text-muted">Este processo ainda não tem pagamentos lançados.</p>
           ) : (
-            <div className="mt-3">
-              <table className="w-full border-collapse text-left text-sm">
+            <div className="relatorio-tabela-wrap mt-4">
+              {escolhido.pagamentoDemanda ? <p className="no-print mb-2 text-xs text-muted">Arraste para organizar.</p> : null}
+              <table className="relatorio-tabela w-full border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-line text-xs text-muted">
                     <th className="py-2 pr-3 font-medium">Nº</th>
                     <th className="py-2 pr-3 font-medium">Data</th>
                     <th className="py-2 pr-3 font-medium">Valor</th>
-                    <th className="py-2 font-medium" />
+                    <th className="no-print py-2 font-medium" />
                   </tr>
                 </thead>
                 <tbody>
@@ -3462,14 +3519,44 @@ function RelatorioPagamentos({
                     const anterior = pagamentos[indice - 1];
                     const proximo = pagamentos[indice + 1];
                     return (
-                    <tr key={item.id} className={"border-b border-line " + (indice % 2 === 0 ? "bg-pine-soft/60" : "")}>
+                    <tr key={item.id} data-pagamento={item.id} className={"border-b border-line " + (sobre === item.id ? "bg-pine-soft" : indice % 2 === 0 ? "bg-pine-soft/60" : "")}>
                       <td className="py-2 pr-3 font-medium text-ink">
+                        {escolhido.pagamentoDemanda ? (
+                          <button
+                            type="button"
+                            aria-label="Arrastar pagamento"
+                            className="no-print mr-1 inline-grid size-8 cursor-grab place-items-center text-muted active:cursor-grabbing"
+                            onPointerDown={(evento) => {
+                              origem.current = item.id;
+                              evento.currentTarget.setPointerCapture(evento.pointerId);
+                            }}
+                            onPointerMove={(evento) => {
+                              if (!origem.current) return;
+                              const alvo = document.elementFromPoint(evento.clientX, evento.clientY)?.closest("[data-pagamento]");
+                              setSobre(alvo?.getAttribute("data-pagamento") ?? null);
+                            }}
+                            onPointerUp={(evento) => {
+                              const alvo = document.elementFromPoint(evento.clientX, evento.clientY)?.closest("[data-pagamento]");
+                              const destino = alvo?.getAttribute("data-pagamento") ?? item.id;
+                              const idOrigem = origem.current;
+                              origem.current = null;
+                              setSobre(null);
+                              if (idOrigem) onArrastar(escolhido.id, idOrigem, destino);
+                            }}
+                            onPointerCancel={() => {
+                              origem.current = null;
+                              setSobre(null);
+                            }}
+                          >
+                            <GripVertical className="size-4" />
+                          </button>
+                        ) : null}
                         {invalido ? <Ban className="mr-1 inline size-4 text-seal" aria-label="Número inutilizado" /> : null}
                         {numero}
                       </td>
                       <td className="py-2 pr-3 text-ink">{invalido ? "Número inutilizado" : item.data ? formatDate(item.data) : "Sem data"}</td>
                       <td className="py-2 pr-3 font-medium text-ink">{invalido ? "—" : formatarReais(item.valorCentavos)}</td>
-                      <td className="py-2 text-right">
+                      <td className="no-print py-2 text-right">
                         {escolhido.pagamentoDemanda && !invalido ? (
                           <span className="inline-flex items-center justify-end">
                             <MenuInverter
@@ -3492,7 +3579,8 @@ function RelatorioPagamentos({
               ) : null}
             </div>
           )}
-        </div>
+          <TimbradoRodape />
+        </article>
       )}
     </div>
   );
