@@ -59,7 +59,7 @@ type FiltroAdmin = string;
 type OrdemAdmin = "numero" | "tipo" | "encerramento";
 type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres" | "links" | "cnpj" | "lei";
 type StatusRelatorio = "todos" | StatusAdmin;
-type ModoRelatorio = "processos" | "pecas";
+type ModoRelatorio = "processos" | "pecas" | "pagamentos";
 
 type FormAdmin = {
   numero: string;
@@ -1320,8 +1320,20 @@ export function AdminPainel({
               >
                 Comunicações e pareceres
               </button>
+              <button
+                type="button"
+                onClick={() => setModoRelatorio("pagamentos")}
+                className={
+                  "inline-flex h-10 items-center rounded-full px-4 text-sm font-medium " +
+                  (modoRelatorio === "pagamentos" ? "bg-ink text-sheet" : "border border-line bg-sheet text-ink")
+                }
+              >
+                Pagamentos
+              </button>
             </div>
-            {modoRelatorio === "pecas" ? (
+            {modoRelatorio === "pagamentos" ? (
+              <RelatorioPagamentos processos={lista} />
+            ) : modoRelatorio === "pecas" ? (
               <RelatorioPecas
                 ano={anoPecas}
                 onAno={setAnoPecas}
@@ -3232,6 +3244,67 @@ function ControleSetores({
               ))}
             </table>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RelatorioPagamentos({ processos }: { processos: ProcessoAdmin[] }) {
+  const [id, setId] = useState("");
+  const opcoes = [...processos]
+    .filter((item) => item.pagamentoDemanda || item.pagamentos.length > 0)
+    .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
+  const escolhido = opcoes.find((item) => item.id === id) ?? null;
+  const pagamentos = escolhido?.pagamentos ?? [];
+  return (
+    <div className="min-w-0 rounded-2xl border border-line bg-sheet p-4">
+      <h2 className="font-display text-2xl text-ink">Pagamentos</h2>
+      <p className="mt-1 text-sm text-muted">A ordem é a do lançamento, não a da data.</p>
+      <div className="mt-4 max-w-xl">
+        <Campo label="Processo">
+          <select value={id} onChange={(evento) => setId(evento.target.value)} className={inputCls}>
+            <option value="">Selecione o processo</option>
+            {opcoes.map((item) => (
+              <option key={item.id} value={item.id}>
+                {rotuloNumero(item.numero, item.numeroAno)} · {rotuloTipo(item.tipo, item.tipoNumero, item.tipoAno)}
+                {item.contratado ? ` · ${item.contratado}` : ""}
+              </option>
+            ))}
+          </select>
+        </Campo>
+      </div>
+      {escolhido && (
+        <div className="mt-4">
+          <p className="text-sm text-ink">
+            {rotuloNumero(escolhido.numero, escolhido.numeroAno)} · {escolhido.referencia || rotuloTipo(escolhido.tipo, escolhido.tipoNumero, escolhido.tipoAno)}
+            {escolhido.contratado ? ` · ${escolhido.contratado}` : ""}
+          </p>
+          {pagamentos.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">Este processo ainda não tem pagamentos lançados.</p>
+          ) : (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-line text-xs text-muted">
+                    <th className="py-2 pr-3 font-medium">Nº</th>
+                    <th className="py-2 pr-3 font-medium">Data</th>
+                    <th className="py-2 font-medium">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagamentos.map((item, indice) => (
+                    <tr key={item.id} className={"border-b border-line " + (indice % 2 === 0 ? "bg-pine-soft/60" : "")}>
+                      <td className="py-2 pr-3 font-medium text-ink">{indice + 1}</td>
+                      <td className="py-2 pr-3 text-ink">{item.data ? formatDate(item.data) : "Sem data"}</td>
+                      <td className="py-2 font-medium text-ink">{formatarReais(item.valorCentavos)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-3 text-sm font-medium text-ink">Total: {formatarReais(somaPagamentos(pagamentos))}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
