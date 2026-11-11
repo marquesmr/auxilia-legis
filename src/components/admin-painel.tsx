@@ -2800,7 +2800,7 @@ function CardAdmin({
                 }}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
               >
-                Baixar Word
+                Abrir
               </button>
             </div>
           </Dialog.Content>
@@ -4398,7 +4398,36 @@ function baixarExtratos(itens: { processo: ProcessoAdmin; fundamento: string; as
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
 }
 
+async function abrirDocx(janela: Window, arquivo: Blob, nome: string) {
+  const { renderAsync } = await import("docx-preview");
+  const host = document.createElement("div");
+  const estilos = document.createElement("div");
+  host.style.cssText = "position:absolute;left:-10000px;top:0;width:900px;";
+  document.body.appendChild(host);
+  try {
+    await renderAsync(arquivo, host, estilos, {
+      inWrapper: true,
+      breakPages: true,
+      renderHeaders: true,
+      renderFooters: true,
+      useBase64URL: true,
+    });
+    if (!host.innerText.trim()) throw new Error("Não foi possível abrir o documento.");
+    const url = URL.createObjectURL(arquivo);
+    janela.document.open();
+    janela.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${nome}</title>${estilos.innerHTML}<style>body{margin:0;background:#e6e6e6}.docx-wrapper{background:#e6e6e6;padding:24px 0 48px}.baixar{position:fixed;top:12px;right:12px;z-index:5;background:#1c4738;color:#fff;text-decoration:none;border-radius:10px;padding:10px 14px;font:600 14px Arial,sans-serif}@media print{.baixar{display:none}}</style></head><body>${host.innerHTML}<a class="baixar" href="${url}" download="${nome}.docx">Baixar Word</a></body></html>`);
+    janela.document.close();
+  } finally {
+    host.remove();
+  }
+}
+
 async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assinante: string, funcao: string) {
+  const janela = window.open("", "_blank");
+  if (!janela) throw new Error("O navegador bloqueou a nova aba. Permita pop-ups deste site.");
+  janela.document.open();
+  janela.document.write("<!DOCTYPE html><html><head><meta charset='utf-8'><title>Termo de encerramento</title></head><body style='font-family:Arial,sans-serif'>Abrindo o documento…</body></html>");
+  janela.document.close();
   const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
   const tipo = processo.tipo.toLocaleUpperCase("pt-BR");
   const tipoFrase = processo.tipo.toLocaleLowerCase("pt-BR");
@@ -4430,14 +4459,13 @@ async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assi
     { centro: true, junto: true, partes: [{ texto: funcaoFinal }] },
   ];
   if (timbre.arquivo) {
-    const arquivo = await termoNoTimbrado(timbre.arquivo, blocos);
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(arquivo);
-    link.download = `${numeroArquivo}.docx`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+    try {
+      const arquivo = await termoNoTimbrado(timbre.arquivo, blocos);
+      await abrirDocx(janela, arquivo, numeroArquivo);
+    } catch (erro) {
+      janela.close();
+      throw erro;
+    }
     return;
   }
   const marca = timbre.imagem.startsWith("data:image/")
@@ -4478,14 +4506,9 @@ ${timbre.linha2.trim() ? `<p class="timbre">${escaparHtml(timbre.linha2.trim())}
 ${timbre.rodape1.trim() ? `<p class="rodape"><b>${escaparHtml(timbre.rodape1.trim())}</b></p>` : ""}
 ${timbre.rodape2.trim() ? `<p class="rodape">${escaparHtml(timbre.rodape2.trim())}</p>` : ""}
 </body></html>`;
-  const arquivo = new Blob(["\ufeff", html], { type: "application/msword" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(arquivo);
-  link.download = `Termo de encerramento ${numero.replaceAll("/", "-")}.doc`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+  janela.document.open();
+  janela.document.write(html);
+  janela.document.close();
 }
 
 function blocoCapa(processo: ProcessoAdmin) {
