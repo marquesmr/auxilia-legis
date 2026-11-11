@@ -3253,14 +3253,20 @@ function ControleSetores({
 function RelatorioPagamentos({ processos }: { processos: ProcessoAdmin[] }) {
   const [id, setId] = useState("");
   const opcoes = [...processos]
-    .filter((item) => item.pagamentoDemanda || item.pagamentos.length > 0)
+    .filter((item) => !tipoSimples(item.tipo) && item.status !== "cancelado")
     .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
   const escolhido = opcoes.find((item) => item.id === id) ?? null;
-  const pagamentos = escolhido?.pagamentos ?? [];
+  const pagamentos = escolhido?.pagamentoDemanda
+    ? escolhido.pagamentos
+    : escolhido?.valorMensalCentavos != null
+      ? [{ id: "mensal", data: escolhido.vigenciaInicio ?? escolhido.dataInicio, valorCentavos: escolhido.valorMensalCentavos, descricao: "" }]
+      : escolhido?.valorTotalCentavos != null
+        ? [{ id: "total", data: escolhido.encerramento || escolhido.vigenciaInicio || escolhido.dataInicio, valorCentavos: escolhido.valorTotalCentavos, descricao: "" }]
+        : [];
   return (
     <div className="min-w-0 rounded-2xl border border-line bg-sheet p-4">
       <h2 className="font-display text-2xl text-ink">Pagamentos</h2>
-      <p className="mt-1 text-sm text-muted">A ordem é a do lançamento, não a da data.</p>
+      <p className="mt-1 text-sm text-muted">Entram todos os processos que podem ter pagamento, exceto doação, outros e cancelados. Nos por demanda, a ordem é a do lançamento.</p>
       <div className="mt-4 max-w-xl">
         <Campo label="Processo">
           <select value={id} onChange={(evento) => setId(evento.target.value)} className={inputCls}>
@@ -3303,6 +3309,9 @@ function RelatorioPagamentos({ processos }: { processos: ProcessoAdmin[] }) {
                 </tbody>
               </table>
               <p className="mt-3 text-sm font-medium text-ink">Total: {formatarReais(somaPagamentos(pagamentos))}</p>
+              {escolhido && !escolhido.pagamentoDemanda && escolhido.valorMensalCentavos != null && escolhido.valorTotalCentavos != null ? (
+                <p className="mt-1 text-sm text-muted">Valor anual: {formatarReais(escolhido.valorTotalCentavos)}</p>
+              ) : null}
             </div>
           )}
         </div>
