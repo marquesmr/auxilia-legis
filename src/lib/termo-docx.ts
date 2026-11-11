@@ -7,6 +7,7 @@ export type BlocoTermo = {
   titulo?: boolean;
   recuo?: boolean;
   junto?: boolean;
+  antes?: boolean;
 };
 
 function escaparXml(texto: string) {
@@ -17,14 +18,15 @@ function blocoXml(bloco: BlocoTermo) {
   const tamanho = 24;
   const alinhamento = bloco.centro || bloco.titulo ? "center" : bloco.recuo ? "both" : "left";
   const recuo = bloco.recuo ? `<w:ind w:firstLine="709"/>` : "";
-  const depois = bloco.junto ? "40" : "160";
+  const antes = bloco.antes ? "160" : "0";
+  const depois = bloco.titulo ? "80" : bloco.junto ? "0" : "60";
   const runs = bloco.partes
     .map((parte) => {
       const negrito = parte.negrito || bloco.titulo ? "<w:b/>" : "";
       return `<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${negrito}<w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr><w:t xml:space="preserve">${escaparXml(parte.texto)}</w:t></w:r>`;
     })
     .join("");
-  return `<w:p><w:pPr><w:jc w:val="${alinhamento}"/>${recuo}<w:spacing w:after="${depois}" w:line="240" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr></w:pPr>${runs}</w:p>`;
+  return `<w:p><w:pPr><w:jc w:val="${alinhamento}"/>${recuo}<w:spacing w:before="${antes}" w:beforeAutospacing="0" w:after="${depois}" w:afterAutospacing="0" w:line="240" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr></w:pPr>${runs}</w:p>`;
 }
 
 function textoDoParagrafo(xml: string) {
