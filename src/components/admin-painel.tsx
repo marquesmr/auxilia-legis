@@ -1095,6 +1095,28 @@ export function AdminPainel({
     );
   }
 
+  function renumerarPagamento(processoId: string, pagamentoId: string, numero: number) {
+    const atual = listaViva.current.find((item) => item.id === processoId);
+    if (!atual?.pagamentoDemanda) return;
+    const total = atual.pagamentos.length;
+    if (!Number.isInteger(numero) || numero < 1 || numero > total) return;
+    const pagamentos = [...atual.pagamentos];
+    const de = pagamentos.findIndex((item) => item.id === pagamentoId);
+    const para = numero - 1;
+    if (de < 0 || de === para) return;
+    const [movido] = pagamentos.splice(de, 1);
+    pagamentos.splice(para, 0, movido);
+    gravarProcesso(
+      {
+        ...atual,
+        pagamentos,
+        valorMensalCentavos: somaPagamentos(pagamentos),
+        historico: [...atual.historico, evento(`Renumerou um pagamento para ${numero}.`, meuNome)],
+      },
+      "Numeração atualizada",
+    );
+  }
+
   function reordenarPagamento(processoId: string, origemId: string, destinoId: string) {
     if (!origemId || origemId === destinoId) return;
     const atual = listaViva.current.find((item) => item.id === processoId);
@@ -1332,7 +1354,7 @@ export function AdminPainel({
               </button>
             </div>
             {modoRelatorio === "pagamentos" ? (
-              <RelatorioPagamentos processos={lista} />
+              <RelatorioPagamentos processos={lista} onRenumerar={renumerarPagamento} />
             ) : modoRelatorio === "pecas" ? (
               <RelatorioPecas
                 ano={anoPecas}
@@ -3250,7 +3272,34 @@ function ControleSetores({
   );
 }
 
-function RelatorioPagamentos({ processos }: { processos: ProcessoAdmin[] }) {
+function NumeroPagamento({ numero, total, onConfirmar }: { numero: number; total: number; onConfirmar: (numero: number) => void }) {
+  const [valor, setValor] = useState(String(numero));
+  useEffect(() => setValor(String(numero)), [numero]);
+  function confirmar() {
+    const novo = Number(valor);
+    if (Number.isInteger(novo) && novo >= 1 && novo <= total && novo !== numero) onConfirmar(novo);
+    else setValor(String(numero));
+  }
+  return (
+    <input
+      type="number"
+      min={1}
+      max={total}
+      value={valor}
+      onChange={(evento) => setValor(evento.target.value)}
+      onBlur={confirmar}
+      onKeyDown={(evento) => {
+        if (evento.key !== "Enter") return;
+        evento.preventDefault();
+        confirmar();
+      }}
+      aria-label={`Renumerar pagamento ${numero}`}
+      className="h-8 w-16 rounded-lg border border-line bg-sheet px-2 text-sm text-ink"
+    />
+  );
+}
+
+function RelatorioPagamentos({ processos, onRenumerar }: { processos: ProcessoAdmin[]; onRenumerar: (processoId: string, pagamentoId: string, numero: number) => void }) {
   const [id, setId] = useState("");
   const opcoes = [...processos]
     .filter((item) => !tipoSimples(item.tipo) && item.status !== "cancelado")
@@ -3266,7 +3315,7 @@ function RelatorioPagamentos({ processos }: { processos: ProcessoAdmin[] }) {
   return (
     <div className="min-w-0 rounded-2xl border border-line bg-sheet p-4">
       <h2 className="font-display text-2xl text-ink">Pagamentos</h2>
-      <p className="mt-1 text-sm text-muted">Entram todos os processos que podem ter pagamento, exceto doação, outros e cancelados. Nos por demanda, a ordem é a do lançamento.</p>
+      <p className="mt-1 text-sm text-muted">Entram todos os processos que podem ter pagamento, exceto doação, outros e cancelados. Nos por demanda, a ordem é a do lançamento. Para renumerar, altere o número: se ele ficar entre os demais, a sequência se ajusta.</p>
       <div className="mt-4 max-w-xl">
         <Campo label="Processo">
           <select value={id} onChange={(evento) => setId(evento.target.value)} className={inputCls}>
@@ -3301,7 +3350,17 @@ function RelatorioPagamentos({ processos }: { processos: ProcessoAdmin[] }) {
                 <tbody>
                   {pagamentos.map((item, indice) => (
                     <tr key={item.id} className={"border-b border-line " + (indice % 2 === 0 ? "bg-pine-soft/60" : "")}>
-                      <td className="py-2 pr-3 font-medium text-ink">{indice + 1}</td>
+                      <td className="py-2 pr-3 font-medium text-ink">
+                        {escolhido.pagamentoDemanda && pagamentos.length > 1 ? (
+                          <NumeroPagamento
+                            numero={indice + 1}
+                            total={pagamentos.length}
+                            onConfirmar={(numero) => onRenumerar(escolhido.id, item.id, numero)}
+                          />
+                        ) : (
+                          indice + 1
+                        )}
+                      </td>
                       <td className="py-2 pr-3 text-ink">{item.data ? formatDate(item.data) : "Sem data"}</td>
                       <td className="py-2 font-medium text-ink">{formatarReais(item.valorCentavos)}</td>
                     </tr>
