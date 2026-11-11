@@ -1539,6 +1539,7 @@ export function AdminPainel({
                   <CardAdmin
                     key={item.id}
                     processo={item}
+                    processos={lista}
                     equipes={equipes}
                     onMover={moverPara}
                     onEditar={() => {
@@ -2218,6 +2219,7 @@ export function AdminPainel({
 
 function CardAdmin({
   processo,
+  processos,
   equipes,
   onMover,
   onEditar,
@@ -2225,6 +2227,7 @@ function CardAdmin({
   onExcluir,
 }: {
   processo: ProcessoAdmin;
+  processos: ProcessoAdmin[];
   equipes: { id: string; nome: string }[];
   onMover: (id: string, equipeId: string | null) => void;
   onEditar: () => void;
@@ -2234,8 +2237,11 @@ function CardAdmin({
   const [detalhes, setDetalhes] = useState(false);
   const [historicoAberto, setHistoricoAberto] = useState(false);
   const [extratoAberto, setExtratoAberto] = useState(false);
-  const [fundamentoExtrato, setFundamentoExtrato] = useState("");
-  const [assinaturaExtrato, setAssinaturaExtrato] = useState("");
+  const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string }[]>([]);
+  const [extratoEscolha, setExtratoEscolha] = useState("");
+  const [capaAberta, setCapaAberta] = useState(false);
+  const [idsCapa, setIdsCapa] = useState<string[]>([]);
+  const [capaEscolha, setCapaEscolha] = useState("");
   const [moverAberto, setMoverAberto] = useState(false);
   const u = urgenciaAdmin(processo);
   const tom = TOM[u];
@@ -2300,16 +2306,16 @@ function CardAdmin({
           </div>
         )}
       </div>
-      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) { setHistoricoAberto(false); setExtratoAberto(false); } }}>
+      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) { setHistoricoAberto(false); setExtratoAberto(false); setCapaAberta(false); } }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
           <Dialog.Content
             className="fixed inset-x-3 top-4 bottom-4 z-20 flex flex-col overflow-hidden rounded-2xl border border-line bg-sheet md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[90vh] md:w-full md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2"
             onInteractOutside={(evento) => {
-              if (historicoAberto || extratoAberto) evento.preventDefault();
+              if (historicoAberto || extratoAberto || capaAberta) evento.preventDefault();
             }}
             onPointerDownOutside={(evento) => {
-              if (historicoAberto || extratoAberto) evento.preventDefault();
+              if (historicoAberto || extratoAberto || capaAberta) evento.preventDefault();
             }}
           >
             <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
@@ -2344,7 +2350,11 @@ function CardAdmin({
                     <span className="ml-auto flex gap-1">
                       <button
                         type="button"
-                        onClick={() => imprimirCapa(processo)}
+                        onClick={() => {
+                          setIdsCapa([]);
+                          setCapaEscolha("");
+                          setCapaAberta(true);
+                        }}
                         className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-xs font-medium text-ink"
                       >
                         <Printer className="size-3.5" />
@@ -2353,8 +2363,8 @@ function CardAdmin({
                       <button
                         type="button"
                         onClick={() => {
-                          setFundamentoExtrato("");
-                          setAssinaturaExtrato(processo.vigenciaInicio ?? "");
+                          setItensExtrato([{ id: processo.id, fundamento: "", assinatura: processo.vigenciaInicio ?? "" }]);
+                          setExtratoEscolha("");
                           setExtratoAberto(true);
                         }}
                         className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-xs font-medium text-ink"
@@ -2521,47 +2531,178 @@ function CardAdmin({
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      <Dialog.Root open={extratoAberto} onOpenChange={setExtratoAberto}>
+      <Dialog.Root open={capaAberta} onOpenChange={setCapaAberta}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
-            <Dialog.Title className="font-display text-2xl text-ink">
-              {processo.possuiContrato ? "Extrato de contrato" : "Extrato de aquisição"}
-            </Dialog.Title>
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 max-h-[85vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Imprimir capa</Dialog.Title>
             <Dialog.Description className="mt-1 text-sm text-muted">
-              {processo.possuiContrato
-                ? "Este processo tem contrato. O arquivo segue o modelo de contratação."
-                : "Este processo não tem contrato. O arquivo segue o modelo de aquisição."}
+              {idsCapa.length > 0 ? "Com mais de um processo, saem duas capas por folha." : "Uma capa nesta folha. Se quiser, junte outro processo."}
             </Dialog.Description>
-            <label className="mt-4 flex flex-col gap-1 text-sm font-medium text-ink">
-              Fundamento legal
-              <textarea
-                value={fundamentoExtrato}
-                onChange={(evento) => setFundamentoExtrato(evento.target.value)}
-                placeholder="Ex.: inciso II do artigo 75 da lei 14.133 de 2021"
-                className="min-h-20 w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm font-normal text-ink"
-              />
-            </label>
-            {processo.possuiContrato && (
-              <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
-                Assinatura do contrato
-                <input
-                  type="date"
-                  value={assinaturaExtrato}
-                  onChange={(evento) => setAssinaturaExtrato(evento.target.value)}
-                  className={inputCls}
-                />
-              </label>
-            )}
+            <ul className="mt-4 flex flex-col gap-2 text-sm">
+              <li className="rounded-xl border border-line px-3 py-2 text-ink">{rotuloLista(processo)}</li>
+              {idsCapa.map((id) => {
+                const item = processos.find((atual) => atual.id === id);
+                if (!item) return null;
+                return (
+                  <li key={id} className="flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-ink">
+                    <span className="min-w-0 break-words">{rotuloLista(item)}</span>
+                    <button type="button" onClick={() => setIdsCapa((atual) => atual.filter((valor) => valor !== id))} className="shrink-0 text-xs font-medium text-seal">
+                      Remover
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mt-3 flex gap-2">
+              <select value={capaEscolha} onChange={(evento) => setCapaEscolha(evento.target.value)} className={inputCls + " min-w-0 flex-1"}>
+                <option value="">Adicionar outro processo</option>
+                {processos
+                  .filter((item) => item.id !== processo.id && !idsCapa.includes(item.id))
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {rotuloLista(item)}
+                    </option>
+                  ))}
+              </select>
+              <button
+                type="button"
+                disabled={!capaEscolha}
+                onClick={() => {
+                  setIdsCapa((atual) => [...atual, capaEscolha]);
+                  setCapaEscolha("");
+                }}
+                className="inline-flex h-11 shrink-0 items-center rounded-xl border border-line px-3 text-sm font-medium text-ink disabled:opacity-50"
+              >
+                Adicionar
+              </button>
+            </div>
             <div className="mt-4 flex gap-2">
               <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
                 Cancelar
               </Dialog.Close>
               <button
                 type="button"
-                disabled={!fundamentoExtrato.trim() || (processo.possuiContrato && !assinaturaExtrato)}
                 onClick={() => {
-                  baixarExtrato(processo, fundamentoExtrato, assinaturaExtrato);
+                  const juntos = [processo, ...idsCapa.map((id) => processos.find((item) => item.id === id)).filter((item): item is ProcessoAdmin => Boolean(item))];
+                  imprimirCapas(juntos);
+                  setCapaAberta(false);
+                }}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet"
+              >
+                Imprimir
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      <Dialog.Root open={extratoAberto} onOpenChange={setExtratoAberto}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 flex max-h-[85vh] -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Extrato</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted">
+              Cada processo usa o modelo dele. Todos saem na mesma página.
+            </Dialog.Description>
+            <div className="mt-4 flex flex-col gap-3 overflow-y-auto">
+              {itensExtrato.map((item) => {
+                const atual = processos.find((candidato) => candidato.id === item.id) ?? processo;
+                return (
+                  <div key={item.id} className="rounded-xl border border-line p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium text-ink">{rotuloLista(atual)}</p>
+                        <p className="text-xs text-muted">{atual.possuiContrato ? "Extrato de contrato" : "Extrato de aquisição"}</p>
+                      </div>
+                      {item.id !== processo.id && (
+                        <button
+                          type="button"
+                          onClick={() => setItensExtrato((listaAtual) => listaAtual.filter((valor) => valor.id !== item.id))}
+                          className="shrink-0 text-xs font-medium text-seal"
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </div>
+                    <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
+                      Fundamento legal
+                      <textarea
+                        value={item.fundamento}
+                        onChange={(evento) =>
+                          setItensExtrato((listaAtual) =>
+                            listaAtual.map((valor) => (valor.id === item.id ? { ...valor, fundamento: evento.target.value } : valor)),
+                          )
+                        }
+                        placeholder="Ex.: inciso II do artigo 75 da lei 14.133 de 2021"
+                        className="min-h-16 w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm font-normal text-ink"
+                      />
+                    </label>
+                    {atual.possuiContrato && (
+                      <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
+                        Assinatura do contrato
+                        <input
+                          type="date"
+                          value={item.assinatura}
+                          onChange={(evento) =>
+                            setItensExtrato((listaAtual) =>
+                              listaAtual.map((valor) => (valor.id === item.id ? { ...valor, assinatura: evento.target.value } : valor)),
+                            )
+                          }
+                          className={inputCls}
+                        />
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <select value={extratoEscolha} onChange={(evento) => setExtratoEscolha(evento.target.value)} className={inputCls + " min-w-0 flex-1"}>
+                <option value="">Adicionar outro processo</option>
+                {processos
+                  .filter((item) => !itensExtrato.some((valor) => valor.id === item.id))
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {rotuloLista(item)}
+                    </option>
+                  ))}
+              </select>
+              <button
+                type="button"
+                disabled={!extratoEscolha}
+                onClick={() => {
+                  const escolhido = processos.find((item) => item.id === extratoEscolha);
+                  if (!escolhido) return;
+                  setItensExtrato((listaAtual) => [
+                    ...listaAtual,
+                    { id: escolhido.id, fundamento: "", assinatura: escolhido.vigenciaInicio ?? "" },
+                  ]);
+                  setExtratoEscolha("");
+                }}
+                className="inline-flex h-11 shrink-0 items-center rounded-xl border border-line px-3 text-sm font-medium text-ink disabled:opacity-50"
+              >
+                Adicionar
+              </button>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
+                Cancelar
+              </Dialog.Close>
+              <button
+                type="button"
+                disabled={itensExtrato.some((item) => {
+                  const atual = processos.find((candidato) => candidato.id === item.id) ?? processo;
+                  return !item.fundamento.trim() || (atual.possuiContrato && !item.assinatura);
+                })}
+                onClick={() => {
+                  const prontos = itensExtrato
+                    .map((item) => ({
+                      processo: processos.find((candidato) => candidato.id === item.id) ?? (item.id === processo.id ? processo : null),
+                      fundamento: item.fundamento,
+                      assinatura: item.assinatura,
+                    }))
+                    .filter((item): item is { processo: ProcessoAdmin; fundamento: string; assinatura: string } => Boolean(item.processo));
+                  baixarExtratos(prontos);
                   setExtratoAberto(false);
                 }}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
@@ -4036,7 +4177,13 @@ function escaparHtml(texto: string) {
   return texto.replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">");
 }
 
-function baixarExtrato(processo: ProcessoAdmin, fundamento: string, assinatura: string) {
+function rotuloLista(processo: ProcessoAdmin) {
+  const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "Sem número";
+  const referencia = processo.referencia.trim();
+  return referencia ? `${numero} · ${referencia}` : `${numero} · ${processo.tipo}`;
+}
+
+function textoExtrato(processo: ProcessoAdmin, fundamento: string, assinatura: string) {
   const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
   const tipo = processo.tipo.toLocaleLowerCase("pt-BR");
   const nome = processo.contratado.trim().toLocaleUpperCase("pt-BR");
@@ -4046,29 +4193,40 @@ function baixarExtrato(processo: ProcessoAdmin, fundamento: string, assinatura: 
   const objeto = pontoFinal(processo.objeto);
   const base = pontoFinal(fundamento);
   const valor = formatarReais(processo.valorTotalCentavos).replace(/\u00a0/g, " ");
-  const contrato = processo.possuiContrato;
-  const texto = contrato
-    ? `<strong>EXTRATO DE CONTRATO:</strong> Processo nº: ${escaparHtml(numero)} <strong>Tipo do processo:</strong> ${escaparHtml(tipo)}. <strong>Contratado:</strong> ${escaparHtml(nome)}, ${docRotulo} ${escaparHtml(doc)}. <strong>Objeto:</strong> ${escaparHtml(objeto)} <strong>Fundamento Legal:</strong> ${escaparHtml(base)} <strong>Assinatura do contrato:</strong> ${escaparHtml(dataBr(assinatura))} <strong>Valor GLOBAL da contratação:</strong> ${escaparHtml(valor)}.`
-    : `<strong>EXTRATO DE AQUISIÇÃO:</strong> Processo nº: ${escaparHtml(numero)} <strong>Tipo do processo:</strong> ${escaparHtml(tipo)}. <strong>Contratado:</strong> ${escaparHtml(nome)}, ${docRotulo} ${escaparHtml(doc)}. <strong>Objeto:</strong> ${escaparHtml(objeto)} <strong>Fundamento Legal:</strong> ${escaparHtml(base)} <strong>Valor da aquisição:</strong> ${escaparHtml(valor)}`;
-  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'><style>body{font-family:'Times New Roman',Times,serif;font-size:12pt;}p{text-align:justify;line-height:1.45;}</style></head><body><p>${texto}</p></body></html>`;
+  if (processo.possuiContrato) {
+    return `<strong>EXTRATO DE CONTRATO:</strong> Processo nº: ${escaparHtml(numero)} <strong>Tipo do processo:</strong> ${escaparHtml(tipo)}. <strong>Contratado:</strong> ${escaparHtml(nome)}, ${docRotulo} ${escaparHtml(doc)}. <strong>Objeto:</strong> ${escaparHtml(objeto)} <strong>Fundamento Legal:</strong> ${escaparHtml(base)} <strong>Assinatura do contrato:</strong> ${escaparHtml(dataBr(assinatura))} <strong>Valor GLOBAL da contratação:</strong> ${escaparHtml(valor)}.`;
+  }
+  return `<strong>EXTRATO DE AQUISIÇÃO:</strong> Processo nº: ${escaparHtml(numero)} <strong>Tipo do processo:</strong> ${escaparHtml(tipo)}. <strong>Contratado:</strong> ${escaparHtml(nome)}, ${docRotulo} ${escaparHtml(doc)}. <strong>Objeto:</strong> ${escaparHtml(objeto)} <strong>Fundamento Legal:</strong> ${escaparHtml(base)} <strong>Valor da aquisição:</strong> ${escaparHtml(valor)}`;
+}
+
+function baixarExtratos(itens: { processo: ProcessoAdmin; fundamento: string; assinatura: string }[]) {
+  if (!itens.length) return;
+  const blocos = itens.map((item) => `<p>${textoExtrato(item.processo, item.fundamento, item.assinatura)}</p>`).join("");
+  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'><style>body{font-family:'Times New Roman',Times,serif;font-size:12pt;}p{text-align:justify;line-height:1.45;margin:0;}p+p{margin-top:10mm;}</style></head><body>${blocos}</body></html>`;
   const blob = new Blob(["\ufeff", html], { type: "application/msword" });
+  const primeiro = itens[0].processo;
+  const numero = primeiro.numero ? rotuloNumero(primeiro.numero, primeiro.numeroAno) : "processo";
+  const nome =
+    itens.length === 1
+      ? `${primeiro.possuiContrato ? "Extrato de contrato" : "Extrato de aquisição"} ${numero.replaceAll("/", "-")}.doc`
+      : "Extratos.doc";
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `${contrato ? "Extrato de contrato" : "Extrato de aquisição"} ${numero.replaceAll("/", "-")}.doc`;
+  link.download = nome;
   document.body.appendChild(link);
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
 }
 
-function imprimirCapa(processo: ProcessoAdmin) {
+function blocoCapa(processo: ProcessoAdmin) {
   const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
   const tipoNumero =
     processo.tipo !== "Outros" && processo.tipoNumero != null
       ? `${String(processo.tipoNumero).padStart(2, "0")}/${processo.tipoAno ?? ""}`
       : "";
-  const folha = document.createElement("article");
-  folha.className = "capa-processo";
+  const bloco = document.createElement("section");
+  bloco.className = "capa-item";
   const regua = () => {
     const linha = document.createElement("div");
     linha.className = "capa-regua";
@@ -4087,11 +4245,27 @@ function imprimirCapa(processo: ProcessoAdmin) {
   const objeto = document.createElement("div");
   objeto.className = "capa-objeto";
   objeto.textContent = processo.objeto.trim();
-  folha.append(regua(), caixa, titulo, objeto, regua());
-  document.body.appendChild(folha);
+  bloco.append(regua(), caixa, titulo, objeto, regua());
+  return bloco;
+}
+
+function imprimirCapas(lista: ProcessoAdmin[]) {
+  if (!lista.length) return;
+  const dupla = lista.length > 1;
+  const grupos: ProcessoAdmin[][] = [];
+  if (dupla) {
+    for (let indice = 0; indice < lista.length; indice += 2) grupos.push(lista.slice(indice, indice + 2));
+  } else grupos.push(lista);
+  const folhas = grupos.map((grupo) => {
+    const folha = document.createElement("article");
+    folha.className = dupla ? "capa-processo capa-dupla" : "capa-processo";
+    grupo.forEach((item) => folha.append(blocoCapa(item)));
+    return folha;
+  });
+  folhas.forEach((folha) => document.body.appendChild(folha));
   document.body.classList.add("imprimindo-capa");
   const voltar = () => {
-    folha.remove();
+    folhas.forEach((folha) => folha.remove());
     document.body.classList.remove("imprimindo-capa");
   };
   window.addEventListener("afterprint", voltar, { once: true });

@@ -850,6 +850,48 @@ html[data-tema="escuro"][data-cor="roxo"] {
   body.imprimindo-capa .capa-objeto + .capa-regua {
     margin-top: 14mm;
   }
+
+  body.imprimindo-capa .capa-processo.capa-dupla {
+    display: flex !important;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 6mm;
+    height: 100vh;
+    min-height: 100vh;
+    padding: 10mm 16mm;
+    break-after: page;
+    page-break-after: always;
+    overflow: hidden;
+  }
+
+  body.imprimindo-capa .capa-processo.capa-dupla:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  body.imprimindo-capa .capa-dupla .capa-item {
+    display: flex;
+    flex: 1 1 0;
+    min-height: 0;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  body.imprimindo-capa .capa-dupla .capa-caixa {
+    margin-top: 3mm;
+  }
+
+  body.imprimindo-capa .capa-dupla .capa-objeto-titulo {
+    margin: 2.5mm 0 1.5mm;
+  }
+
+  body.imprimindo-capa .capa-dupla .capa-objeto {
+    min-height: 0;
+  }
+
+  body.imprimindo-capa .capa-dupla .capa-objeto + .capa-regua {
+    margin-top: 3mm;
+  }
 }
 
 
