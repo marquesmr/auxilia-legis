@@ -789,29 +789,34 @@ export function AdminPainel({
     }
   }
 
-  async function persistir(proximo: ProcessoAdmin[], salvo: ProcessoAdmin | null, apagado: string | null, ok: string) {
-    const anterior = lista;
-    ++listaGeracao.current;
+  function persistir(proximo: ProcessoAdmin[], salvo: ProcessoAdmin | null, apagado: string | null, ok: string) {
+    const anterior = listaViva.current;
+    const geracao = ++listaGeracao.current;
+    listaViva.current = proximo;
     setLista(proximo);
-    try {
-      if (apagado) await apagarAdmin({ data: apagado });
-      if (salvo) await salvarAdmin({ data: salvo });
-      const confirmacao = ++listaGeracao.current;
-      try {
-        const frescos = await listarAdmin({ data: equipeAtual });
-        if (listaGeracao.current === confirmacao) setLista(frescos);
-      } catch {
-        /* a lista local fica até a próxima leitura */
-      }
-      onToast(ok);
-      return true;
-    } catch (err) {
-      const confirmacao = ++listaGeracao.current;
-      if (listaGeracao.current === confirmacao) setLista(anterior);
-      const mensagem = mensagemErro(err);
-      onToast(mensagem);
-      return mensagem;
-    }
+    onToast(ok);
+    const equipe = equipeAtual;
+    filaPagamento.current = filaPagamento.current
+      .catch(() => undefined)
+      .then(async () => {
+        if (apagado) await apagarAdmin({ data: apagado });
+        if (salvo) await salvarAdmin({ data: salvo });
+      })
+      .catch((err: unknown) => {
+        if (listaGeracao.current !== geracao) return;
+        ++listaGeracao.current;
+        listaViva.current = anterior;
+        setLista(anterior);
+        onToast(err instanceof Error ? err.message : "Não foi possível gravar.");
+        void listarAdmin({ data: equipe })
+          .then((frescos) => {
+            ++listaGeracao.current;
+            listaViva.current = frescos;
+            setLista(frescos);
+          })
+          .catch(() => undefined);
+      });
+    return true;
   }
 
   async function salvarForm() {
@@ -820,21 +825,19 @@ export function AdminPainel({
     if (problemas.length) return;
     setFormOpen(false);
     const nota = form.nota.trim();
+    const base = listaViva.current;
     if (editing) {
       const texto = mudancas(editing, form);
       const extra: Andamento[] = [];
       if (texto) extra.push(evento(texto, meuNome));
       if (nota) extra.push(evento(nota, meuNome));
       const atualizado = montar(form, { ...editing, historico: [...editing.historico, ...extra] });
-      const ok = await persistir(
-        lista.map((item) => (item.id === atualizado.id ? atualizado : item)),
+      persistir(
+        base.map((item) => (item.id === atualizado.id ? atualizado : item)),
         atualizado,
         null,
         "Processo atualizado",
       );
-      if (ok === true) return;
-      setFormOpen(true);
-      setErros([ok]);
       return;
     }
     const criado = montar(form, {
@@ -846,16 +849,13 @@ export function AdminPainel({
       autorId: user?.id ?? null,
       autorNome: meuNome,
     });
-    const ok = await persistir([criado, ...lista], criado, null, "Processo administrativo lançado");
-    if (ok === true) return;
-    setFormOpen(true);
-    setErros([ok]);
+    persistir([criado, ...base], criado, null, "Processo administrativo lançado");
   }
 
   async function registrarAndamento() {
     if (!andamentoId) return;
     const texto = notaAndamento.trim();
-    const atual = lista.find((item) => item.id === andamentoId);
+    const atual = listaViva.current.find((item) => item.id === andamentoId);
     if (!atual) return;
     const escolhidos = TIPOS_LINK_ANDAMENTO.filter((item) => item.id in linksAndamento);
     const aplicados: { curto: string; url: string; campo: (typeof TIPOS_LINK_ANDAMENTO)[number]["campo"] }[] = [];
@@ -975,13 +975,12 @@ export function AdminPainel({
       ...atual.historico,
       evento(frase, meuNome, aplicados.length === 1 ? aplicados[0].url : undefined),
     ];
-    const ok = await persistir(
-      lista.map((item) => (item.id === atualizado.id ? atualizado : item)),
+    persistir(
+      listaViva.current.map((item) => (item.id === atualizado.id ? atualizado : item)),
       atualizado,
       null,
       "Andamento registrado",
     );
-    if (ok !== true) return;
     setAndamentoId(null);
     setNotaAndamento("");
     setNovoEncerramento("");
@@ -2198,7 +2197,7 @@ export function AdminPainel({
                   const id = deleteId;
                   setDeleteId(null);
                   void persistir(
-                    lista.filter((item) => item.id !== id),
+                    listaViva.current.filter((item) => item.id !== id),
                     null,
                     id,
                     "Processo excluído",

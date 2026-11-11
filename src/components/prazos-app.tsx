@@ -325,6 +325,8 @@ export function PrazosApp() {
   const exclusaoVista = useRef(false);
   const meuNome = user?.displayName?.trim() || "Sem nome";
   const aberturaAplicada = useRef(false);
+  const filaSalvar = useRef(Promise.resolve());
+  const geracaoSalvar = useRef(0);
   const [pedirSenha, setPedirSenha] = useState(false);
   const equipesModulo = equipes.filter((equipe) => modulosOuAmbos(equipe.modulos).includes(area));
   const equipeVisivel = equipesModulo.some((equipe) => equipe.id === equipeAtual) ? equipeAtual : null;
@@ -664,19 +666,24 @@ export function PrazosApp() {
     return lista;
   }
 
-  async function persistir(proximo: Processo[], salvo: Processo | null, apagado: string | null, ok: string) {
+  function persistir(proximo: Processo[], salvo: Processo | null, apagado: string | null, ok: string) {
     const anterior = processos;
+    const geracao = ++geracaoSalvar.current;
     setProcessos(proximo);
-    try {
-      if (apagado) await apagarProcesso({ data: apagado });
-      if (salvo) await salvarProcesso({ data: salvo });
-      setToast(ok);
-      return true;
-    } catch {
-      setProcessos(anterior);
-      setToast("Não foi possível salvar. Tente de novo.");
-      return false;
-    }
+    setToast(ok);
+    filaSalvar.current = filaSalvar.current
+      .catch(() => undefined)
+      .then(async () => {
+        if (apagado) await apagarProcesso({ data: apagado });
+        if (salvo) await salvarProcesso({ data: salvo });
+      })
+      .catch(() => {
+        if (geracaoSalvar.current !== geracao) return;
+        ++geracaoSalvar.current;
+        setProcessos(anterior);
+        setToast("Não foi possível salvar. Tente de novo.");
+      });
+    return true;
   }
 
   async function salvarForm() {
