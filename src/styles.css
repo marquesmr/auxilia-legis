@@ -813,7 +813,7 @@ html[data-tema="escuro"][data-cor="roxo"] {
     padding: 18mm 20mm 16mm;
     background: #fff;
     color: #111;
-    font-family: var(--font-sans);
+    font-family: "Times New Roman", Times, serif;
     font-size: 12pt;
     line-height: 1.35;
   }
