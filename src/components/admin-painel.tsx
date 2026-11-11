@@ -1540,6 +1540,7 @@ export function AdminPainel({
                     key={item.id}
                     processo={item}
                     processos={lista}
+                    meuNome={meuNome}
                     equipes={equipes}
                     onMover={moverPara}
                     onEditar={() => {
@@ -2220,6 +2221,7 @@ export function AdminPainel({
 function CardAdmin({
   processo,
   processos,
+  meuNome,
   equipes,
   onMover,
   onEditar,
@@ -2228,6 +2230,7 @@ function CardAdmin({
 }: {
   processo: ProcessoAdmin;
   processos: ProcessoAdmin[];
+  meuNome: string;
   equipes: { id: string; nome: string }[];
   onMover: (id: string, equipeId: string | null) => void;
   onEditar: () => void;
@@ -2491,6 +2494,13 @@ function CardAdmin({
                   )}
                 </ol>
               )}
+              <button
+                type="button"
+                onClick={() => void baixarTermo(processo, meuNome)}
+                className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl border border-line text-sm font-medium text-ink"
+              >
+                Termo de Encerramento
+              </button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>
@@ -4305,6 +4315,75 @@ function baixarExtratos(itens: { processo: ProcessoAdmin; fundamento: string; as
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = nome;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+}
+
+async function baixarTermo(processo: ProcessoAdmin, agente: string) {
+  const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
+  const tipo = processo.tipo.toLocaleUpperCase("pt-BR");
+  const tipoFrase = processo.tipo.toLocaleLowerCase("pt-BR");
+  const peca =
+    processo.tipo !== "Outros" && processo.tipoNumero != null && processo.tipoAno != null
+      ? `${String(processo.tipoNumero).padStart(2, "0")}/${processo.tipoAno}`
+      : "";
+  const nome = processo.contratado.trim().toLocaleUpperCase("pt-BR") || "____________________";
+  const digitos = processo.documento.replace(/\D/g, "");
+  const docRotulo = digitos.length === 11 ? "CPF" : "CNPJ";
+  const doc = mascaraDocumento(processo.documento) || processo.documento.trim() || "____________________";
+  const data = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
+  const assinatura = agente.trim() || "Agente de Contratação";
+  let brasao = "";
+  try {
+    const resposta = await fetch("/brasao-mario-campos.png");
+    const blob = await resposta.blob();
+    brasao = await new Promise((resolver) => {
+      const leitor = new FileReader();
+      leitor.onload = () => resolver(String(leitor.result ?? ""));
+      leitor.onerror = () => resolver("");
+      leitor.readAsDataURL(blob);
+    });
+  } catch {
+    brasao = "";
+  }
+  const marca = brasao
+    ? `<p style="text-align:center;margin:0;"><img src="${brasao}" width="78" height="103" alt="Brasão de Mário Campos"></p>`
+    : "";
+  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'>
+<style>
+body, p { font-family: Arial, sans-serif; font-size: 12pt; color: #111; }
+p { margin: 0 0 10pt; line-height: 1.15; text-align: justify; }
+.centro { text-align: center; }
+.timbre { text-align: center; color: #1F3864; font-weight: bold; font-size: 14pt; line-height: 1.1; margin: 0; }
+.rodape { text-align: center; color: #1F3864; font-size: 10pt; line-height: 1.3; margin: 0; }
+.linha { border: 0; border-top: 1.5pt solid #1F3864; margin: 8pt 0 14pt; }
+</style>
+</head><body>
+${marca}
+<p class="timbre">Câmara Municipal de</p>
+<p class="timbre">Mário Campos</p>
+<hr class="linha">
+<p class="centro"><b>TERMO DE ENCERRAMENTO DE<br>PROCESSO DE<br>${escaparHtml(tipo)}</b></p>
+<p class="centro"><b>PROCESSO ADMINISTRATIVO Nº ${escaparHtml(numero)}</b></p>
+<p class="centro"><b>${escaparHtml(peca ? `${tipo} ${peca}` : tipo)}</b></p>
+<p><b>Considerando</b> o disposto na Lei nº 14.133/2021, que estabelece normas gerais de licitação e contratação para a Administração Pública;</p>
+<p><b>Considerando</b> que o presente processo de ${escaparHtml(tipoFrase)}, identificado pelo nº ${escaparHtml(numero)}, foi conduzido conforme os requisitos legais e normativos aplicáveis, garantindo a regularidade da despesa pública;</p>
+<p><b>Considerando</b> que o pagamento referente à despesa foi devidamente realizado em favor de <b>${escaparHtml(nome)}</b>, inscrito no ${docRotulo} <b>${escaparHtml(doc)}</b>, conforme comprovante de pagamento anexo anteriormente;</p>
+<p><b>Considerando</b> que não há pendências documentais, financeiras ou administrativas relacionadas ao presente processo;</p>
+<p><b>Resolve-se</b> pelo <b>encerramento do processo de</b> ${escaparHtml(tipoFrase)}, com o devido arquivamento dos documentos pertinentes, garantindo a transparência e conformidade com os princípios da administração pública.</p>
+<p>Registra-se para os devidos fins.</p>
+<p class="centro">Mário Campos, ${escaparHtml(data)}.</p>
+<p class="centro"><b>${escaparHtml(assinatura)}</b><br>Agente de Contratação</p>
+<hr class="linha">
+<p class="rodape"><b>Avenida Petrina Augusta de Jesus, 100 - São Tarcísio - 32470-000</b></p>
+<p class="rodape">Contatos: (31) 3577-2662 | mariocampos.mg.leg.br | faleconosco@mariocampos.mg.leg.br</p>
+</body></html>`;
+  const arquivo = new Blob(["\ufeff", html], { type: "application/msword" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(arquivo);
+  link.download = `Termo de encerramento ${numero.replaceAll("/", "-")}.doc`;
   document.body.appendChild(link);
   link.click();
   link.remove();
