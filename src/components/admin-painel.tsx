@@ -43,7 +43,7 @@ import {
 } from "@/lib/admin";
 import { apagarAdmin, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao } from "@/lib/admin.functions";
 import { lerTimbradoEquipe, type TimbradoEquipe } from "@/lib/equipes.functions";
-import { cidadeDoTimbrado, termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
+import { cidadeDoTimbrado, molduraDoTimbrado, termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
 import { buscarCnpjPorNome, consultarDocumento, type ConsultaDocumento, type ResultadoNomeCnpj } from "@/lib/cnpj.functions";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { CampoMes } from "@/components/campo-mes";
@@ -2779,7 +2779,7 @@ function CardAdmin({
                 </label>
               </div>
             )}
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
                 Cancelar
               </Dialog.Close>
@@ -2788,7 +2788,20 @@ function CardAdmin({
                 disabled={!termoTimbre || !termoAssinante || !termoFuncao.trim()}
                 onClick={() => {
                   if (!termoTimbre) return;
-                  void baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim())
+                  void baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim(), "imprimir")
+                    .then(() => setTermoAberto(false))
+                    .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível imprimir o termo."));
+                }}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink disabled:opacity-50"
+              >
+                Imprimir
+              </button>
+              <button
+                type="button"
+                disabled={!termoTimbre || !termoAssinante || !termoFuncao.trim()}
+                onClick={() => {
+                  if (!termoTimbre) return;
+                  void baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim(), "word")
                     .then(() => setTermoAberto(false))
                     .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar o termo."));
                 }}
@@ -4392,7 +4405,7 @@ function baixarExtratos(itens: { processo: ProcessoAdmin; fundamento: string; as
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
 }
 
-async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assinante: string, funcao: string) {
+async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assinante: string, funcao: string, modo: "word" | "imprimir" = "word") {
   const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
   const tipo = processo.tipo.toLocaleUpperCase("pt-BR");
   const tipoFrase = processo.tipo.toLocaleLowerCase("pt-BR");
@@ -4408,6 +4421,52 @@ async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assi
   const cidade = timbre.linha2.trim() || (timbre.arquivo ? await cidadeDoTimbrado(timbre.arquivo) : "") || timbre.linha1.trim();
   const dataCompleta = cidade ? `${cidade}, ${data}.` : `${data}.`;
   const numeroArquivo = `Termo de encerramento ${numero.replaceAll("/", "-")}`;
+  if (modo === "imprimir") {
+    const moldura = timbre.arquivo ? await molduraDoTimbrado(timbre.arquivo) : null;
+    const imagens = moldura?.imagens.length ? moldura.imagens : timbre.imagem.startsWith("data:image/") ? [timbre.imagem] : [];
+    const linhasCabecalho = moldura?.linhas.length ? moldura.linhas : [timbre.linha1.trim(), timbre.linha2.trim()].filter(Boolean);
+    const linhasRodape = moldura?.rodape.length ? moldura.rodape : [timbre.rodape1.trim(), timbre.rodape2.trim()].filter(Boolean);
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escaparHtml(numeroArquivo)}</title><style>
+@page { size: A4; margin: 2cm; }
+body, p { font-family: Arial, sans-serif; font-size: 12pt; color: #111; }
+p { margin: 0 0 12pt; line-height: 1.15; text-align: justify; }
+.titulo { text-align: center; font-weight: bold; margin: 0 0 26pt; }
+.ident { text-align: left; font-weight: bold; margin: 0; }
+.ident-fim { text-align: left; font-weight: bold; margin: 0 0 12pt; }
+.recuo { text-indent: 1.25cm; }
+.centro { text-align: center; text-indent: 0; margin: 0; }
+.assinatura { text-align: center; text-indent: 0; margin: 42pt 0 0; }
+.timbre { text-align: center; color: #1F3864; font-weight: bold; font-size: 14pt; line-height: 1.1; margin: 0; }
+.rodape { text-align: center; color: #1F3864; font-size: 10pt; line-height: 1.3; margin: 0; }
+.linha { border: 0; border-top: 1.5pt solid #1F3864; margin: 8pt 0 14pt; }
+img { display: block; height: 92px; width: auto; margin: 0 auto 6pt; }
+</style></head><body>
+${imagens.map((src) => `<img src="${src}" alt="">`).join("")}
+${linhasCabecalho.map((linha) => `<p class="timbre">${escaparHtml(linha)}</p>`).join("")}
+<hr class="linha">
+<p class="titulo">TERMO DE ENCERRAMENTO DE PROCESSO DE ${escaparHtml(tipo)}</p>
+<p class="ident">PROCESSO ADMINISTRATIVO Nº ${escaparHtml(numero)}</p>
+<p class="ident-fim">${escaparHtml(peca ? `${tipo} ${peca}` : tipo)}</p>
+<p class="recuo"><b>Considerando</b> o disposto na Lei nº 14.133/2021, que estabelece normas gerais de licitação e contratação para a Administração Pública;</p>
+<p class="recuo"><b>Considerando</b> que o presente processo de ${escaparHtml(tipoFrase)}, identificado pelo nº ${escaparHtml(numero)}, foi conduzido conforme os requisitos legais e normativos aplicáveis, garantindo a regularidade da despesa pública;</p>
+<p class="recuo"><b>Considerando</b> que o pagamento referente à despesa foi devidamente realizado em favor de <b>${escaparHtml(contratado)}</b>, inscrito no ${docRotulo} <b>${escaparHtml(doc)}</b>, conforme comprovante de pagamento anexo anteriormente;</p>
+<p class="recuo"><b>Considerando</b> que não há pendências documentais, financeiras ou administrativas relacionadas ao presente processo;</p>
+<p class="recuo"><b>Resolve-se</b> pelo <b>encerramento do processo de</b> ${escaparHtml(tipoFrase)}, com o devido arquivamento dos documentos pertinentes, garantindo a transparência e conformidade com os princípios da administração pública.</p>
+<p class="recuo">Registra-se para os devidos fins.</p>
+<p class="recuo">${escaparHtml(dataCompleta)}</p>
+<p class="assinatura"><b>${escaparHtml(assinante)}</b></p>
+<p class="centro">${escaparHtml(funcao)}</p>
+<hr class="linha">
+${linhasRodape.map((linha, indice) => `<p class="rodape">${indice === 0 ? `<b>${escaparHtml(linha)}</b>` : escaparHtml(linha)}</p>`).join("")}
+<script>window.onload=function(){window.focus();window.print();}<\/script>
+</body></html>`;
+    const janela = window.open("", "_blank");
+    if (!janela) throw new Error("O navegador bloqueou a impressão. Permita pop-ups deste site.");
+    janela.document.open();
+    janela.document.write(html);
+    janela.document.close();
+    return;
+  }
   if (timbre.arquivo) {
     const blocos: BlocoTermo[] = [
       { titulo: true, partes: [{ texto: `TERMO DE ENCERRAMENTO DE PROCESSO DE ${tipo}` }] },
