@@ -2363,7 +2363,7 @@ function CardAdmin({
                       <button
                         type="button"
                         onClick={() => {
-                          setItensExtrato([{ id: processo.id, fundamento: "", assinatura: processo.vigenciaInicio ?? "" }]);
+                          setItensExtrato([{ id: processo.id, fundamento: fundamentoInicial(processo.tipo), assinatura: processo.vigenciaInicio ?? "" }]);
                           setExtratoEscolha("");
                           setExtratoAberto(true);
                         }}
@@ -2626,16 +2626,22 @@ function CardAdmin({
                     </div>
                     <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
                       Fundamento legal
-                      <textarea
+                      <select
                         value={item.fundamento}
                         onChange={(evento) =>
                           setItensExtrato((listaAtual) =>
                             listaAtual.map((valor) => (valor.id === item.id ? { ...valor, fundamento: evento.target.value } : valor)),
                           )
                         }
-                        placeholder="Ex.: inciso II do artigo 75 da lei 14.133 de 2021"
-                        className="min-h-16 w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm font-normal text-ink"
-                      />
+                        className={inputCls + " font-normal"}
+                      >
+                        {fundamentosDoTipo(atual.tipo).length > 1 && <option value="">Selecione o fundamento legal</option>}
+                        {fundamentosDoTipo(atual.tipo).map((opcao) => (
+                          <option key={opcao.valor} value={opcao.valor}>
+                            {opcao.rotulo}
+                          </option>
+                        ))}
+                      </select>
                     </label>
                     {atual.possuiContrato && (
                       <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
@@ -2675,7 +2681,7 @@ function CardAdmin({
                   if (!escolhido) return;
                   setItensExtrato((listaAtual) => [
                     ...listaAtual,
-                    { id: escolhido.id, fundamento: "", assinatura: escolhido.vigenciaInicio ?? "" },
+                    { id: escolhido.id, fundamento: fundamentoInicial(escolhido.tipo), assinatura: escolhido.vigenciaInicio ?? "" },
                   ]);
                   setExtratoEscolha("");
                 }}
@@ -4175,6 +4181,92 @@ function dataBr(iso: string) {
 
 function escaparHtml(texto: string) {
   return texto.replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">");
+}
+
+function fundamento(valor: string, rotulo: string) {
+  return { valor, rotulo };
+}
+
+const FUNDAMENTOS_28 = [
+  fundamento("inciso I do artigo 28 da lei 14.133 de 2021", "Art. 28, I — pregão"),
+  fundamento("inciso II do artigo 28 da lei 14.133 de 2021", "Art. 28, II — concorrência"),
+  fundamento("inciso III do artigo 28 da lei 14.133 de 2021", "Art. 28, III — concurso"),
+  fundamento("inciso IV do artigo 28 da lei 14.133 de 2021", "Art. 28, IV — leilão"),
+  fundamento("inciso V do artigo 28 da lei 14.133 de 2021", "Art. 28, V — diálogo competitivo"),
+];
+
+const FUNDAMENTOS_74 = [
+  fundamento("inciso I do artigo 74 da lei 14.133 de 2021", "Art. 74, I — fornecedor exclusivo"),
+  fundamento("inciso II do artigo 74 da lei 14.133 de 2021", "Art. 74, II — profissional do setor artístico"),
+  fundamento("alínea a do inciso III do artigo 74 da lei 14.133 de 2021", "Art. 74, III, a — estudos, planejamentos e projetos"),
+  fundamento("alínea b do inciso III do artigo 74 da lei 14.133 de 2021", "Art. 74, III, b — pareceres, perícias e avaliações"),
+  fundamento("alínea c do inciso III do artigo 74 da lei 14.133 de 2021", "Art. 74, III, c — assessorias, consultorias e auditorias"),
+  fundamento("alínea d do inciso III do artigo 74 da lei 14.133 de 2021", "Art. 74, III, d — fiscalização, supervisão ou gerenciamento"),
+  fundamento("alínea e do inciso III do artigo 74 da lei 14.133 de 2021", "Art. 74, III, e — patrocínio ou defesa de causas"),
+  fundamento("alínea f do inciso III do artigo 74 da lei 14.133 de 2021", "Art. 74, III, f — treinamento e aperfeiçoamento"),
+  fundamento("alínea g do inciso III do artigo 74 da lei 14.133 de 2021", "Art. 74, III, g — restauração de obras de arte"),
+  fundamento("alínea h do inciso III do artigo 74 da lei 14.133 de 2021", "Art. 74, III, h — controles de qualidade e tecnológico"),
+  fundamento("inciso IV do artigo 74 da lei 14.133 de 2021", "Art. 74, IV — credenciamento"),
+  fundamento("inciso V do artigo 74 da lei 14.133 de 2021", "Art. 74, V — aquisição ou locação de imóvel"),
+];
+
+const FUNDAMENTOS_75 = [
+  fundamento("inciso I do artigo 75 da lei 14.133 de 2021", "Art. 75, I — obras e serviços de engenharia"),
+  fundamento("inciso II do artigo 75 da lei 14.133 de 2021", "Art. 75, II — outros serviços e compras"),
+  fundamento("alínea a do inciso III do artigo 75 da lei 14.133 de 2021", "Art. 75, III, a — licitação deserta"),
+  fundamento("alínea b do inciso III do artigo 75 da lei 14.133 de 2021", "Art. 75, III, b — preços superiores ao mercado"),
+  fundamento("alínea a do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, a — manutenção na garantia"),
+  fundamento("alínea b do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, b — acordo internacional"),
+  fundamento("alínea c do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, c — pesquisa e desenvolvimento"),
+  fundamento("alínea d do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, d — transferência de tecnologia"),
+  fundamento("alínea e do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, e — gêneros perecíveis"),
+  fundamento("alínea f do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, f — alta complexidade e defesa nacional"),
+  fundamento("alínea g do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, g — materiais das Forças Armadas"),
+  fundamento("alínea h do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, h — operações de paz"),
+  fundamento("alínea i do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, i — estada eventual de efetivos"),
+  fundamento("alínea j do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, j — cooperativas de catadores"),
+  fundamento("alínea k do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, k — obras de arte e objetos históricos"),
+  fundamento("alínea l do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, l — rastreamento e obtenção de provas"),
+  fundamento("alínea m do inciso IV do artigo 75 da lei 14.133 de 2021", "Art. 75, IV, m — medicamentos para doenças raras"),
+  fundamento("inciso V do artigo 75 da lei 14.133 de 2021", "Art. 75, V — Lei de Inovação"),
+  fundamento("inciso VI do artigo 75 da lei 14.133 de 2021", "Art. 75, VI — segurança nacional"),
+  fundamento("inciso VII do artigo 75 da lei 14.133 de 2021", "Art. 75, VII — guerra, defesa, sítio ou intervenção"),
+  fundamento("inciso VIII do artigo 75 da lei 14.133 de 2021", "Art. 75, VIII — emergência ou calamidade pública"),
+  fundamento("inciso IX do artigo 75 da lei 14.133 de 2021", "Art. 75, IX — órgão ou entidade criado para esse fim"),
+  fundamento("inciso X do artigo 75 da lei 14.133 de 2021", "Art. 75, X — intervenção no domínio econômico"),
+  fundamento("inciso XI do artigo 75 da lei 14.133 de 2021", "Art. 75, XI — contrato de programa"),
+  fundamento("inciso XII do artigo 75 da lei 14.133 de 2021", "Art. 75, XII — produtos estratégicos do SUS"),
+  fundamento("inciso XIII do artigo 75 da lei 14.133 de 2021", "Art. 75, XIII — comissão de avaliação de técnica"),
+  fundamento("inciso XIV do artigo 75 da lei 14.133 de 2021", "Art. 75, XIV — associação de pessoas com deficiência"),
+  fundamento("inciso XV do artigo 75 da lei 14.133 de 2021", "Art. 75, XV — instituição de ciência e tecnologia"),
+  fundamento("inciso XVI do artigo 75 da lei 14.133 de 2021", "Art. 75, XVI — tecnologias sociais de acesso à água"),
+];
+
+const FUNDAMENTOS_76 = [
+  fundamento("alínea b do inciso I do artigo 76 da lei 14.133 de 2021", "Art. 76, I, b — doação de bem imóvel"),
+  fundamento("alínea a do inciso II do artigo 76 da lei 14.133 de 2021", "Art. 76, II, a — doação de bem móvel"),
+];
+
+const FUNDAMENTO_95 = [fundamento("§ 2º do artigo 95 da lei 14.133 de 2021", "Art. 95, § 2º — pronto pagamento")];
+
+const FUNDAMENTOS_TODOS = [...FUNDAMENTOS_28, ...FUNDAMENTOS_74, ...FUNDAMENTOS_75, ...FUNDAMENTOS_76, ...FUNDAMENTO_95];
+
+function fundamentosDoTipo(tipo: string) {
+  if (tipo === "Pregão") return [FUNDAMENTOS_28[0]];
+  if (tipo === "Concorrência") return [FUNDAMENTOS_28[1]];
+  if (tipo === "Concurso") return [FUNDAMENTOS_28[2]];
+  if (tipo === "Leilão") return [FUNDAMENTOS_28[3]];
+  if (tipo === "Diálogo Competitivo") return [FUNDAMENTOS_28[4]];
+  if (tipo === "Dispensa de Licitação") return FUNDAMENTOS_75;
+  if (tipo === "Inexigibilidade de Licitação") return FUNDAMENTOS_74;
+  if (tipo === "Pronto Pagamento") return FUNDAMENTO_95;
+  if (tipo === "Doação") return FUNDAMENTOS_76;
+  return FUNDAMENTOS_TODOS;
+}
+
+function fundamentoInicial(tipo: string) {
+  const opcoes = fundamentosDoTipo(tipo);
+  return opcoes.length === 1 ? opcoes[0].valor : "";
 }
 
 function rotuloLista(processo: ProcessoAdmin) {
