@@ -43,7 +43,7 @@ import {
 } from "@/lib/admin";
 import { apagarAdmin, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao } from "@/lib/admin.functions";
 import { lerTimbradoEquipe, type TimbradoEquipe } from "@/lib/equipes.functions";
-import { termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
+import { cidadeDoTimbrado, termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
 import { buscarCnpjPorNome, consultarDocumento, type ConsultaDocumento, type ResultadoNomeCnpj } from "@/lib/cnpj.functions";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { CampoMes } from "@/components/campo-mes";
@@ -4405,20 +4405,21 @@ async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assi
   const docRotulo = digitos.length === 11 ? "CPF" : "CNPJ";
   const doc = mascaraDocumento(processo.documento) || processo.documento.trim() || "____________________";
   const data = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
-  const lugar = timbre.linha2.trim() || timbre.linha1.trim();
+  const cidade = timbre.linha2.trim() || (timbre.arquivo ? await cidadeDoTimbrado(timbre.arquivo) : "") || timbre.linha1.trim();
+  const dataCompleta = cidade ? `${cidade}, ${data}.` : `${data}.`;
   const numeroArquivo = `Termo de encerramento ${numero.replaceAll("/", "-")}`;
   if (timbre.arquivo) {
     const blocos: BlocoTermo[] = [
-      { titulo: true, partes: [{ texto: `TERMO DE ENCERRAMENTO DE\nPROCESSO DE\n${tipo}` }] },
-      { centro: true, partes: [{ texto: `PROCESSO ADMINISTRATIVO Nº ${numero}`, negrito: true }] },
-      { centro: true, partes: [{ texto: peca ? `${tipo} ${peca}` : tipo, negrito: true }] },
-      { partes: [{ texto: "Considerando", negrito: true }, { texto: " o disposto na Lei nº 14.133/2021, que estabelece normas gerais de licitação e contratação para a Administração Pública;" }] },
-      { partes: [{ texto: "Considerando", negrito: true }, { texto: ` que o presente processo de ${tipoFrase}, identificado pelo nº ${numero}, foi conduzido conforme os requisitos legais e normativos aplicáveis, garantindo a regularidade da despesa pública;` }] },
-      { partes: [{ texto: "Considerando", negrito: true }, { texto: " que o pagamento referente à despesa foi devidamente realizado em favor de " }, { texto: contratado, negrito: true }, { texto: `, inscrito no ${docRotulo} ` }, { texto: doc, negrito: true }, { texto: ", conforme comprovante de pagamento anexo anteriormente;" }] },
-      { partes: [{ texto: "Considerando", negrito: true }, { texto: " que não há pendências documentais, financeiras ou administrativas relacionadas ao presente processo;" }] },
-      { partes: [{ texto: "Resolve-se", negrito: true }, { texto: " pelo " }, { texto: "encerramento do processo de", negrito: true }, { texto: ` ${tipoFrase}, com o devido arquivamento dos documentos pertinentes, garantindo a transparência e conformidade com os princípios da administração pública.` }] },
-      { partes: [{ texto: "Registra-se para os devidos fins." }] },
-      { centro: true, partes: [{ texto: lugar ? `${lugar}, ${data}.` : `${data}.` }] },
+      { titulo: true, partes: [{ texto: `TERMO DE ENCERRAMENTO DE PROCESSO DE ${tipo}` }] },
+      { junto: true, partes: [{ texto: `PROCESSO ADMINISTRATIVO Nº ${numero}`, negrito: true }] },
+      { junto: true, partes: [{ texto: peca ? `${tipo} ${peca}` : tipo, negrito: true }] },
+      { recuo: true, partes: [{ texto: "Considerando", negrito: true }, { texto: " o disposto na Lei nº 14.133/2021, que estabelece normas gerais de licitação e contratação para a Administração Pública;" }] },
+      { recuo: true, partes: [{ texto: "Considerando", negrito: true }, { texto: ` que o presente processo de ${tipoFrase}, identificado pelo nº ${numero}, foi conduzido conforme os requisitos legais e normativos aplicáveis, garantindo a regularidade da despesa pública;` }] },
+      { recuo: true, partes: [{ texto: "Considerando", negrito: true }, { texto: " que o pagamento referente à despesa foi devidamente realizado em favor de " }, { texto: contratado, negrito: true }, { texto: `, inscrito no ${docRotulo} ` }, { texto: doc, negrito: true }, { texto: ", conforme comprovante de pagamento anexo anteriormente;" }] },
+      { recuo: true, partes: [{ texto: "Considerando", negrito: true }, { texto: " que não há pendências documentais, financeiras ou administrativas relacionadas ao presente processo;" }] },
+      { recuo: true, partes: [{ texto: "Resolve-se", negrito: true }, { texto: " pelo " }, { texto: "encerramento do processo de", negrito: true }, { texto: ` ${tipoFrase}, com o devido arquivamento dos documentos pertinentes, garantindo a transparência e conformidade com os princípios da administração pública.` }] },
+      { recuo: true, partes: [{ texto: "Registra-se para os devidos fins." }] },
+      { recuo: true, partes: [{ texto: dataCompleta }] },
       { centro: true, partes: [{ texto: assinante, negrito: true }] },
       { centro: true, partes: [{ texto: funcao }] },
     ];
@@ -4438,8 +4439,11 @@ async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assi
   const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'>
 <style>
 body, p { font-family: Arial, sans-serif; font-size: 12pt; color: #111; }
-p { margin: 0 0 10pt; line-height: 1.15; text-align: justify; }
-.centro { text-align: center; }
+p { margin: 0 0 8pt; line-height: 1.15; text-align: justify; font-size: 12pt; }
+.titulo { text-align: center; font-size: 12pt; font-weight: bold; }
+.ident { text-align: left; font-size: 12pt; font-weight: bold; margin: 0; line-height: 1.05; }
+.recuo { text-indent: 1.25cm; }
+.centro { text-align: center; text-indent: 0; }
 .timbre { text-align: center; color: #1F3864; font-weight: bold; font-size: 14pt; line-height: 1.1; margin: 0; }
 .rodape { text-align: center; color: #1F3864; font-size: 10pt; line-height: 1.3; margin: 0; }
 .linha { border: 0; border-top: 1.5pt solid #1F3864; margin: 8pt 0 14pt; }
@@ -4449,16 +4453,16 @@ ${marca}
 ${timbre.linha1.trim() ? `<p class="timbre">${escaparHtml(timbre.linha1.trim())}</p>` : ""}
 ${timbre.linha2.trim() ? `<p class="timbre">${escaparHtml(timbre.linha2.trim())}</p>` : ""}
 <hr class="linha">
-<p class="centro"><b>TERMO DE ENCERRAMENTO DE<br>PROCESSO DE<br>${escaparHtml(tipo)}</b></p>
-<p class="centro"><b>PROCESSO ADMINISTRATIVO Nº ${escaparHtml(numero)}</b></p>
-<p class="centro"><b>${escaparHtml(peca ? `${tipo} ${peca}` : tipo)}</b></p>
-<p><b>Considerando</b> o disposto na Lei nº 14.133/2021, que estabelece normas gerais de licitação e contratação para a Administração Pública;</p>
-<p><b>Considerando</b> que o presente processo de ${escaparHtml(tipoFrase)}, identificado pelo nº ${escaparHtml(numero)}, foi conduzido conforme os requisitos legais e normativos aplicáveis, garantindo a regularidade da despesa pública;</p>
-<p><b>Considerando</b> que o pagamento referente à despesa foi devidamente realizado em favor de <b>${escaparHtml(contratado)}</b>, inscrito no ${docRotulo} <b>${escaparHtml(doc)}</b>, conforme comprovante de pagamento anexo anteriormente;</p>
-<p><b>Considerando</b> que não há pendências documentais, financeiras ou administrativas relacionadas ao presente processo;</p>
-<p><b>Resolve-se</b> pelo <b>encerramento do processo de</b> ${escaparHtml(tipoFrase)}, com o devido arquivamento dos documentos pertinentes, garantindo a transparência e conformidade com os princípios da administração pública.</p>
-<p>Registra-se para os devidos fins.</p>
-<p class="centro">${escaparHtml(lugar)}, ${escaparHtml(data)}.</p>
+<p class="titulo"><b>TERMO DE ENCERRAMENTO DE PROCESSO DE ${escaparHtml(tipo)}</b></p>
+<p class="ident"><b>PROCESSO ADMINISTRATIVO Nº ${escaparHtml(numero)}</b></p>
+<p class="ident"><b>${escaparHtml(peca ? `${tipo} ${peca}` : tipo)}</b></p>
+<p class="recuo"><b>Considerando</b> o disposto na Lei nº 14.133/2021, que estabelece normas gerais de licitação e contratação para a Administração Pública;</p>
+<p class="recuo"><b>Considerando</b> que o presente processo de ${escaparHtml(tipoFrase)}, identificado pelo nº ${escaparHtml(numero)}, foi conduzido conforme os requisitos legais e normativos aplicáveis, garantindo a regularidade da despesa pública;</p>
+<p class="recuo"><b>Considerando</b> que o pagamento referente à despesa foi devidamente realizado em favor de <b>${escaparHtml(contratado)}</b>, inscrito no ${docRotulo} <b>${escaparHtml(doc)}</b>, conforme comprovante de pagamento anexo anteriormente;</p>
+<p class="recuo"><b>Considerando</b> que não há pendências documentais, financeiras ou administrativas relacionadas ao presente processo;</p>
+<p class="recuo"><b>Resolve-se</b> pelo <b>encerramento do processo de</b> ${escaparHtml(tipoFrase)}, com o devido arquivamento dos documentos pertinentes, garantindo a transparência e conformidade com os princípios da administração pública.</p>
+<p class="recuo">Registra-se para os devidos fins.</p>
+<p class="recuo">${escaparHtml(dataCompleta)}</p>
 <p class="centro"><b>${escaparHtml(assinante)}</b><br>${escaparHtml(funcao)}</p>
 <hr class="linha">
 ${timbre.rodape1.trim() ? `<p class="rodape"><b>${escaparHtml(timbre.rodape1.trim())}</b></p>` : ""}
