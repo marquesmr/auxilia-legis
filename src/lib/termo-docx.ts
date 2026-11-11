@@ -18,8 +18,8 @@ function blocoXml(bloco: BlocoTermo) {
   const tamanho = 24;
   const alinhamento = bloco.centro || bloco.titulo ? "center" : bloco.recuo ? "both" : "left";
   const recuo = bloco.recuo ? `<w:ind w:firstLine="709"/>` : "";
-  const antes = bloco.antes ? "360" : "0";
-  const depois = bloco.titulo ? "280" : bloco.junto ? "0" : "240";
+  const antes = bloco.antes ? "840" : "0";
+  const depois = bloco.titulo ? "520" : bloco.junto ? "0" : "240";
   const runs = bloco.partes
     .map((parte) => {
       const negrito = parte.negrito || bloco.titulo ? "<w:b/>" : "";

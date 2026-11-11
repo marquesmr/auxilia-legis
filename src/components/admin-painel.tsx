@@ -4440,12 +4440,12 @@ async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assi
 <style>
 body, p { font-family: Arial, sans-serif; font-size: 12pt; color: #111; }
 p { margin: 0 0 12pt; line-height: 1.15; text-align: justify; font-size: 12pt; }
-.titulo { text-align: center; font-size: 12pt; font-weight: bold; margin: 0 0 14pt; }
+.titulo { text-align: center; font-size: 12pt; font-weight: bold; margin: 0 0 26pt; }
 .ident { text-align: left; font-size: 12pt; font-weight: bold; margin: 0; line-height: 1.15; }
 .ident-fim { text-align: left; font-size: 12pt; font-weight: bold; margin: 0 0 12pt; line-height: 1.15; }
 .recuo { text-indent: 1.25cm; }
 .centro { text-align: center; text-indent: 0; margin: 0; }
-.assinatura { text-align: center; text-indent: 0; margin: 18pt 0 0; }
+.assinatura { text-align: center; text-indent: 0; margin: 42pt 0 0; }
 .timbre { text-align: center; color: #1F3864; font-weight: bold; font-size: 14pt; line-height: 1.1; margin: 0; }
 .rodape { text-align: center; color: #1F3864; font-size: 10pt; line-height: 1.3; margin: 0; }
 .linha { border: 0; border-top: 1.5pt solid #1F3864; margin: 8pt 0 14pt; }
