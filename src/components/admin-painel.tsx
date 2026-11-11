@@ -4444,14 +4444,14 @@ async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assi
   ];
   if (janela) {
     try {
-      const { pdfDoTermo } = await import("@/lib/termo-pdf");
-      const blob = await pdfDoTermo({
-        arquivo: timbre.arquivo,
-        imagem: timbre.imagem,
-        cabecalho: [timbre.linha1.trim(), timbre.linha2.trim()].filter(Boolean),
-        rodape: [timbre.rodape1.trim(), timbre.rodape2.trim()].filter(Boolean),
-        blocos,
-      });
+      const blob = timbre.arquivo
+        ? await import("@/lib/termo-pdf").then(async ({ pdfDoDocx }) => pdfDoDocx(await termoNoTimbrado(timbre.arquivo, blocos)))
+        : await import("@/lib/termo-pdf").then(({ pdfDoTermo }) => pdfDoTermo({
+            imagem: timbre.imagem,
+            cabecalho: [timbre.linha1.trim(), timbre.linha2.trim()].filter(Boolean),
+            rodape: [timbre.rodape1.trim(), timbre.rodape2.trim()].filter(Boolean),
+            blocos,
+          }));
       janela.location.replace(URL.createObjectURL(blob));
     } catch (erro) {
       janela.close();

@@ -187,3 +187,42 @@ export async function pdfDoTermo(entrada: { arquivo?: string; imagem?: string; c
   pdf.autoPrint();
   return pdf.output("blob");
 }
+
+export async function pdfDoDocx(arquivo: Blob) {
+  const [{ renderAsync }, { default: html2canvas }, { jsPDF }] = await Promise.all([
+    import("docx-preview"),
+    import("html2canvas-pro"),
+    import("jspdf"),
+  ]);
+  const host = document.createElement("div");
+  host.style.cssText = "position:absolute;left:0;top:0;width:900px;background:#fff;z-index:-1;pointer-events:none;";
+  document.body.appendChild(host);
+  try {
+    await renderAsync(arquivo, host, host, {
+      inWrapper: true,
+      breakPages: true,
+      renderHeaders: true,
+      renderFooters: true,
+      useBase64URL: true,
+      ignoreLastRenderedPageBreak: true,
+    });
+    if (document.fonts) await document.fonts.ready;
+    const imagens = [...host.querySelectorAll("img")];
+    await Promise.all(imagens.map((imagem) => (imagem.complete ? null : new Promise((resolver) => {
+      imagem.onload = () => resolver(null);
+      imagem.onerror = () => resolver(null);
+    }))));
+    const secoes = [...host.querySelectorAll("section.docx")] as HTMLElement[];
+    if (!secoes.length || !host.innerText.trim()) throw new Error("Não foi possível montar o PDF a partir do timbrado.");
+    const pdf = new jsPDF({ unit: "mm", format: "a4" });
+    for (let indice = 0; indice < secoes.length; indice += 1) {
+      const quadro = await html2canvas(secoes[indice], { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+      if (indice > 0) pdf.addPage();
+      pdf.addImage(quadro.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 210, 297);
+    }
+    pdf.autoPrint();
+    return pdf.output("blob");
+  } finally {
+    host.remove();
+  }
+}
