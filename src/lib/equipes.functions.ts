@@ -69,6 +69,48 @@ async function mapaModulos() {
   return mapa;
 }
 
+export async function garantirTimbrados() {
+  const sql = await getSql();
+  await sql`
+    create table if not exists timbrados (
+      equipe_id text primary key references equipes (id) on delete cascade,
+      imagem text not null default '',
+      linha1 text not null default '',
+      linha2 text not null default '',
+      rodape1 text not null default '',
+      rodape2 text not null default ''
+    )
+  `;
+}
+
+export type TimbradoEquipe = {
+  equipeId: string;
+  imagem: string;
+  linha1: string;
+  linha2: string;
+  rodape1: string;
+  rodape2: string;
+};
+
+export const lerTimbradoEquipe = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (typeof input !== "string" || !input.trim()) throw new Error("Equipe inválida.");
+    return input.trim().slice(0, 80);
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ data, context }): Promise<TimbradoEquipe | null> => {
+    const sql = await getSql();
+    await garantirTimbrados();
+    const membro = await sql`select 1 as ok from equipe_membros where equipe_id = ${data} and user_id = ${context.userId} limit 1`;
+    if (!membro.length) throw new Error("Você não faz parte desta equipe.");
+    const linhas = await sql<{ imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string }>`
+      select imagem, linha1, linha2, rodape1, rodape2 from timbrados where equipe_id = ${data} limit 1
+    `;
+    const item = linhas[0];
+    if (!item || (!item.linha1.trim() && !item.imagem)) return null;
+    return { equipeId: data, imagem: item.imagem, linha1: item.linha1, linha2: item.linha2, rodape1: item.rodape1, rodape2: item.rodape2 };
+  });
+
 async function aceitarConvites(userId: string) {
   const sql = await getSql();
   const eu = await sql<{ email: string }>`select email from "user" where id = ${userId}`;

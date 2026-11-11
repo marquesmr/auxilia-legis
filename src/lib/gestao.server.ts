@@ -1172,6 +1172,49 @@ export async function desvincularEquipe(equipeId: string, userId: string) {
   return { ok: true };
 }
 
+export async function listarTimbrados() {
+  const { garantirTimbrados } = await import("./equipes.functions");
+  const sql = await getSql();
+  await garantirTimbrados();
+  const linhas = await sql<{ equipe_id: string; imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string }>`
+    select equipe_id, imagem, linha1, linha2, rodape1, rodape2 from timbrados order by linha1 asc
+  `;
+  return linhas.map((item) => ({
+    equipeId: item.equipe_id,
+    imagem: item.imagem,
+    linha1: item.linha1,
+    linha2: item.linha2,
+    rodape1: item.rodape1,
+    rodape2: item.rodape2,
+  }));
+}
+
+export async function salvarTimbrado(dados: { equipeId: string; imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string }) {
+  const { garantirTimbrados } = await import("./equipes.functions");
+  const sql = await getSql();
+  await garantirTimbrados();
+  const equipe = await sql<{ id: string }>`select id from equipes where id = ${dados.equipeId}`;
+  if (!equipe.length) throw new Error("Equipe não encontrada.");
+  const linha1 = dados.linha1.trim().slice(0, 120);
+  if (linha1.length < 2) throw new Error("Informe a primeira linha do timbrado.");
+  if (dados.imagem && !dados.imagem.startsWith("data:image/")) throw new Error("A imagem do timbrado é inválida.");
+  if (dados.imagem.length > 700_000) throw new Error("A imagem do timbrado é grande demais.");
+  const linha2 = dados.linha2.trim().slice(0, 120);
+  const rodape1 = dados.rodape1.trim().slice(0, 180);
+  const rodape2 = dados.rodape2.trim().slice(0, 180);
+  await sql`
+    insert into timbrados (equipe_id, imagem, linha1, linha2, rodape1, rodape2)
+    values (${dados.equipeId}, ${dados.imagem}, ${linha1}, ${linha2}, ${rodape1}, ${rodape2})
+    on conflict (equipe_id) do update set
+      imagem = excluded.imagem,
+      linha1 = excluded.linha1,
+      linha2 = excluded.linha2,
+      rodape1 = excluded.rodape1,
+      rodape2 = excluded.rodape2
+  `;
+  return { ok: true };
+}
+
 export async function renomearAba(id: string, nome: string) {
   const sql = await getSql();
   const limpo = nome.trim().replace(/\s+/g, " ");
@@ -1308,7 +1351,9 @@ export async function listarLogs(filtro: { de: string; ate: string; texto: strin
 
 async function montarBackup(sql: Sql) {
   await tabelaPedido(sql);
-  const [usuarios, contas, autenticadores, processos, processosAdmin, equipes, membros, convites, abas, statusCatalogo, feriados, perfis, termos, gestaoAcesso, excluidas, pedidos] =
+  const { garantirTimbrados } = await import("./equipes.functions");
+  await garantirTimbrados();
+  const [usuarios, contas, autenticadores, processos, processosAdmin, equipes, membros, convites, abas, statusCatalogo, feriados, perfis, termos, gestaoAcesso, excluidas, pedidos, timbrados] =
     await Promise.all([
       sql`select * from "user"`,
       sql`select "id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt" from "account"`,
@@ -1326,6 +1371,7 @@ async function montarBackup(sql: Sql) {
       sql`select * from gestao_acesso`,
       sql`select * from conta_excluida`,
       sql`select * from pedido_exclusao`,
+      sql`select * from timbrados`,
     ]);
   return JSON.stringify({
     versao: 2,
@@ -1347,6 +1393,7 @@ async function montarBackup(sql: Sql) {
     gestaoAcesso,
     excluidas,
     pedidos,
+    timbrados,
   });
 }
 
@@ -1547,6 +1594,8 @@ export async function restaurarBackup(conteudo: string) {
   await getSql();
   const resultado = await semPersistencia(async () => {
     const sql = await getSql();
+    const { garantirTimbrados } = await import("./equipes.functions");
+    await garantirTimbrados();
     const contas = await gravarLinhas(sql, '"user"', ["id"], dados.usuarios);
     await gravarLinhas(sql, '"account"', ["id"], dados.contas);
     await gravarLinhas(sql, "autenticador", ["user_id"], (dados as { autenticadores?: unknown }).autenticadores);
@@ -1561,6 +1610,7 @@ export async function restaurarBackup(conteudo: string) {
     await gravarLinhas(sql, "feriados", ["id"], (dados as { feriados?: unknown }).feriados);
     await gravarLinhas(sql, "conta_excluida", ["user_id"], (dados as { excluidas?: unknown }).excluidas);
     await gravarLinhas(sql, "pedido_exclusao", ["user_id"], (dados as { pedidos?: unknown }).pedidos);
+    await gravarLinhas(sql, "timbrados", ["equipe_id"], (dados as { timbrados?: unknown }).timbrados);
     const processos = await gravarLinhas(sql, "processos", ["id"], dados.processos);
     const administrativos = await gravarLinhas(sql, "processos_admin", ["id"], dados.processosAdmin);
     const ids = [...new Set([...idsDe(dados.usuarios, "id"), ...idsDe(dados.contas, "userId")])];

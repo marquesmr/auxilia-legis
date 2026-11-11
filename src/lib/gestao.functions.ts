@@ -692,3 +692,33 @@ export const definirModulosEquipeGestao = createServerFn({ method: "POST" })
     return definirModulosEquipe(data.equipeId, data.modulos);
   });
 
+export const listarTimbradosGestao = createServerFn({ method: "POST" })
+  .validator(tokenOk)
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, listarTimbrados } = await import("./gestao.server");
+    await exigirGestao(data);
+    return listarTimbrados();
+  });
+
+export const salvarTimbradoGestao = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { token?: unknown; equipeId?: unknown; imagem?: unknown; linha1?: unknown; linha2?: unknown; rodape1?: unknown; rodape2?: unknown };
+    return {
+      token: tokenOk(bruto.token),
+      equipeId: idOk(bruto.equipeId),
+      imagem: typeof bruto.imagem === "string" ? bruto.imagem : "",
+      linha1: typeof bruto.linha1 === "string" ? bruto.linha1 : "",
+      linha2: typeof bruto.linha2 === "string" ? bruto.linha2 : "",
+      rodape1: typeof bruto.rodape1 === "string" ? bruto.rodape1 : "",
+      rodape2: typeof bruto.rodape2 === "string" ? bruto.rodape2 : "",
+    };
+  })
+  .handler(async ({ data }) => {
+    await mesmoLugar();
+    const { exigirGestao, salvarTimbrado } = await import("./gestao.server");
+    await exigirGestao(data.token);
+    return salvarTimbrado(data);
+  });
+

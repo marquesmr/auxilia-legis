@@ -42,6 +42,7 @@ import {
   type LinhaControle,
 } from "@/lib/admin";
 import { apagarAdmin, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao } from "@/lib/admin.functions";
+import { lerTimbradoEquipe, type TimbradoEquipe } from "@/lib/equipes.functions";
 import { buscarCnpjPorNome, consultarDocumento, type ConsultaDocumento, type ResultadoNomeCnpj } from "@/lib/cnpj.functions";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { CampoMes } from "@/components/campo-mes";
@@ -532,7 +533,7 @@ export function AdminPainel({
   children,
 }: {
   equipeAtual: string | null;
-  equipes: { id: string; nome: string }[];
+  equipes: { id: string; nome: string; membros?: { nome: string }[] }[];
   meuNome: string;
   sinalNovo: number;
   onToast: (mensagem: string) => void;
@@ -1540,7 +1541,6 @@ export function AdminPainel({
                     key={item.id}
                     processo={item}
                     processos={lista}
-                    meuNome={meuNome}
                     equipes={equipes}
                     onMover={moverPara}
                     onEditar={() => {
@@ -2221,7 +2221,6 @@ export function AdminPainel({
 function CardAdmin({
   processo,
   processos,
-  meuNome,
   equipes,
   onMover,
   onEditar,
@@ -2230,8 +2229,7 @@ function CardAdmin({
 }: {
   processo: ProcessoAdmin;
   processos: ProcessoAdmin[];
-  meuNome: string;
-  equipes: { id: string; nome: string }[];
+  equipes: { id: string; nome: string; membros?: { nome: string }[] }[];
   onMover: (id: string, equipeId: string | null) => void;
   onEditar: () => void;
   onAndamento: () => void;
@@ -2245,6 +2243,11 @@ function CardAdmin({
   const [capaAberta, setCapaAberta] = useState(false);
   const [idsCapa, setIdsCapa] = useState<string[]>([]);
   const [capaEscolha, setCapaEscolha] = useState("");
+  const [termoAberto, setTermoAberto] = useState(false);
+  const [termoAssinante, setTermoAssinante] = useState("");
+  const [termoFuncao, setTermoFuncao] = useState("");
+  const [termoTimbre, setTermoTimbre] = useState<TimbradoEquipe | null>(null);
+  const [termoAviso, setTermoAviso] = useState("");
   const [moverAberto, setMoverAberto] = useState(false);
   const u = urgenciaAdmin(processo);
   const tom = TOM[u];
@@ -2309,16 +2312,16 @@ function CardAdmin({
           </div>
         )}
       </div>
-      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) { setHistoricoAberto(false); setExtratoAberto(false); setCapaAberta(false); } }}>
+      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) { setHistoricoAberto(false); setExtratoAberto(false); setCapaAberta(false); setTermoAberto(false); } }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
           <Dialog.Content
             className="fixed inset-x-3 top-4 bottom-4 z-20 flex flex-col overflow-hidden rounded-2xl border border-line bg-sheet md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[90vh] md:w-full md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2"
             onInteractOutside={(evento) => {
-              if (historicoAberto || extratoAberto || capaAberta) evento.preventDefault();
+              if (historicoAberto || extratoAberto || capaAberta || termoAberto) evento.preventDefault();
             }}
             onPointerDownOutside={(evento) => {
-              if (historicoAberto || extratoAberto || capaAberta) evento.preventDefault();
+              if (historicoAberto || extratoAberto || capaAberta || termoAberto) evento.preventDefault();
             }}
           >
             <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
@@ -2496,7 +2499,24 @@ function CardAdmin({
               )}
               <button
                 type="button"
-                onClick={() => void baixarTermo(processo, meuNome)}
+                onClick={() => {
+                  const equipeId = processo.equipeId;
+                  setTermoAssinante("");
+                  setTermoFuncao("");
+                  setTermoTimbre(null);
+                  setTermoAberto(true);
+                  if (!equipeId) {
+                    setTermoAviso("Mova o processo para uma equipe. O timbrado é o da equipe.");
+                    return;
+                  }
+                  setTermoAviso("");
+                  void lerTimbradoEquipe({ data: equipeId })
+                    .then((timbre) => {
+                      setTermoTimbre(timbre);
+                      if (!timbre) setTermoAviso("Esta equipe ainda não tem timbrado na área restrita.");
+                    })
+                    .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível carregar o timbrado."));
+                }}
                 className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl border border-line text-sm font-medium text-ink"
               >
                 Termo de Encerramento
@@ -2720,6 +2740,55 @@ function CardAdmin({
                     .filter((item): item is { processo: ProcessoAdmin; fundamento: string; assinatura: string } => Boolean(item.processo));
                   baixarExtratos(prontos);
                   setExtratoAberto(false);
+                }}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
+              >
+                Baixar Word
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      <Dialog.Root open={termoAberto} onOpenChange={setTermoAberto}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Termo de encerramento</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted">
+              O documento usa o timbrado da equipe. Escolha quem assina e a função.
+            </Dialog.Description>
+            {termoAviso ? (
+              <p className="mt-4 text-sm text-seal">{termoAviso}</p>
+            ) : (
+              <div className="mt-4 flex flex-col gap-3">
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Quem assina
+                  <select value={termoAssinante} onChange={(evento) => setTermoAssinante(evento.target.value)} className={inputCls + " font-normal"}>
+                    <option value="">Selecione alguém da equipe</option>
+                    {(equipes.find((equipe) => equipe.id === processo.equipeId)?.membros ?? []).map((membro) => (
+                      <option key={membro.nome} value={membro.nome}>
+                        {membro.nome}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Função
+                  <input value={termoFuncao} onChange={(evento) => setTermoFuncao(evento.target.value)} placeholder="Ex.: Agente de Contratação" className={inputCls + " font-normal"} />
+                </label>
+              </div>
+            )}
+            <div className="mt-4 flex gap-2">
+              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
+                Cancelar
+              </Dialog.Close>
+              <button
+                type="button"
+                disabled={!termoTimbre || !termoAssinante || !termoFuncao.trim()}
+                onClick={() => {
+                  if (!termoTimbre) return;
+                  baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim());
+                  setTermoAberto(false);
                 }}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
               >
@@ -4321,7 +4390,7 @@ function baixarExtratos(itens: { processo: ProcessoAdmin; fundamento: string; as
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
 }
 
-async function baixarTermo(processo: ProcessoAdmin, agente: string) {
+function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assinante: string, funcao: string) {
   const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
   const tipo = processo.tipo.toLocaleUpperCase("pt-BR");
   const tipoFrase = processo.tipo.toLocaleLowerCase("pt-BR");
@@ -4329,27 +4398,14 @@ async function baixarTermo(processo: ProcessoAdmin, agente: string) {
     processo.tipo !== "Outros" && processo.tipoNumero != null && processo.tipoAno != null
       ? `${String(processo.tipoNumero).padStart(2, "0")}/${processo.tipoAno}`
       : "";
-  const nome = processo.contratado.trim().toLocaleUpperCase("pt-BR") || "____________________";
+  const contratado = processo.contratado.trim().toLocaleUpperCase("pt-BR") || "____________________";
   const digitos = processo.documento.replace(/\D/g, "");
   const docRotulo = digitos.length === 11 ? "CPF" : "CNPJ";
   const doc = mascaraDocumento(processo.documento) || processo.documento.trim() || "____________________";
   const data = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
-  const assinatura = agente.trim() || "Agente de Contratação";
-  let brasao = "";
-  try {
-    const resposta = await fetch("/brasao-mario-campos.png");
-    const blob = await resposta.blob();
-    brasao = await new Promise((resolver) => {
-      const leitor = new FileReader();
-      leitor.onload = () => resolver(String(leitor.result ?? ""));
-      leitor.onerror = () => resolver("");
-      leitor.readAsDataURL(blob);
-    });
-  } catch {
-    brasao = "";
-  }
-  const marca = brasao
-    ? `<p style="text-align:center;margin:0;"><img src="${brasao}" width="78" height="103" alt="Brasão de Mário Campos"></p>`
+  const lugar = timbre.linha2.trim() || timbre.linha1.trim();
+  const marca = timbre.imagem.startsWith("data:image/")
+    ? `<p style="text-align:center;margin:0;"><img src="${timbre.imagem}" width="78" height="103" alt=""></p>`
     : "";
   const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'>
 <style>
@@ -4362,23 +4418,23 @@ p { margin: 0 0 10pt; line-height: 1.15; text-align: justify; }
 </style>
 </head><body>
 ${marca}
-<p class="timbre">Câmara Municipal de</p>
-<p class="timbre">Mário Campos</p>
+${timbre.linha1.trim() ? `<p class="timbre">${escaparHtml(timbre.linha1.trim())}</p>` : ""}
+${timbre.linha2.trim() ? `<p class="timbre">${escaparHtml(timbre.linha2.trim())}</p>` : ""}
 <hr class="linha">
 <p class="centro"><b>TERMO DE ENCERRAMENTO DE<br>PROCESSO DE<br>${escaparHtml(tipo)}</b></p>
 <p class="centro"><b>PROCESSO ADMINISTRATIVO Nº ${escaparHtml(numero)}</b></p>
 <p class="centro"><b>${escaparHtml(peca ? `${tipo} ${peca}` : tipo)}</b></p>
 <p><b>Considerando</b> o disposto na Lei nº 14.133/2021, que estabelece normas gerais de licitação e contratação para a Administração Pública;</p>
 <p><b>Considerando</b> que o presente processo de ${escaparHtml(tipoFrase)}, identificado pelo nº ${escaparHtml(numero)}, foi conduzido conforme os requisitos legais e normativos aplicáveis, garantindo a regularidade da despesa pública;</p>
-<p><b>Considerando</b> que o pagamento referente à despesa foi devidamente realizado em favor de <b>${escaparHtml(nome)}</b>, inscrito no ${docRotulo} <b>${escaparHtml(doc)}</b>, conforme comprovante de pagamento anexo anteriormente;</p>
+<p><b>Considerando</b> que o pagamento referente à despesa foi devidamente realizado em favor de <b>${escaparHtml(contratado)}</b>, inscrito no ${docRotulo} <b>${escaparHtml(doc)}</b>, conforme comprovante de pagamento anexo anteriormente;</p>
 <p><b>Considerando</b> que não há pendências documentais, financeiras ou administrativas relacionadas ao presente processo;</p>
 <p><b>Resolve-se</b> pelo <b>encerramento do processo de</b> ${escaparHtml(tipoFrase)}, com o devido arquivamento dos documentos pertinentes, garantindo a transparência e conformidade com os princípios da administração pública.</p>
 <p>Registra-se para os devidos fins.</p>
-<p class="centro">Mário Campos, ${escaparHtml(data)}.</p>
-<p class="centro"><b>${escaparHtml(assinatura)}</b><br>Agente de Contratação</p>
+<p class="centro">${escaparHtml(lugar)}, ${escaparHtml(data)}.</p>
+<p class="centro"><b>${escaparHtml(assinante)}</b><br>${escaparHtml(funcao)}</p>
 <hr class="linha">
-<p class="rodape"><b>Avenida Petrina Augusta de Jesus, 100 - São Tarcísio - 32470-000</b></p>
-<p class="rodape">Contatos: (31) 3577-2662 | mariocampos.mg.leg.br | faleconosco@mariocampos.mg.leg.br</p>
+${timbre.rodape1.trim() ? `<p class="rodape"><b>${escaparHtml(timbre.rodape1.trim())}</b></p>` : ""}
+${timbre.rodape2.trim() ? `<p class="rodape">${escaparHtml(timbre.rodape2.trim())}</p>` : ""}
 </body></html>`;
   const arquivo = new Blob(["\ufeff", html], { type: "application/msword" });
   const link = document.createElement("a");

@@ -23,6 +23,8 @@ import {
   restaurarAutomaticoGestao,
   restaurarGestao,
   salvarSenhaCaixaGestao,
+  salvarTimbradoGestao,
+  listarTimbradosGestao,
   vincularEquipeGestao,
 } from "@/lib/gestao.functions";
 import type { painelGestao } from "@/lib/gestao.functions";
@@ -429,7 +431,110 @@ export function SecaoUsuarios({
           ))}
         </ul>
       </section>
+      <TimbradoEquipe token={token} equipes={painel.equipesPainel} onErro={onErro} onAviso={onAviso} />
     </div>
+  );
+}
+
+function TimbradoEquipe({
+  token,
+  equipes,
+  onErro,
+  onAviso,
+}: {
+  token: string;
+  equipes: { id: string; nome: string }[];
+  onErro: (texto: string) => void;
+  onAviso: (texto: string) => void;
+}) {
+  const [equipeId, setEquipeId] = useState(equipes[0]?.id ?? "");
+  const [linha1, setLinha1] = useState("");
+  const [linha2, setLinha2] = useState("");
+  const [rodape1, setRodape1] = useState("");
+  const [rodape2, setRodape2] = useState("");
+  const [imagem, setImagem] = useState("");
+  const [lista, setLista] = useState<{ equipeId: string; imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string }[]>([]);
+  const [ocupado, setOcupado] = useState(false);
+
+  function aplicar(equipe: string, itens: typeof lista) {
+    const atual = itens.find((item) => item.equipeId === equipe);
+    setLinha1(atual?.linha1 ?? "");
+    setLinha2(atual?.linha2 ?? "");
+    setRodape1(atual?.rodape1 ?? "");
+    setRodape2(atual?.rodape2 ?? "");
+    setImagem(atual?.imagem ?? "");
+  }
+
+  useEffect(() => {
+    void listarTimbradosGestao({ data: token })
+      .then((itens) => {
+        setLista(itens);
+        aplicar(equipeId, itens);
+      })
+      .catch(() => undefined);
+  }, [token]);
+
+  function escolherEquipe(id: string) {
+    setEquipeId(id);
+    aplicar(id, lista);
+  }
+
+  function lerImagem(arquivo: File | undefined) {
+    if (!arquivo) return;
+    if (!arquivo.type.startsWith("image/")) {
+      onErro("Envie uma imagem do brasão.");
+      return;
+    }
+    if (arquivo.size > 500_000) {
+      onErro("A imagem precisa ter menos de 500 KB.");
+      return;
+    }
+    const leitor = new FileReader();
+    leitor.onload = () => setImagem(String(leitor.result ?? ""));
+    leitor.readAsDataURL(arquivo);
+  }
+
+  return (
+    <section className="rounded-2xl border border-line bg-sheet p-4">
+      <h2 className="text-sm font-medium text-ink">Timbrado da equipe</h2>
+      <p className="mt-1 text-sm text-muted">O termo de encerramento usa o timbrado da equipe do processo.</p>
+      <form
+        className="mt-3 flex flex-col gap-3"
+        onSubmit={(evento) => {
+          evento.preventDefault();
+          if (!equipeId) return;
+          setOcupado(true);
+          void salvarTimbradoGestao({ data: { token, equipeId, imagem, linha1, linha2, rodape1, rodape2 } })
+            .then(() => listarTimbradosGestao({ data: token }))
+            .then((itens) => {
+              setLista(itens);
+              onAviso("Timbrado atribuído à equipe.");
+            })
+            .catch((err: unknown) => onErro(err instanceof Error ? err.message : "Não foi possível guardar o timbrado."))
+            .finally(() => setOcupado(false));
+        }}
+      >
+        <select value={equipeId} onChange={(evento) => escolherEquipe(evento.target.value)} className="h-11 rounded-xl border border-line bg-paper px-3 text-sm text-ink">
+          {equipes.map((equipe) => (
+            <option key={equipe.id} value={equipe.id}>
+              {equipe.nome}
+            </option>
+          ))}
+        </select>
+        <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+          Brasão
+          <input type="file" accept="image/*" onChange={(evento) => lerImagem(evento.target.files?.[0])} className="text-sm font-normal" />
+        </label>
+        {imagem ? <img src={imagem} alt="" className="h-24 w-auto object-contain" /> : null}
+        <input value={linha1} onChange={(evento) => setLinha1(evento.target.value)} placeholder="Primeira linha, ex.: Câmara Municipal de" className="h-11 rounded-xl border border-line bg-paper px-3 text-sm text-ink" />
+        <input value={linha2} onChange={(evento) => setLinha2(evento.target.value)} placeholder="Segunda linha, ex.: Mário Campos" className="h-11 rounded-xl border border-line bg-paper px-3 text-sm text-ink" />
+        <input value={rodape1} onChange={(evento) => setRodape1(evento.target.value)} placeholder="Endereço do rodapé" className="h-11 rounded-xl border border-line bg-paper px-3 text-sm text-ink" />
+        <input value={rodape2} onChange={(evento) => setRodape2(evento.target.value)} placeholder="Contatos do rodapé" className="h-11 rounded-xl border border-line bg-paper px-3 text-sm text-ink" />
+        <button type="submit" disabled={ocupado || !equipeId} className="inline-flex h-11 items-center justify-center rounded-xl bg-pine px-4 text-sm font-medium text-sheet disabled:opacity-50">
+          {ocupado ? "Salvando…" : "Atribuir timbrado"}
+        </button>
+      </form>
+    </section>
   );
 }
 
