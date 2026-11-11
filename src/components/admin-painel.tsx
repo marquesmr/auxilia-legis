@@ -2775,11 +2775,17 @@ function CardAdmin({
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-medium text-ink">
                   Função
-                  <input value={termoFuncao} onChange={(evento) => setTermoFuncao(evento.target.value)} placeholder="Ex.: Agente de Contratação" className={inputCls + " font-normal"} />
+                  <select value={termoFuncao} onChange={(evento) => setTermoFuncao(evento.target.value)} className={inputCls + " font-normal"}>
+                    <option value="">Selecione a função</option>
+                    <option>Agente de Contratações</option>
+                    <option>Gerente Administrativo</option>
+                    <option>Controladoria Geral</option>
+                    <option>{termoTimbre?.linha2.trim() ? `Presidente da Câmara Municipal de ${termoTimbre.linha2.trim()}` : "Presidente da Câmara Municipal"}</option>
+                  </select>
                 </label>
               </div>
             )}
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <div className="mt-4 flex gap-2">
               <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
                 Cancelar
               </Dialog.Close>
@@ -2788,20 +2794,7 @@ function CardAdmin({
                 disabled={!termoTimbre || !termoAssinante || !termoFuncao.trim()}
                 onClick={() => {
                   if (!termoTimbre) return;
-                  void baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim(), "imprimir")
-                    .then(() => setTermoAberto(false))
-                    .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível abrir o PDF."));
-                }}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink disabled:opacity-50"
-              >
-                Abrir PDF
-              </button>
-              <button
-                type="button"
-                disabled={!termoTimbre || !termoAssinante || !termoFuncao.trim()}
-                onClick={() => {
-                  if (!termoTimbre) return;
-                  void baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim(), "word")
+                  void baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim())
                     .then(() => setTermoAberto(false))
                     .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar o termo."));
                 }}
@@ -4405,14 +4398,7 @@ function baixarExtratos(itens: { processo: ProcessoAdmin; fundamento: string; as
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
 }
 
-async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assinante: string, funcao: string, modo: "word" | "imprimir" = "word") {
-  const janela = modo === "imprimir" ? window.open("", "_blank") : null;
-  if (modo === "imprimir" && !janela) throw new Error("O navegador bloqueou a abertura do PDF. Permita pop-ups deste site.");
-  if (janela) {
-    janela.document.open();
-    janela.document.write("<!DOCTYPE html><html><head><meta charset='utf-8'><title>Termo de encerramento</title></head><body><p style='font-family:Arial,sans-serif'>Abrindo o PDF…</p></body></html>");
-    janela.document.close();
-  }
+async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assinante: string, funcao: string) {
   const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
   const tipo = processo.tipo.toLocaleUpperCase("pt-BR");
   const tipoFrase = processo.tipo.toLocaleLowerCase("pt-BR");
@@ -4427,6 +4413,7 @@ async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assi
   const data = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
   const cidade = timbre.linha2.trim() || (timbre.arquivo ? await cidadeDoTimbrado(timbre.arquivo) : "") || timbre.linha1.trim();
   const dataCompleta = cidade ? `${cidade}, ${data}.` : `${data}.`;
+  const funcaoFinal = funcao.startsWith("Presidente da Câmara Municipal") && cidade ? `Presidente da Câmara Municipal de ${cidade}` : funcao;
   const numeroArquivo = `Termo de encerramento ${numero.replaceAll("/", "-")}`;
   const blocos: BlocoTermo[] = [
     { titulo: true, partes: [{ texto: `TERMO DE ENCERRAMENTO DE PROCESSO DE ${tipo}` }] },
@@ -4440,25 +4427,8 @@ async function baixarTermo(processo: ProcessoAdmin, timbre: TimbradoEquipe, assi
     { recuo: true, partes: [{ texto: "Registra-se para os devidos fins." }] },
     { recuo: true, partes: [{ texto: dataCompleta }] },
     { centro: true, junto: true, antes: true, partes: [{ texto: assinante, negrito: true }] },
-    { centro: true, junto: true, partes: [{ texto: funcao }] },
+    { centro: true, junto: true, partes: [{ texto: funcaoFinal }] },
   ];
-  if (janela) {
-    try {
-      const { pdfDoTermo } = await import("@/lib/termo-pdf");
-      const blob = await pdfDoTermo({
-        arquivo: timbre.arquivo,
-        imagem: timbre.imagem,
-        cabecalho: [timbre.linha1.trim(), timbre.linha2.trim()].filter(Boolean),
-        rodape: [timbre.rodape1.trim(), timbre.rodape2.trim()].filter(Boolean),
-        blocos,
-      });
-      janela.location.replace(URL.createObjectURL(blob));
-    } catch (erro) {
-      janela.close();
-      throw erro;
-    }
-    return;
-  }
   if (timbre.arquivo) {
     const arquivo = await termoNoTimbrado(timbre.arquivo, blocos);
     const link = document.createElement("a");
@@ -4503,17 +4473,11 @@ ${timbre.linha2.trim() ? `<p class="timbre">${escaparHtml(timbre.linha2.trim())}
 <p class="recuo">Registra-se para os devidos fins.</p>
 <p class="recuo">${escaparHtml(dataCompleta)}</p>
 <p class="assinatura"><b>${escaparHtml(assinante)}</b></p>
-<p class="centro">${escaparHtml(funcao)}</p>
+<p class="centro">${escaparHtml(funcaoFinal)}</p>
 <hr class="linha">
 ${timbre.rodape1.trim() ? `<p class="rodape"><b>${escaparHtml(timbre.rodape1.trim())}</b></p>` : ""}
 ${timbre.rodape2.trim() ? `<p class="rodape">${escaparHtml(timbre.rodape2.trim())}</p>` : ""}
 </body></html>`;
-  if (janela) {
-    janela.document.open();
-    janela.document.write(html.replace("</body>", "<script>window.onload=function(){window.focus();window.print();}<\/script></body>"));
-    janela.document.close();
-    return;
-  }
   const arquivo = new Blob(["\ufeff", html], { type: "application/msword" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(arquivo);
