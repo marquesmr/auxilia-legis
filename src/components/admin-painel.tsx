@@ -2537,7 +2537,7 @@ function CardAdmin({
           <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 max-h-[85vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
             <Dialog.Title className="font-display text-2xl text-ink">Imprimir capa</Dialog.Title>
             <Dialog.Description className="mt-1 text-sm text-muted">
-              {idsCapa.length > 0 ? "Com mais de um processo, saem duas capas por folha." : "Uma capa nesta folha. Se quiser, junte outro processo."}
+              {idsCapa.length > 0 ? "Com mais de um processo, a folha leva quantos couberem, sem cortar o objeto." : "Uma capa nesta folha. Se quiser, junte outro processo."}
             </Dialog.Description>
             <ul className="mt-4 flex flex-col gap-2 text-sm">
               <li className="rounded-xl border border-line px-3 py-2 text-ink">{rotuloLista(processo)}</li>
@@ -4201,8 +4201,8 @@ function textoExtrato(processo: ProcessoAdmin, fundamento: string, assinatura: s
 
 function baixarExtratos(itens: { processo: ProcessoAdmin; fundamento: string; assinatura: string }[]) {
   if (!itens.length) return;
-  const blocos = itens.map((item) => `<p>${textoExtrato(item.processo, item.fundamento, item.assinatura)}</p>`).join("");
-  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'><style>body{font-family:'Times New Roman',Times,serif;font-size:12pt;}p{text-align:justify;line-height:1.45;margin:0;}p+p{margin-top:10mm;}</style></head><body>${blocos}</body></html>`;
+  const blocos = itens.map((item) => `<p>${textoExtrato(item.processo, item.fundamento, item.assinatura)}</p>`).join("<p>&nbsp;</p>");
+  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'><style>body{font-family:'Times New Roman',Times,serif;font-size:12pt;}p{text-align:justify;line-height:1.15;margin:0;}</style></head><body>${blocos}</body></html>`;
   const blob = new Blob(["\ufeff", html], { type: "application/msword" });
   const primeiro = itens[0].processo;
   const numero = primeiro.numero ? rotuloNumero(primeiro.numero, primeiro.numeroAno) : "processo";
@@ -4249,16 +4249,38 @@ function blocoCapa(processo: ProcessoAdmin) {
   return bloco;
 }
 
+function alturaCapa(processo: ProcessoAdmin) {
+  const linhas = Math.max(1, Math.ceil(processo.objeto.trim().length / 85));
+  return 36 + linhas * 5.3;
+}
+
 function imprimirCapas(lista: ProcessoAdmin[]) {
   if (!lista.length) return;
-  const dupla = lista.length > 1;
+  const varios = lista.length > 1;
   const grupos: ProcessoAdmin[][] = [];
-  if (dupla) {
-    for (let indice = 0; indice < lista.length; indice += 2) grupos.push(lista.slice(indice, indice + 2));
-  } else grupos.push(lista);
+  if (!varios) {
+    grupos.push(lista);
+  } else {
+    const limite = 257;
+    let grupo: ProcessoAdmin[] = [];
+    let usados = 0;
+    for (const item of lista) {
+      const altura = alturaCapa(item);
+      const intervalo = grupo.length ? 5 : 0;
+      if (grupo.length >= 4 || (grupo.length > 0 && usados + intervalo + altura > limite)) {
+        grupos.push(grupo);
+        grupo = [item];
+        usados = altura;
+      } else {
+        grupo.push(item);
+        usados += intervalo + altura;
+      }
+    }
+    if (grupo.length) grupos.push(grupo);
+  }
   const folhas = grupos.map((grupo) => {
     const folha = document.createElement("article");
-    folha.className = dupla ? "capa-processo capa-dupla" : "capa-processo";
+    folha.className = varios ? "capa-processo capa-varias" : "capa-processo";
     grupo.forEach((item) => folha.append(blocoCapa(item)));
     return folha;
   });
