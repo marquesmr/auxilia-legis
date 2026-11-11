@@ -2418,9 +2418,9 @@ function CardAdmin({
                 <Info rotulo="Equipe" valor={equipes.find((equipe) => equipe.id === processo.equipeId)?.nome ?? "Só meus"} />
               </dl>
               {processo.pagamentoDemanda && processo.pagamentos.length > 0 && (
-                <ul className="mt-3 flex flex-col gap-1 text-sm">
-                  {processo.pagamentos.map((item) => (
-                    <li key={item.id} className="text-ink">
+                <ul className="mt-3 max-h-[4.5rem] overflow-y-auto text-sm leading-6">
+                  {[...processo.pagamentos].sort((a, b) => (!a.data || !b.data ? (a.data ? -1 : b.data ? 1 : 0) : b.data.localeCompare(a.data))).map((item) => (
+                    <li key={item.id} className="truncate text-ink">
                       {item.data ? formatDate(item.data) : "Sem data"}
                       {item.descricao ? ` · ${item.descricao}` : ""}
                       <span className="ml-2 font-medium">{formatarReais(item.valorCentavos)}</span>
@@ -2955,13 +2955,14 @@ function ListaPagamentos({
   }
 
   return (
-    <ul className="mt-1 flex flex-col gap-1 text-sm">
-      {pagamentos.length > 1 ? <li className="text-xs text-muted">Arraste para organizar.</li> : null}
-      {pagamentos.map((item) => (
+    <div>
+      {pagamentos.length > 1 ? <p className="text-xs text-muted">Arraste para organizar.</p> : null}
+      <ul className="mt-1 max-h-24 overflow-y-auto text-sm">
+      {[...pagamentos].sort((a, b) => (!a.data || !b.data ? (a.data ? -1 : b.data ? 1 : 0) : b.data.localeCompare(a.data))).map((item) => (
         <li
           key={item.id}
           data-pagamento={item.id}
-          className={"flex items-center justify-between gap-2 rounded-lg px-1 " + (sobre === item.id ? "bg-pine-soft" : "")}
+          className={"flex h-8 shrink-0 items-center justify-between gap-2 rounded-lg px-1 " + (sobre === item.id ? "bg-pine-soft" : "")}
         >
           <button
             type="button"
@@ -2988,7 +2989,7 @@ function ListaPagamentos({
           >
             <GripVertical className="size-4" />
           </button>
-          <span className="min-w-0 flex-1 text-ink">
+          <span className="min-w-0 flex-1 truncate text-ink">
             {item.data ? formatDate(item.data) : "Sem data"}
             {item.descricao ? ` · ${item.descricao}` : ""}
             <span className="ml-2 font-medium">{formatarReais(item.valorCentavos)}</span>
@@ -2996,7 +2997,8 @@ function ListaPagamentos({
           <MenuPagamento pagamento={item} onSalvar={(data, valor) => onSalvar(item.id, data, valor)} onRemover={() => onRemover(item.id)} />
         </li>
       ))}
-    </ul>
+      </ul>
+    </div>
   );
 }
 
