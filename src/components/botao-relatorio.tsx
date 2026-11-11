@@ -182,7 +182,7 @@ function abrirPdf(blob: Blob) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-export function BotaoRelatorio() {
+export function BotaoRelatorio({ rotulo }: { rotulo?: string } = {}) {
   const [ocupado, setOcupado] = useState(false);
   const [pdf, setPdf] = useState<Blob | null>(null);
   const [aviso, setAviso] = useState("");
@@ -223,10 +223,10 @@ export function BotaoRelatorio() {
         }}
         className="no-print inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-line px-4 text-sm font-medium text-ink disabled:opacity-60 sm:w-auto"
       >
-        <Printer className="hidden size-4 md:block" />
-        <Share2 className="size-4 md:hidden" />
-        <span className="hidden md:inline">Imprimir ou salvar PDF</span>
-        <span className="md:hidden">{ocupado ? "Gerando PDF…" : "Compartilhar como"}</span>
+        <Printer className={rotulo ? "size-4" : "hidden size-4 md:block"} />
+        {rotulo ? null : <Share2 className="size-4 md:hidden" />}
+        <span className={rotulo ? undefined : "hidden md:inline"}>{rotulo && ocupado ? "Gerando…" : rotulo ?? "Imprimir ou salvar PDF"}</span>
+        {rotulo ? null : <span className="md:hidden">{ocupado ? "Gerando PDF…" : "Compartilhar como"}</span>}
       </button>
       {(pdf || aviso) &&
         createPortal(

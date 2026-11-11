@@ -3464,6 +3464,9 @@ function RelatorioPagamentos({
       </div>
       {escolhido && (
         <article className="relatorio-folha mt-4 rounded-2xl border border-line bg-sheet p-4 md:p-6">
+          <div className="no-print mb-4">
+            <BotaoRelatorio rotulo="Imprimir" />
+          </div>
           <Timbrado />
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -3471,7 +3474,6 @@ function RelatorioPagamentos({
               <h2 className="font-display text-2xl text-ink sm:text-3xl">Pagamentos · {rotuloNumero(escolhido.numero, escolhido.numeroAno)}</h2>
               <p className="mt-1 text-sm text-muted">{rotuloTipo(escolhido.tipo, escolhido.tipoNumero, escolhido.tipoAno)}{escolhido.contratado ? ` · ${escolhido.contratado}` : ""}</p>
             </div>
-            <BotaoRelatorio />
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
             <Info rotulo="Número do processo" valor={escolhido.numero ? rotuloNumero(escolhido.numero, escolhido.numeroAno) : "—"} />
