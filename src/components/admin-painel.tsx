@@ -4426,9 +4426,16 @@ async function imprimirDocx(janela: Window, arquivo: Blob) {
     const no = (ns ? doc.createElementNS(ns, tagName) : doc.createElement(tagName)) as HTMLElement;
     if (className) no.setAttribute("class", className);
     if (typeof style === "string") no.setAttribute("style", style);
-    else if (style) Object.assign(no.style, style);
+    else if (style) {
+      const regras = Object.entries(style)
+        .filter(([chave, valor]) => valor != null && !/^\d+$/.test(chave))
+        .map(([chave, valor]) => `${chave.replace(/[A-Z]/g, (letra) => `-${letra.toLowerCase()}`)}: ${valor}`);
+      if (regras.length) no.setAttribute("style", regras.join("; "));
+    }
     for (const [chave, valor] of Object.entries(props)) {
-      if (valor !== undefined) (no as unknown as Record<string, unknown>)[chave] = valor;
+      if (valor == null || /^\d+$/.test(chave) || chave === "style") continue;
+      if (typeof valor === "string" || typeof valor === "number") no.setAttribute(chave, String(valor));
+      else (no as unknown as Record<string, unknown>)[chave] = valor;
     }
     for (const filho of children ?? []) no.appendChild(criar(filho as never));
     return no;
