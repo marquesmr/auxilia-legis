@@ -795,4 +795,61 @@ html[data-tema="escuro"][data-cor="roxo"] {
   }
 }
 
+@media print {
+  body.imprimindo-capa {
+    background: #fff !important;
+  }
+
+  body.imprimindo-capa > :not(.capa-processo) {
+    display: none !important;
+  }
+
+  body.imprimindo-capa .capa-processo {
+    display: block !important;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 100vh;
+    margin: 0;
+    padding: 18mm 20mm 16mm;
+    background: #fff;
+    color: #111;
+    font-family: "Times New Roman", Times, serif;
+    font-size: 12pt;
+    line-height: 1.35;
+  }
+
+  body.imprimindo-capa .capa-regua {
+    height: 0;
+    border-top: 3.2pt double #111;
+  }
+
+  body.imprimindo-capa .capa-caixa {
+    margin-top: 14mm;
+    border: 1pt solid #111;
+    padding: 2.2mm 3.5mm 2.6mm;
+  }
+
+  body.imprimindo-capa .capa-caixa p {
+    margin: 0;
+  }
+
+  body.imprimindo-capa .capa-objeto-titulo {
+    margin: 9mm 0 3mm;
+    text-align: center;
+    font-weight: 700;
+  }
+
+  body.imprimindo-capa .capa-objeto {
+    border: 1pt solid #111;
+    min-height: 24mm;
+    padding: 3.5mm 4mm;
+    text-align: justify;
+    white-space: pre-wrap;
+  }
+
+  body.imprimindo-capa .capa-objeto + .capa-regua {
+    margin-top: 14mm;
+  }
+}
+
 

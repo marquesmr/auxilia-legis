@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, Check, Copy, FilePen, FileText, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, Check, Copy, FilePen, FileText, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -2331,7 +2331,23 @@ function CardAdmin({
                 <Info rotulo="Número do tipo" valor={processo.tipoNumero != null ? `${String(processo.tipoNumero).padStart(2, "0")}/${processo.tipoAno ?? ""}` : "—"} />
                 <Info rotulo="Referência" valor={processo.referencia || "—"} />
                 <Info rotulo="Status" valor={statusAdminLabel(processo.status)} />
-                <Info rotulo="Objeto" valor={processo.objeto || "—"} largo justificar copiar />
+                <Info
+                  rotulo="Objeto"
+                  valor={processo.objeto || "—"}
+                  largo
+                  justificar
+                  copiar
+                  extra={
+                    <button
+                      type="button"
+                      onClick={() => imprimirCapa(processo)}
+                      className="ml-auto inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-xs font-medium text-ink"
+                    >
+                      <Printer className="size-3.5" />
+                      Imprimir Capa
+                    </button>
+                  }
+                />
                 <Info rotulo="Comunicação interna" valor={processo.ciNumero != null ? formatarPeca(processo.ciNumero, processo.ciAno) : "—"} />
                 <Info rotulo="Origem da CI" valor={processo.ciOrigem || "—"} />
                 <Info rotulo="Parecer" valor={processo.parecerNa ? "N/A" : processo.parecerNumero != null ? formatarPeca(processo.parecerNumero, processo.parecerAno) : "—"} />
@@ -3936,7 +3952,44 @@ function DocumentoComConsulta({
   );
 }
 
-function Info({ rotulo, valor, largo, justificar, copiar }: { rotulo: string; valor: string; largo?: boolean; justificar?: boolean; copiar?: boolean }) {
+function imprimirCapa(processo: ProcessoAdmin) {
+  const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
+  const tipoNumero =
+    processo.tipo !== "Outros" && processo.tipoNumero != null
+      ? `${String(processo.tipoNumero).padStart(2, "0")}/${processo.tipoAno ?? ""}`
+      : "";
+  const folha = document.createElement("article");
+  folha.className = "capa-processo";
+  const regua = () => {
+    const linha = document.createElement("div");
+    linha.className = "capa-regua";
+    return linha;
+  };
+  const caixa = document.createElement("div");
+  caixa.className = "capa-caixa";
+  const linhaProcesso = document.createElement("p");
+  linhaProcesso.textContent = `Processo Administrativo: ${numero}`;
+  const linhaTipo = document.createElement("p");
+  linhaTipo.textContent = tipoNumero ? `${processo.tipo}: ${tipoNumero}` : processo.tipo;
+  caixa.append(linhaProcesso, linhaTipo);
+  const titulo = document.createElement("p");
+  titulo.className = "capa-objeto-titulo";
+  titulo.textContent = "OBJETO:";
+  const objeto = document.createElement("div");
+  objeto.className = "capa-objeto";
+  objeto.textContent = processo.objeto.trim();
+  folha.append(regua(), caixa, titulo, objeto, regua());
+  document.body.appendChild(folha);
+  document.body.classList.add("imprimindo-capa");
+  const voltar = () => {
+    folha.remove();
+    document.body.classList.remove("imprimindo-capa");
+  };
+  window.addEventListener("afterprint", voltar, { once: true });
+  window.print();
+}
+
+function Info({ rotulo, valor, largo, justificar, copiar, extra }: { rotulo: string; valor: string; largo?: boolean; justificar?: boolean; copiar?: boolean; extra?: ReactNode }) {
   const [copiado, setCopiado] = useState(false);
   return (
     <div className={largo ? "col-span-2" : undefined}>
@@ -3958,6 +4011,7 @@ function Info({ rotulo, valor, largo, justificar, copiar }: { rotulo: string; va
             {copiado ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
           </button>
         ) : null}
+        {extra}
       </dt>
       <dd className={justificar ? "text-justify text-ink" : "text-ink"}>{valor}</dd>
     </div>
