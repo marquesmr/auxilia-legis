@@ -56,55 +56,6 @@ export async function cidadeDoTimbrado(arquivo: string) {
   return junta.match(/\bde\s+([^,]+)$/i)?.[1]?.trim() ?? "";
 }
 
-function linhasXml(xml: string) {
-  const linhas: string[] = [];
-  for (const parte of xml.split(/<w:p[ >]/).slice(1)) {
-    const texto = textoDoParagrafo(parte);
-    if (texto) linhas.push(texto);
-  }
-  return linhas;
-}
-
-async function imagensDaParte(zip: JSZip, rels: string) {
-  const xml = await zip.file(rels)?.async("string");
-  if (!xml) return [];
-  const vistas = new Set<string>();
-  const saida: string[] = [];
-  for (const alvo of xml.matchAll(/Target="([^"]+\.(?:png|jpe?g|gif))"/gi)) {
-    const relativo = alvo[1].replace(/^\//, "");
-    const caminho = relativo.startsWith("word/") ? relativo : `word/${relativo}`;
-    const arquivo = zip.file(caminho);
-    if (!arquivo) continue;
-    const base64 = await arquivo.async("base64");
-    if (vistas.has(base64)) continue;
-    vistas.add(base64);
-    const ext = caminho.split(".").pop()?.toLowerCase();
-    const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
-    saida.push(`data:${mime};base64,${base64}`);
-  }
-  return saida;
-}
-
-export async function molduraDoTimbrado(arquivo: string) {
-  const base64 = arquivo.includes(",") ? arquivo.slice(arquivo.indexOf(",") + 1) : arquivo;
-  const zip = await JSZip.loadAsync(base64, { base64: true });
-  const cabecalhos = Object.keys(zip.files).filter((nome) => /word\/header\d+\.xml$/.test(nome)).sort();
-  const rodapes = Object.keys(zip.files).filter((nome) => /word\/footer\d+\.xml$/.test(nome)).sort();
-  const linhas: string[] = [];
-  const imagens: string[] = [];
-  for (const nome of cabecalhos) {
-    const xml = await zip.file(nome)?.async("string");
-    if (xml) linhas.push(...linhasXml(xml));
-    imagens.push(...(await imagensDaParte(zip, nome.replace("word/", "word/_rels/") + ".rels")));
-  }
-  const rodape: string[] = [];
-  for (const nome of rodapes) {
-    const xml = await zip.file(nome)?.async("string");
-    if (xml) rodape.push(...linhasXml(xml));
-  }
-  return { imagens, linhas, rodape };
-}
-
 export async function termoNoTimbrado(arquivo: string, blocos: BlocoTermo[]) {
   const base64 = arquivo.includes(",") ? arquivo.slice(arquivo.indexOf(",") + 1) : arquivo;
   const zip = await JSZip.loadAsync(base64, { base64: true });
