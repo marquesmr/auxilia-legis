@@ -1996,6 +1996,15 @@ export function AdminPainel({
                 e.preventDefault();
                 void registrarAndamento();
               }}
+              onKeyDown={(e) => {
+                if (e.key !== "Shift" || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
+                const campo = (e.target as HTMLElement).closest("input, textarea") as HTMLInputElement | HTMLTextAreaElement | null;
+                if (campo?.tagName === "TEXTAREA") return;
+                if (campo instanceof HTMLInputElement && (campo.type === "url" || campo.placeholder === "Opcional")) return;
+                if (!lista.find((item) => item.id === andamentoId)?.pagamentoDemanda) return;
+                e.preventDefault();
+                void lancarPagamento();
+              }}
             >
               <Campo label="Status">
                 <select
