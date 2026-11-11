@@ -2233,6 +2233,9 @@ function CardAdmin({
 }) {
   const [detalhes, setDetalhes] = useState(false);
   const [historicoAberto, setHistoricoAberto] = useState(false);
+  const [extratoAberto, setExtratoAberto] = useState(false);
+  const [fundamentoExtrato, setFundamentoExtrato] = useState("");
+  const [assinaturaExtrato, setAssinaturaExtrato] = useState("");
   const [moverAberto, setMoverAberto] = useState(false);
   const u = urgenciaAdmin(processo);
   const tom = TOM[u];
@@ -2297,16 +2300,16 @@ function CardAdmin({
           </div>
         )}
       </div>
-      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) setHistoricoAberto(false); }}>
+      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) { setHistoricoAberto(false); setExtratoAberto(false); } }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
           <Dialog.Content
             className="fixed inset-x-3 top-4 bottom-4 z-20 flex flex-col overflow-hidden rounded-2xl border border-line bg-sheet md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[90vh] md:w-full md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2"
             onInteractOutside={(evento) => {
-              if (historicoAberto) evento.preventDefault();
+              if (historicoAberto || extratoAberto) evento.preventDefault();
             }}
             onPointerDownOutside={(evento) => {
-              if (historicoAberto) evento.preventDefault();
+              if (historicoAberto || extratoAberto) evento.preventDefault();
             }}
           >
             <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
@@ -2338,14 +2341,28 @@ function CardAdmin({
                   justificar
                   copiar
                   extra={
-                    <button
-                      type="button"
-                      onClick={() => imprimirCapa(processo)}
-                      className="ml-auto inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-xs font-medium text-ink"
-                    >
-                      <Printer className="size-3.5" />
-                      Imprimir Capa
-                    </button>
+                    <span className="ml-auto flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => imprimirCapa(processo)}
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-xs font-medium text-ink"
+                      >
+                        <Printer className="size-3.5" />
+                        Imprimir Capa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFundamentoExtrato("");
+                          setAssinaturaExtrato(processo.vigenciaInicio ?? "");
+                          setExtratoAberto(true);
+                        }}
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-xs font-medium text-ink"
+                      >
+                        <FileText className="size-3.5" />
+                        Extrato
+                      </button>
+                    </span>
                   }
                 />
                 <Info rotulo="Comunicação interna" valor={processo.ciNumero != null ? formatarPeca(processo.ciNumero, processo.ciAno) : "—"} />
@@ -2501,6 +2518,57 @@ function CardAdmin({
                 </li>
               ))}
             </ol>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      <Dialog.Root open={extratoAberto} onOpenChange={setExtratoAberto}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">
+              {processo.possuiContrato ? "Extrato de contrato" : "Extrato de aquisição"}
+            </Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted">
+              {processo.possuiContrato
+                ? "Este processo tem contrato. O arquivo segue o modelo de contratação."
+                : "Este processo não tem contrato. O arquivo segue o modelo de aquisição."}
+            </Dialog.Description>
+            <label className="mt-4 flex flex-col gap-1 text-sm font-medium text-ink">
+              Fundamento legal
+              <textarea
+                value={fundamentoExtrato}
+                onChange={(evento) => setFundamentoExtrato(evento.target.value)}
+                placeholder="Ex.: inciso II do artigo 75 da lei 14.133 de 2021"
+                className="min-h-20 w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm font-normal text-ink"
+              />
+            </label>
+            {processo.possuiContrato && (
+              <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
+                Assinatura do contrato
+                <input
+                  type="date"
+                  value={assinaturaExtrato}
+                  onChange={(evento) => setAssinaturaExtrato(evento.target.value)}
+                  className={inputCls}
+                />
+              </label>
+            )}
+            <div className="mt-4 flex gap-2">
+              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
+                Cancelar
+              </Dialog.Close>
+              <button
+                type="button"
+                disabled={!fundamentoExtrato.trim() || (processo.possuiContrato && !assinaturaExtrato)}
+                onClick={() => {
+                  baixarExtrato(processo, fundamentoExtrato, assinaturaExtrato);
+                  setExtratoAberto(false);
+                }}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
+              >
+                Baixar Word
+              </button>
+            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
@@ -3950,6 +4018,47 @@ function DocumentoComConsulta({
       </Dialog.Root>
     </>
   );
+}
+
+function pontoFinal(texto: string) {
+  const limpo = texto.trim();
+  if (!limpo) return "";
+  return /[.!?]$/.test(limpo) ? limpo : `${limpo}.`;
+}
+
+function dataBr(iso: string) {
+  const [ano, mes, dia] = iso.slice(0, 10).split("-");
+  if (!ano || !mes || !dia) return iso;
+  return `${dia}/${mes}/${ano}`;
+}
+
+function escaparHtml(texto: string) {
+  return texto.replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">");
+}
+
+function baixarExtrato(processo: ProcessoAdmin, fundamento: string, assinatura: string) {
+  const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
+  const tipo = processo.tipo.toLocaleLowerCase("pt-BR");
+  const nome = processo.contratado.trim().toLocaleUpperCase("pt-BR");
+  const digitos = processo.documento.replace(/\D/g, "");
+  const docRotulo = digitos.length === 11 ? "CPF nº" : "CNPJ nº";
+  const doc = mascaraDocumento(processo.documento) || processo.documento.trim();
+  const objeto = pontoFinal(processo.objeto);
+  const base = pontoFinal(fundamento);
+  const valor = formatarReais(processo.valorTotalCentavos).replace(/\u00a0/g, " ");
+  const contrato = processo.possuiContrato;
+  const texto = contrato
+    ? `<strong>EXTRATO DE CONTRATO:</strong> Processo nº: ${escaparHtml(numero)} <strong>Tipo do processo:</strong> ${escaparHtml(tipo)}. <strong>Contratado:</strong> ${escaparHtml(nome)}, ${docRotulo} ${escaparHtml(doc)}. <strong>Objeto:</strong> ${escaparHtml(objeto)} <strong>Fundamento Legal:</strong> ${escaparHtml(base)} <strong>Assinatura do contrato:</strong> ${escaparHtml(dataBr(assinatura))} <strong>Valor GLOBAL da contratação:</strong> ${escaparHtml(valor)}.`
+    : `<strong>EXTRATO DE AQUISIÇÃO:</strong> Processo nº: ${escaparHtml(numero)} <strong>Tipo do processo:</strong> ${escaparHtml(tipo)}. <strong>Contratado:</strong> ${escaparHtml(nome)}, ${docRotulo} ${escaparHtml(doc)}. <strong>Objeto:</strong> ${escaparHtml(objeto)} <strong>Fundamento Legal:</strong> ${escaparHtml(base)} <strong>Valor da aquisição:</strong> ${escaparHtml(valor)}`;
+  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'><style>body{font-family:'Times New Roman',Times,serif;font-size:12pt;}p{text-align:justify;line-height:1.45;}</style></head><body><p>${texto}</p></body></html>`;
+  const blob = new Blob(["\ufeff", html], { type: "application/msword" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `${contrato ? "Extrato de contrato" : "Extrato de aquisição"} ${numero.replaceAll("/", "-")}.doc`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
 }
 
 function imprimirCapa(processo: ProcessoAdmin) {
