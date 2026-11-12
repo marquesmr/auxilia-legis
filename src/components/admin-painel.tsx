@@ -29,7 +29,9 @@ import {
   pedePrevisao,
   precisaAvisoAdmin,
   reaisParaCentavos,
+  RETENCOES,
   rotuloNumero,
+  rotuloRetencao,
   rotuloTipo,
   somaPagamentos,
   statusAdminLabel,
@@ -87,8 +89,9 @@ type FormAdmin = {
   valorEstimado: string;
   pagamentoDemanda: boolean;
   retencaoImpostos: boolean;
+  retencaoTipo: string;
   retencao: string;
-  pagamentos: { id: string; data: string; valor: string; descricao: string; numero?: number; invalido?: boolean; descontoCentavos?: number }[];
+  pagamentos: { id: string; data: string; valor: string; descricao: string; numero?: number; invalido?: boolean; descontoCentavos?: number; retencaoTipo?: string }[];
   ciNumero: string;
   ciAno: number;
   ciOrigem: string;
@@ -203,6 +206,7 @@ function vazio(): FormAdmin {
     valorEstimado: "",
     pagamentoDemanda: false,
     retencaoImpostos: false,
+    retencaoTipo: "",
     retencao: "",
     pagamentos: [],
     ciNumero: "",
@@ -261,6 +265,7 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
     valorEstimado: centavosParaCampo(p.valorEstimadoCentavos),
     pagamentoDemanda: p.pagamentoDemanda,
     retencaoImpostos: p.retencaoImpostos,
+    retencaoTipo: p.retencaoTipo,
     retencao: centavosParaCampo(p.retencaoCentavos),
     pagamentos: p.pagamentos.map((item) => ({
       id: item.id,
@@ -270,6 +275,7 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
       numero: item.numero,
       invalido: item.invalido,
       descontoCentavos: item.descontoCentavos,
+      retencaoTipo: item.retencaoTipo,
     })),
     ciNumero: p.ciNumero != null ? String(p.ciNumero) : "",
     ciAno: p.ciAno ?? new Date().getFullYear(),
@@ -363,6 +369,7 @@ function validar(form: FormAdmin): string[] {
     const retencao = reaisParaCentavos(form.retencao);
     const mensal = reaisParaCentavos(form.valorMensal);
     if (retencao == null || retencao <= 0) erros.push("Informe o valor da retenção de impostos.");
+    else if (!RETENCOES.some((item) => item.id === form.retencaoTipo)) erros.push("Informe o tipo da retenção.");
     else if (!form.pagamentoDemanda && mensal != null && retencao > mensal) erros.push("A retenção não pode ser maior que o valor mensal.");
   }
   if (permiteDoisContratados(form.tipo) && (form.status === "encerrado" || form.status === "execucao")) {
@@ -446,6 +453,7 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
       valorEstimadoCentavos: form.status === "execucao" || form.status === "encerrado" ? null : reaisParaCentavos(form.valorEstimado),
       pagamentoDemanda: false,
       retencaoImpostos: false,
+      retencaoTipo: "",
       retencaoCentavos: null,
       pagamentos: [],
       ciNumero: numeroPeca(form.ciNumero),
@@ -488,7 +496,7 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
         if (item.invalido && item.numero) return [{ id: item.id, data: "", valorCentavos: 0, descricao: "", numero: item.numero, invalido: true as const }];
         const valor = reaisParaCentavos(item.valor);
         if (valor == null) return [];
-        return [{ id: item.id, data: item.data, valorCentavos: valor, descricao: item.descricao.trim(), ...(item.numero ? { numero: item.numero } : {}), ...(item.descontoCentavos ? { descontoCentavos: item.descontoCentavos } : {}) }];
+        return [{ id: item.id, data: item.data, valorCentavos: valor, descricao: item.descricao.trim(), ...(item.numero ? { numero: item.numero } : {}), ...(item.descontoCentavos ? { descontoCentavos: item.descontoCentavos, ...(item.retencaoTipo ? { retencaoTipo: item.retencaoTipo } : {}) } : {}) }];
       });
   return {
     id: base.id,
@@ -517,6 +525,7 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     valorEstimadoCentavos: demanda || execucao || encerrado ? null : reaisParaCentavos(form.valorEstimado),
     pagamentoDemanda: demanda,
     retencaoImpostos: form.retencaoImpostos && !cancelado && !tipoSimples(form.tipo),
+    retencaoTipo: form.retencaoImpostos && !cancelado && !tipoSimples(form.tipo) ? form.retencaoTipo : "",
     retencaoCentavos: form.retencaoImpostos && !cancelado && !tipoSimples(form.tipo) ? reaisParaCentavos(form.retencao) : null,
     pagamentos,
     ciNumero: numeroPeca(form.ciNumero),
@@ -1066,7 +1075,7 @@ export function AdminPainel({
         valorCentavos: valorNovo,
         descricao,
         ...(atual.pagamentos.some((item) => item.numero) ? { numero: ultimo + 1 } : {}),
-        ...(desconto > 0 ? { descontoCentavos: desconto } : {}),
+        ...(desconto > 0 ? { descontoCentavos: desconto, ...(atual.retencaoTipo ? { retencaoTipo: atual.retencaoTipo } : {}) } : {}),
       },
     ];
     const atualizado: ProcessoAdmin = {
@@ -2074,7 +2083,7 @@ export function AdminPainel({
                         type="checkbox"
                         className="mt-0.5"
                         checked={form.retencaoImpostos}
-                        onChange={(evento) => setForm({ ...form, retencaoImpostos: evento.target.checked, retencao: evento.target.checked ? form.retencao : "" })}
+                        onChange={(evento) => setForm({ ...form, retencaoImpostos: evento.target.checked, retencao: evento.target.checked ? form.retencao : "", retencaoTipo: evento.target.checked ? form.retencaoTipo : "" })}
                       />
                       <span>
                         Retenção de impostos
@@ -2082,7 +2091,17 @@ export function AdminPainel({
                       </span>
                     </label>
                     {form.retencaoImpostos && (
-                      <div className="mt-3">
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <Campo label="Tipo da retenção">
+                          <select value={form.retencaoTipo} onChange={(evento) => setForm({ ...form, retencaoTipo: evento.target.value })} className={inputCls} required>
+                            <option value="">Selecione</option>
+                            {RETENCOES.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.rotulo}
+                              </option>
+                            ))}
+                          </select>
+                        </Campo>
                         <Campo label="Valor da retenção">
                           <input
                             value={form.retencao}
@@ -3600,7 +3619,7 @@ function RelatorioPagamentos({
             <Info rotulo="Vigência" valor={escolhido.vigenciaInicio ? `${formatDate(escolhido.vigenciaInicio)} a ${escolhido.vigenciaFim ? formatDate(escolhido.vigenciaFim) : "—"}` : "—"} largo />
             <Info rotulo={escolhido.pagamentoDemanda || escolhido.possuiContrato ? "Valor anual" : "Valor da contratação"} valor={formatarReais(escolhido.valorTotalCentavos)} />
             <Info rotulo="Valor mensal" valor={formatarReais(escolhido.pagamentoDemanda ? somaPagamentos(escolhido.pagamentos) : escolhido.valorMensalCentavos)} />
-            {escolhido.retencaoImpostos ? <Info rotulo="Retenção de impostos" valor={formatarReais(escolhido.retencaoCentavos)} /> : null}
+            {escolhido.retencaoImpostos ? <Info rotulo="Retenção de impostos" valor={`${rotuloRetencao(escolhido.retencaoTipo) || "—"} · ${formatarReais(escolhido.retencaoCentavos)}`} /> : null}
             <Info rotulo="Lançado por" valor={escolhido.autorNome || "sem nome"} />
           </dl>
           {pagamentos.length === 0 ? (
@@ -3671,7 +3690,7 @@ function RelatorioPagamentos({
                       {pagamentos.some((pagamento) => "descontoCentavos" in pagamento && pagamento.descontoCentavos) ? (
                         <>
                           <td className="py-2 pr-3 font-medium text-ink">{invalido ? "—" : formatarReais(item.valorCentavos)}</td>
-                          <td className="py-2 pr-3 text-ink">{invalido ? "—" : formatarReais("descontoCentavos" in item ? item.descontoCentavos ?? 0 : 0)}</td>
+                          <td className="py-2 pr-3 text-ink">{invalido ? "—" : `${"retencaoTipo" in item && item.retencaoTipo ? `${rotuloRetencao(item.retencaoTipo)} · ` : ""}${formatarReais("descontoCentavos" in item ? item.descontoCentavos ?? 0 : 0)}`}</td>
                           <td className="py-2 pr-3 font-medium text-ink">{invalido ? "—" : formatarReais(item.valorCentavos - ("descontoCentavos" in item ? item.descontoCentavos ?? 0 : 0))}</td>
                         </>
                       ) : (

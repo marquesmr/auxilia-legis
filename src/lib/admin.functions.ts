@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, permiteDoisContratados, somaPagamentos, tipoSimples, type PagamentoDemanda, type ProcessoAdmin } from "@/lib/admin";
+import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, permiteDoisContratados, RETENCOES, somaPagamentos, tipoSimples, type PagamentoDemanda, type ProcessoAdmin } from "@/lib/admin";
 import { todayIso, type Andamento } from "@/lib/prazos";
 
 function nascimentoDe(documento: string, valor: unknown, erro: string): string | null {
@@ -75,7 +75,9 @@ function pagamentosOk(value: unknown): PagamentoDemanda[] {
     if (bruto.invalido === true && numero) return [{ id, data: "", valorCentavos: 0, descricao: "", numero, invalido: true }];
     if (valor == null) return [];
     const descontoCentavos = desconto != null && desconto > 0 ? Math.min(desconto, valor) : undefined;
-    return [{ id, data, valorCentavos: valor, descricao, ...(numero ? { numero } : {}), ...(descontoCentavos ? { descontoCentavos } : {}) }];
+    const tipoRetencao = typeof (bruto as { retencaoTipo?: unknown }).retencaoTipo === "string" ? (bruto as { retencaoTipo: string }).retencaoTipo : "";
+    const retencaoTipo = RETENCOES.some((item) => item.id === tipoRetencao) ? tipoRetencao : undefined;
+    return [{ id, data, valorCentavos: valor, descricao, ...(numero ? { numero } : {}), ...(descontoCentavos ? { descontoCentavos, ...(retencaoTipo ? { retencaoTipo } : {}) } : {}) }];
   });
 }
 
@@ -160,6 +162,9 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
   const pagamentos = simples ? [] : pagamentosOk(bruto.pagamentos);
   const retencaoImpostos = bruto.retencaoImpostos === true && !simples && status !== "cancelado";
   const retencaoCentavos = retencaoImpostos ? centavosOk(bruto.retencaoCentavos) : null;
+  const tipoInformado = typeof bruto.retencaoTipo === "string" ? bruto.retencaoTipo : "";
+  const retencaoTipo = retencaoImpostos && RETENCOES.some((item) => item.id === tipoInformado) ? tipoInformado : "";
+  if (retencaoImpostos && !retencaoTipo) throw new Error("Informe o tipo da retenção.");
   if (retencaoImpostos && (retencaoCentavos == null || retencaoCentavos <= 0)) throw new Error("Informe o valor da retenção de impostos.");
   if (retencaoImpostos && retencaoCentavos != null && !pagamentoDemanda && valorMensalCentavos != null && retencaoCentavos > valorMensalCentavos) {
     throw new Error("A retenção não pode ser maior que o valor mensal.");
@@ -225,6 +230,7 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     valorEstimadoCentavos: pagamentoDemanda || modo !== "estimado" ? null : valorEstimadoCentavos,
     pagamentoDemanda,
     retencaoImpostos,
+    retencaoTipo,
     retencaoCentavos,
     pagamentos,
     ciNumero: ci.numero,
@@ -277,6 +283,7 @@ type Linha = {
   valor_estimado_centavos: number | null;
   pagamento_demanda: boolean | number | string | null;
   retencao_impostos: boolean | number | string | null;
+  retencao_tipo: string | null;
   retencao_centavos: number | null;
   pagamentos: string | PagamentoDemanda[] | null;
   ci_numero: number | null;
@@ -362,6 +369,7 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
     valorEstimadoCentavos: linha.valor_estimado_centavos != null ? Number(linha.valor_estimado_centavos) : null,
     pagamentoDemanda,
     retencaoImpostos: bool(linha.retencao_impostos ?? false),
+    retencaoTipo: typeof linha.retencao_tipo === "string" ? linha.retencao_tipo : "",
     retencaoCentavos: linha.retencao_centavos != null ? Number(linha.retencao_centavos) : null,
     pagamentos,
     ciNumero: inteiroOuNulo(linha.ci_numero),
@@ -423,6 +431,7 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
         "alter table processos_admin add column if not exists nascimento_2 date",
         "alter table processos_admin add column if not exists pagamento_demanda boolean not null default false",
         "alter table processos_admin add column if not exists retencao_impostos boolean not null default false",
+        "alter table processos_admin add column if not exists retencao_tipo text not null default ''",
         "alter table processos_admin add column if not exists retencao_centavos integer",
         "alter table processos_admin add column if not exists pagamentos text not null default '[]'",
         "alter table processos_admin add column if not exists em_manutencao boolean not null default false",
@@ -444,7 +453,7 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
 const SELECT_ADMIN = `
   p.id, p.numero, p.numero_ano, p.referencia, p.objeto, p.tipo, p.tipo_numero, p.tipo_ano, p.data_inicio, p.previsao_etapa, p.encerramento,
   p.alerta_dias, p.possui_contrato, p.vigencia_inicio, p.vigencia_fim,
-  p.contratado, p.documento, p.nascimento, p.contratado_2, p.documento_2, p.nascimento_2, p.valor_total_centavos, p.valor_mensal_centavos, p.valor_estimado_centavos, p.pagamento_demanda, p.retencao_impostos, p.retencao_centavos, p.pagamentos,
+  p.contratado, p.documento, p.nascimento, p.contratado_2, p.documento_2, p.nascimento_2, p.valor_total_centavos, p.valor_mensal_centavos, p.valor_estimado_centavos, p.pagamento_demanda, p.retencao_impostos, p.retencao_tipo, p.retencao_centavos, p.pagamentos,
   p.ci_numero, p.ci_ano, p.ci_origem, p.link_abertura, p.link_abertura_na, p.link_homologacao, p.link_homologacao_na, p.link_pncp, p.link_pncp_na, p.link_retificacao, p.link_cancelamento, p.link_cancelamento_na, p.parecer_numero, p.parecer_ano, p.parecer_na,
   p.status, p.historico, p.team_id,
   coalesce(nullif(p.autor_id, ''), p.user_id) as autor_id,
@@ -625,6 +634,7 @@ export const salvarAdmin = createServerFn({ method: "POST" })
             valor_estimado_centavos = ${data.valorEstimadoCentavos},
             pagamento_demanda = ${data.pagamentoDemanda},
             retencao_impostos = ${data.retencaoImpostos},
+            retencao_tipo = ${data.retencaoTipo},
             retencao_centavos = ${data.retencaoCentavos},
             pagamentos = ${JSON.stringify(data.pagamentos)},
             ci_numero = ${data.ciNumero},
@@ -656,14 +666,14 @@ export const salvarAdmin = createServerFn({ method: "POST" })
           insert into processos_admin (
             id, user_id, team_id, numero, numero_ano, referencia, objeto, tipo, tipo_numero, tipo_ano, data_inicio, previsao_etapa, encerramento,
             alerta_dias, possui_contrato, vigencia_inicio, vigencia_fim, contratado, documento, nascimento, contratado_2, documento_2, nascimento_2,
-            valor_total_centavos, valor_mensal_centavos, valor_estimado_centavos, pagamento_demanda, retencao_impostos, retencao_centavos, pagamentos, ci_numero, ci_ano, ci_origem,
+            valor_total_centavos, valor_mensal_centavos, valor_estimado_centavos, pagamento_demanda, retencao_impostos, retencao_tipo, retencao_centavos, pagamentos, ci_numero, ci_ano, ci_origem,
             link_abertura, link_abertura_na, link_homologacao, link_homologacao_na, link_pncp, link_pncp_na, link_retificacao, link_cancelamento, link_cancelamento_na,
             parecer_numero, parecer_ano, parecer_na, status, status_em, historico, autor_id, autor_nome, em_manutencao
           ) values (
             ${data.id}, ${context.userId}, ${data.equipeId}, ${data.numero}, ${data.numeroAno}, ${data.referencia},
             ${data.objeto}, ${data.tipo}, ${data.tipoNumero}, ${data.tipoAno}, ${data.dataInicio}, ${data.previsaoEtapa}, ${data.encerramento}, ${data.alertaDias},
             ${data.possuiContrato}, ${data.vigenciaInicio}, ${data.vigenciaFim}, ${data.contratado},
-            ${data.documento}, ${data.nascimento}, ${data.contratado2}, ${data.documento2}, ${data.nascimento2}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos}, ${data.pagamentoDemanda}, ${data.retencaoImpostos}, ${data.retencaoCentavos}, ${JSON.stringify(data.pagamentos)},
+            ${data.documento}, ${data.nascimento}, ${data.contratado2}, ${data.documento2}, ${data.nascimento2}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos}, ${data.pagamentoDemanda}, ${data.retencaoImpostos}, ${data.retencaoTipo}, ${data.retencaoCentavos}, ${JSON.stringify(data.pagamentos)},
             ${data.ciNumero}, ${data.ciAno}, ${data.ciOrigem}, ${data.linkAbertura}, ${data.linkAberturaNa}, ${data.linkHomologacao}, ${data.linkHomologacaoNa}, ${data.linkPncp}, ${data.linkPncpNa}, ${data.linkRetificacao}, ${data.linkCancelamento}, ${data.linkCancelamentoNa}, ${data.parecerNumero}, ${data.parecerAno}, ${data.parecerNa},
             ${data.status}, current_date,
             ${historicoJson}, ${context.userId}, ${autorNome}, false

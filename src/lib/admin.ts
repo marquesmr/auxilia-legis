@@ -121,6 +121,20 @@ export function statusAdminLabel(status: StatusAdmin): string {
   return nomeStatus("administrativo", status);
 }
 
+export const RETENCOES = [
+  { id: "irrf", rotulo: "IRRF" },
+  { id: "inss", rotulo: "INSS" },
+  { id: "iss", rotulo: "ISS" },
+  { id: "csrf", rotulo: "CSRF (PIS, COFINS e CSLL)" },
+  { id: "pis", rotulo: "PIS" },
+  { id: "cofins", rotulo: "COFINS" },
+  { id: "csll", rotulo: "CSLL" },
+] as const;
+
+export function rotuloRetencao(id: string | undefined): string {
+  return RETENCOES.find((item) => item.id === id)?.rotulo ?? "";
+}
+
 export type PagamentoDemanda = {
   id: string;
   data: string;
@@ -129,6 +143,7 @@ export type PagamentoDemanda = {
   numero?: number;
   invalido?: boolean;
   descontoCentavos?: number;
+  retencaoTipo?: string;
 };
 
 export type ProcessoAdmin = {
@@ -158,6 +173,7 @@ export type ProcessoAdmin = {
   valorEstimadoCentavos: number | null;
   pagamentoDemanda: boolean;
   retencaoImpostos: boolean;
+  retencaoTipo: string;
   retencaoCentavos: number | null;
   pagamentos: PagamentoDemanda[];
   ciNumero: number | null;
