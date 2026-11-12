@@ -144,6 +144,8 @@ export type PagamentoDemanda = {
   invalido?: boolean;
   descontoCentavos?: number;
   retencaoTipo?: string;
+  fornecedor?: 1 | 2;
+  fornecedorNome?: string;
 };
 
 export type ProcessoAdmin = {

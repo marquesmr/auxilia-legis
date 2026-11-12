@@ -91,7 +91,7 @@ type FormAdmin = {
   retencaoImpostos: boolean;
   retencaoTipo: string;
   retencao: string;
-  pagamentos: { id: string; data: string; valor: string; descricao: string; numero?: number; invalido?: boolean; descontoCentavos?: number; retencaoTipo?: string }[];
+  pagamentos: { id: string; data: string; valor: string; descricao: string; numero?: number; invalido?: boolean; descontoCentavos?: number; retencaoTipo?: string; fornecedor?: 1 | 2; fornecedorNome?: string }[];
   ciNumero: string;
   ciAno: number;
   ciOrigem: string;
@@ -276,6 +276,8 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
       invalido: item.invalido,
       descontoCentavos: item.descontoCentavos,
       retencaoTipo: item.retencaoTipo,
+      fornecedor: item.fornecedor,
+      fornecedorNome: item.fornecedorNome,
     })),
     ciNumero: p.ciNumero != null ? String(p.ciNumero) : "",
     ciAno: p.ciAno ?? new Date().getFullYear(),
@@ -496,7 +498,7 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
         if (item.invalido && item.numero) return [{ id: item.id, data: "", valorCentavos: 0, descricao: "", numero: item.numero, invalido: true as const }];
         const valor = reaisParaCentavos(item.valor);
         if (valor == null) return [];
-        return [{ id: item.id, data: item.data, valorCentavos: valor, descricao: item.descricao.trim(), ...(item.numero ? { numero: item.numero } : {}), ...(item.descontoCentavos ? { descontoCentavos: item.descontoCentavos, ...(item.retencaoTipo ? { retencaoTipo: item.retencaoTipo } : {}) } : {}) }];
+        return [{ id: item.id, data: item.data, valorCentavos: valor, descricao: item.descricao.trim(), ...(item.numero ? { numero: item.numero } : {}), ...(item.descontoCentavos ? { descontoCentavos: item.descontoCentavos, ...(item.retencaoTipo ? { retencaoTipo: item.retencaoTipo } : {}) } : {}), ...(item.fornecedor && item.fornecedorNome ? { fornecedor: item.fornecedor, fornecedorNome: item.fornecedorNome } : {}) }];
       });
   return {
     id: base.id,
@@ -605,6 +607,7 @@ export function AdminPainel({
   const [pagAndData, setPagAndData] = useState("");
   const [pagAndValor, setPagAndValor] = useState("");
   const [pagAndDescricao, setPagAndDescricao] = useState("");
+  const [pagAndFornecedor, setPagAndFornecedor] = useState<"" | "1" | "2">("");
   const [outroValor, setOutroValor] = useState(false);
   const [escolhaLink, setEscolhaLink] = useState(false);
   const [linksAndamento, setLinksAndamento] = useState<Partial<Record<TipoLinkAndamento, string>>>({});
@@ -1021,6 +1024,7 @@ export function AdminPainel({
     setPagAndData("");
     setPagAndValor("");
     setPagAndDescricao("");
+    setPagAndFornecedor("");
     setOutroValor(false);
   }
 
@@ -1060,6 +1064,13 @@ export function AdminPainel({
       onToast(mensalFixo ? "Informe o outro valor do pagamento." : "Informe o valor do pagamento.");
       return;
     }
+    const varios = Boolean(atual.contratado.trim() && atual.contratado2.trim());
+    if (varios && pagAndFornecedor !== "1" && pagAndFornecedor !== "2") {
+      onToast("Vincule o pagamento a um fornecedor.");
+      return;
+    }
+    const fornecedor = pagAndFornecedor === "2" ? 2 : 1;
+    const fornecedorNome = fornecedor === 2 ? atual.contratado2.trim() : atual.contratado.trim();
     const descricao = pagAndDescricao.trim();
     const desconto = mensalFixo && atual.retencaoImpostos && atual.retencaoCentavos ? atual.retencaoCentavos : 0;
     if (desconto > valorNovo) {
@@ -1076,6 +1087,7 @@ export function AdminPainel({
         descricao,
         ...(atual.pagamentos.some((item) => item.numero) ? { numero: ultimo + 1 } : {}),
         ...(desconto > 0 ? { descontoCentavos: desconto, ...(atual.retencaoTipo ? { retencaoTipo: atual.retencaoTipo } : {}) } : {}),
+        ...(varios ? { fornecedor: fornecedor as 1 | 2, fornecedorNome } : {}),
       },
     ];
     const atualizado: ProcessoAdmin = {
@@ -1084,12 +1096,13 @@ export function AdminPainel({
       valorMensalCentavos: atual.pagamentoDemanda ? somaPagamentos(pagamentos) : atual.valorMensalCentavos,
       historico: [
         ...atual.historico,
-        evento(`Lançou pagamento de ${formatarReais(valorNovo)}${descricao ? ` (${descricao})` : ""}.`, meuNome),
+        evento(`Lançou pagamento de ${formatarReais(valorNovo)}${varios ? ` para ${fornecedorNome}` : ""}${descricao ? ` (${descricao})` : ""}.`, meuNome),
       ],
     };
     setPagAndData("");
     setPagAndValor("");
     setPagAndDescricao("");
+    setPagAndFornecedor("");
     setOutroValor(false);
     gravarProcesso(atualizado, "Pagamento lançado");
   }
@@ -1700,6 +1713,7 @@ export function AdminPainel({
                       setPagAndData("");
                       setPagAndValor("");
                       setPagAndDescricao("");
+                      setPagAndFornecedor("");
                       setOutroValor(false);
                     }}
                     onExcluir={() => setDeleteId(item.id)}
@@ -2239,6 +2253,24 @@ export function AdminPainel({
                   </Campo>
                   {(() => {
                     const processo = lista.find((item) => item.id === andamentoId);
+                    if (!processo?.contratado.trim() || !processo.contratado2.trim()) return null;
+                    return (
+                      <Campo label="Fornecedor">
+                        <select
+                          value={pagAndFornecedor}
+                          onChange={(evento) => setPagAndFornecedor(evento.target.value === "2" ? "2" : evento.target.value === "1" ? "1" : "")}
+                          className={inputCls}
+                          required
+                        >
+                          <option value="">Selecione</option>
+                          <option value="1">{processo.contratado}</option>
+                          <option value="2">{processo.contratado2}</option>
+                        </select>
+                      </Campo>
+                    );
+                  })()}
+                  {(() => {
+                    const processo = lista.find((item) => item.id === andamentoId);
                     const mensal = Boolean(processo && !processo.pagamentoDemanda && processo.valorMensalCentavos != null);
                     if (!mensal) {
                       return (
@@ -2636,6 +2668,7 @@ function CardAdmin({
                   {[...processo.pagamentos].filter((item) => !item.invalido).sort((a, b) => (!a.data || !b.data ? (a.data ? -1 : b.data ? 1 : 0) : b.data.localeCompare(a.data))).map((item) => (
                     <li key={item.id} className="truncate text-ink">
                       {item.data ? formatDate(item.data) : "Sem data"}
+                      {item.fornecedorNome ? ` · ${item.fornecedorNome}` : ""}
                       {item.descricao ? ` · ${item.descricao}` : ""}
                       <span className="ml-2 font-medium">{formatarReais(item.valorCentavos)}</span>
                     </li>
@@ -3205,6 +3238,7 @@ function ListaPagamentos({
           </button>
           <span className="min-w-0 flex-1 truncate text-ink">
             {item.data ? formatDate(item.data) : "Sem data"}
+            {item.fornecedorNome ? ` · ${item.fornecedorNome}` : ""}
             {item.descricao ? ` · ${item.descricao}` : ""}
             <span className="ml-2 font-medium">{formatarReais(item.valorCentavos)}</span>
           </span>
@@ -3569,6 +3603,7 @@ function RelatorioPagamentos({
   const nomeRetencao =
     rotuloRetencao(escolhido?.retencaoTipo) ||
     pagamentos.reduce((nome, item) => nome || ("retencaoTipo" in item ? rotuloRetencao(item.retencaoTipo) : ""), "");
+  const mostraFornecedor = Boolean(escolhido?.contratado.trim() && escolhido.contratado2.trim()) || pagamentos.some((item) => "fornecedorNome" in item && item.fornecedorNome);
   return (
     <div className="min-w-0 rounded-2xl border border-line bg-sheet p-4">
       <h2 className="font-display text-2xl text-ink">Pagamentos</h2>
@@ -3635,6 +3670,7 @@ function RelatorioPagamentos({
                   <tr className="border-b border-line text-xs text-muted">
                     <th className="py-2 pr-3 font-medium">Nº</th>
                     <th className="py-2 pr-3 font-medium">Data</th>
+                    {mostraFornecedor ? <th className="py-2 pr-3 font-medium">Fornecedor</th> : null}
                     {pagamentos.some((item) => "descontoCentavos" in item && item.descontoCentavos) ? (
                       <>
                         <th className="py-2 pr-3 font-medium">Valor bruto</th>
@@ -3690,6 +3726,7 @@ function RelatorioPagamentos({
                         {numero}
                       </td>
                       <td className="py-2 pr-3 text-ink">{invalido ? "Número inutilizado" : item.data ? formatDate(item.data) : "Sem data"}</td>
+                      {mostraFornecedor ? <td className="py-2 pr-3 text-ink">{invalido ? "—" : "fornecedorNome" in item && item.fornecedorNome ? item.fornecedorNome : "—"}</td> : null}
                       {pagamentos.some((pagamento) => "descontoCentavos" in pagamento && pagamento.descontoCentavos) ? (
                         <>
                           <td className="py-2 pr-3 font-medium text-ink">{invalido ? "—" : formatarReais(item.valorCentavos)}</td>

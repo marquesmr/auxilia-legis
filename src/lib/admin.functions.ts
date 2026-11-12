@@ -77,7 +77,10 @@ function pagamentosOk(value: unknown): PagamentoDemanda[] {
     const descontoCentavos = desconto != null && desconto > 0 ? Math.min(desconto, valor) : undefined;
     const tipoRetencao = typeof (bruto as { retencaoTipo?: unknown }).retencaoTipo === "string" ? (bruto as { retencaoTipo: string }).retencaoTipo : "";
     const retencaoTipo = RETENCOES.some((item) => item.id === tipoRetencao) ? tipoRetencao : undefined;
-    return [{ id, data, valorCentavos: valor, descricao, ...(numero ? { numero } : {}), ...(descontoCentavos ? { descontoCentavos, ...(retencaoTipo ? { retencaoTipo } : {}) } : {}) }];
+    const fornecedorBruto = (bruto as { fornecedor?: unknown; fornecedorNome?: unknown }).fornecedor;
+    const fornecedor = fornecedorBruto === 1 || fornecedorBruto === 2 ? fornecedorBruto : undefined;
+    const nomeFornecedor = typeof (bruto as { fornecedorNome?: unknown }).fornecedorNome === "string" ? (bruto as { fornecedorNome: string }).fornecedorNome.trim().slice(0, 160) : "";
+    return [{ id, data, valorCentavos: valor, descricao, ...(numero ? { numero } : {}), ...(descontoCentavos ? { descontoCentavos, ...(retencaoTipo ? { retencaoTipo } : {}) } : {}), ...(fornecedor && nomeFornecedor ? { fornecedor, fornecedorNome: nomeFornecedor } : {}) }];
   });
 }
 
