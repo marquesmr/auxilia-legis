@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import { BadgeCheck, Ban, BarChart3, Check, Copy, FilePen, FileText, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import {
@@ -2174,7 +2175,15 @@ export function AdminPainel({
       >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-10 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-10 max-h-[90vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+          <Dialog.Content
+            className="fixed inset-x-3 top-1/2 z-10 max-h-[90vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2"
+            onPointerDownOutside={(evento) => {
+              if (evento.target instanceof Element && evento.target.closest("[data-menu-pagamento]")) evento.preventDefault();
+            }}
+            onFocusOutside={(evento) => {
+              if (evento.target instanceof Element && evento.target.closest("[data-menu-pagamento]")) evento.preventDefault();
+            }}
+          >
             <Dialog.Title className="font-display text-2xl text-ink">Andamento</Dialog.Title>
             <form
               className="mt-4 flex flex-col gap-3"
@@ -3263,16 +3272,47 @@ function MenuPagamento({
   const [confirmar, setConfirmar] = useState(false);
   const [data, setData] = useState(pagamento.data);
   const [valor, setValor] = useState(centavosParaCampo(pagamento.valorCentavos));
+  const botao = useRef<HTMLButtonElement>(null);
+  const [posicao, setPosicao] = useState({ top: 0, left: 0 });
   useEffect(() => {
     setData(pagamento.data);
     setValor(centavosParaCampo(pagamento.valorCentavos));
   }, [pagamento.data, pagamento.valorCentavos]);
+  useEffect(() => {
+    if (!aberto) return;
+    const fechar = (evento: Event) => {
+      if (evento.target instanceof Element && evento.target.closest("[data-menu-pagamento]")) return;
+      setAberto(false);
+    };
+    window.addEventListener("scroll", fechar, true);
+    window.addEventListener("resize", fechar);
+    return () => {
+      window.removeEventListener("scroll", fechar, true);
+      window.removeEventListener("resize", fechar);
+    };
+  }, [aberto]);
+  function posicionar() {
+    const rect = botao.current?.getBoundingClientRect();
+    if (!rect) return;
+    const largura = 224;
+    const altura = 280;
+    const left = Math.max(8, Math.min(rect.right - largura, window.innerWidth - largura - 8));
+    const abaixo = rect.bottom + 4;
+    const top = abaixo + altura > window.innerHeight ? Math.max(8, rect.top - altura - 4) : abaixo;
+    setPosicao({ top, left });
+  }
   return (
-    <div className="relative shrink-0" onKeyDown={(evento) => evento.stopPropagation()}>
+    <div className="shrink-0" onKeyDown={(evento) => evento.stopPropagation()}>
       <button
+        ref={botao}
         type="button"
         onClick={() => {
-          setAberto((atual) => !atual);
+          if (aberto) {
+            setAberto(false);
+            return;
+          }
+          posicionar();
+          setAberto(true);
           setConfirmar(false);
         }}
         className="grid size-8 place-items-center rounded-lg text-muted"
@@ -3281,8 +3321,13 @@ function MenuPagamento({
       >
         <MoreVertical className="size-4" />
       </button>
-      {aberto && (
-        <div className="absolute right-0 z-30 mt-1 w-56 rounded-xl border border-line bg-sheet p-3 shadow-lg">
+      {aberto && createPortal(
+        <div
+          data-menu-pagamento
+          className="fixed z-50 w-56 rounded-xl border border-line bg-sheet p-3 shadow-lg"
+          style={{ top: posicao.top, left: posicao.left }}
+          onKeyDown={(evento) => evento.stopPropagation()}
+        >
           <p className="text-sm font-medium text-ink">Editar lançamento</p>
           <label className="mt-2 block text-xs font-medium text-ink">
             Data
@@ -3322,7 +3367,8 @@ function MenuPagamento({
               Remover lançamento
             </button>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
