@@ -71,9 +71,11 @@ function pagamentosOk(value: unknown): PagamentoDemanda[] {
     const id = typeof bruto.id === "string" && bruto.id.trim() ? bruto.id.trim().slice(0, 80) : crypto.randomUUID();
     const descricao = typeof bruto.descricao === "string" ? bruto.descricao.trim().slice(0, 160) : "";
     const numero = typeof bruto.numero === "number" && Number.isInteger(bruto.numero) && bruto.numero > 0 && bruto.numero < 10000 ? bruto.numero : undefined;
+    const desconto = centavosOk((bruto as { descontoCentavos?: unknown }).descontoCentavos);
     if (bruto.invalido === true && numero) return [{ id, data: "", valorCentavos: 0, descricao: "", numero, invalido: true }];
     if (valor == null) return [];
-    return [{ id, data, valorCentavos: valor, descricao, ...(numero ? { numero } : {}) }];
+    const descontoCentavos = desconto != null && desconto > 0 ? Math.min(desconto, valor) : undefined;
+    return [{ id, data, valorCentavos: valor, descricao, ...(numero ? { numero } : {}), ...(descontoCentavos ? { descontoCentavos } : {}) }];
   });
 }
 
@@ -156,6 +158,12 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
   const modo = modoValor(tipo, status);
   const pagamentoDemanda = bruto.pagamentoDemanda === true && !simples && status !== "cancelado";
   const pagamentos = simples ? [] : pagamentosOk(bruto.pagamentos);
+  const retencaoImpostos = bruto.retencaoImpostos === true && !simples && status !== "cancelado";
+  const retencaoCentavos = retencaoImpostos ? centavosOk(bruto.retencaoCentavos) : null;
+  if (retencaoImpostos && (retencaoCentavos == null || retencaoCentavos <= 0)) throw new Error("Informe o valor da retenção de impostos.");
+  if (retencaoImpostos && retencaoCentavos != null && !pagamentoDemanda && valorMensalCentavos != null && retencaoCentavos > valorMensalCentavos) {
+    throw new Error("A retenção não pode ser maior que o valor mensal.");
+  }
   if (modo === "contrato") {
     if (!contratado) throw new Error("Informe os dados do contratado.");
     if (!vigenciaInicio || !vigenciaFim) throw new Error("Informe a vigência do contrato.");
@@ -216,6 +224,8 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     valorMensalCentavos: pagamentoDemanda ? somaPagamentos(pagamentos) : modo === "contrato" ? valorMensalCentavos : null,
     valorEstimadoCentavos: pagamentoDemanda || modo !== "estimado" ? null : valorEstimadoCentavos,
     pagamentoDemanda,
+    retencaoImpostos,
+    retencaoCentavos,
     pagamentos,
     ciNumero: ci.numero,
     ciAno: ci.ano,
@@ -266,6 +276,8 @@ type Linha = {
   valor_mensal_centavos: number | null;
   valor_estimado_centavos: number | null;
   pagamento_demanda: boolean | number | string | null;
+  retencao_impostos: boolean | number | string | null;
+  retencao_centavos: number | null;
   pagamentos: string | PagamentoDemanda[] | null;
   ci_numero: number | null;
   ci_ano: number | null;
@@ -349,6 +361,8 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
     valorMensalCentavos: pagamentoDemanda && pagamentos.length > 0 ? somaPagamentos(pagamentos) : linha.valor_mensal_centavos != null ? Number(linha.valor_mensal_centavos) : null,
     valorEstimadoCentavos: linha.valor_estimado_centavos != null ? Number(linha.valor_estimado_centavos) : null,
     pagamentoDemanda,
+    retencaoImpostos: bool(linha.retencao_impostos ?? false),
+    retencaoCentavos: linha.retencao_centavos != null ? Number(linha.retencao_centavos) : null,
     pagamentos,
     ciNumero: inteiroOuNulo(linha.ci_numero),
     ciAno: inteiroOuNulo(linha.ci_ano),
@@ -408,6 +422,8 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
         "alter table processos_admin add column if not exists documento_2 text not null default ''",
         "alter table processos_admin add column if not exists nascimento_2 date",
         "alter table processos_admin add column if not exists pagamento_demanda boolean not null default false",
+        "alter table processos_admin add column if not exists retencao_impostos boolean not null default false",
+        "alter table processos_admin add column if not exists retencao_centavos integer",
         "alter table processos_admin add column if not exists pagamentos text not null default '[]'",
         "alter table processos_admin add column if not exists em_manutencao boolean not null default false",
         "alter table processos_admin add column if not exists status_em date",
@@ -428,7 +444,7 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
 const SELECT_ADMIN = `
   p.id, p.numero, p.numero_ano, p.referencia, p.objeto, p.tipo, p.tipo_numero, p.tipo_ano, p.data_inicio, p.previsao_etapa, p.encerramento,
   p.alerta_dias, p.possui_contrato, p.vigencia_inicio, p.vigencia_fim,
-  p.contratado, p.documento, p.nascimento, p.contratado_2, p.documento_2, p.nascimento_2, p.valor_total_centavos, p.valor_mensal_centavos, p.valor_estimado_centavos, p.pagamento_demanda, p.pagamentos,
+  p.contratado, p.documento, p.nascimento, p.contratado_2, p.documento_2, p.nascimento_2, p.valor_total_centavos, p.valor_mensal_centavos, p.valor_estimado_centavos, p.pagamento_demanda, p.retencao_impostos, p.retencao_centavos, p.pagamentos,
   p.ci_numero, p.ci_ano, p.ci_origem, p.link_abertura, p.link_abertura_na, p.link_homologacao, p.link_homologacao_na, p.link_pncp, p.link_pncp_na, p.link_retificacao, p.link_cancelamento, p.link_cancelamento_na, p.parecer_numero, p.parecer_ano, p.parecer_na,
   p.status, p.historico, p.team_id,
   coalesce(nullif(p.autor_id, ''), p.user_id) as autor_id,
@@ -608,6 +624,8 @@ export const salvarAdmin = createServerFn({ method: "POST" })
             valor_mensal_centavos = ${data.valorMensalCentavos},
             valor_estimado_centavos = ${data.valorEstimadoCentavos},
             pagamento_demanda = ${data.pagamentoDemanda},
+            retencao_impostos = ${data.retencaoImpostos},
+            retencao_centavos = ${data.retencaoCentavos},
             pagamentos = ${JSON.stringify(data.pagamentos)},
             ci_numero = ${data.ciNumero},
             ci_ano = ${data.ciAno},
@@ -638,14 +656,14 @@ export const salvarAdmin = createServerFn({ method: "POST" })
           insert into processos_admin (
             id, user_id, team_id, numero, numero_ano, referencia, objeto, tipo, tipo_numero, tipo_ano, data_inicio, previsao_etapa, encerramento,
             alerta_dias, possui_contrato, vigencia_inicio, vigencia_fim, contratado, documento, nascimento, contratado_2, documento_2, nascimento_2,
-            valor_total_centavos, valor_mensal_centavos, valor_estimado_centavos, pagamento_demanda, pagamentos, ci_numero, ci_ano, ci_origem,
+            valor_total_centavos, valor_mensal_centavos, valor_estimado_centavos, pagamento_demanda, retencao_impostos, retencao_centavos, pagamentos, ci_numero, ci_ano, ci_origem,
             link_abertura, link_abertura_na, link_homologacao, link_homologacao_na, link_pncp, link_pncp_na, link_retificacao, link_cancelamento, link_cancelamento_na,
             parecer_numero, parecer_ano, parecer_na, status, status_em, historico, autor_id, autor_nome, em_manutencao
           ) values (
             ${data.id}, ${context.userId}, ${data.equipeId}, ${data.numero}, ${data.numeroAno}, ${data.referencia},
             ${data.objeto}, ${data.tipo}, ${data.tipoNumero}, ${data.tipoAno}, ${data.dataInicio}, ${data.previsaoEtapa}, ${data.encerramento}, ${data.alertaDias},
             ${data.possuiContrato}, ${data.vigenciaInicio}, ${data.vigenciaFim}, ${data.contratado},
-            ${data.documento}, ${data.nascimento}, ${data.contratado2}, ${data.documento2}, ${data.nascimento2}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos}, ${data.pagamentoDemanda}, ${JSON.stringify(data.pagamentos)},
+            ${data.documento}, ${data.nascimento}, ${data.contratado2}, ${data.documento2}, ${data.nascimento2}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos}, ${data.pagamentoDemanda}, ${data.retencaoImpostos}, ${data.retencaoCentavos}, ${JSON.stringify(data.pagamentos)},
             ${data.ciNumero}, ${data.ciAno}, ${data.ciOrigem}, ${data.linkAbertura}, ${data.linkAberturaNa}, ${data.linkHomologacao}, ${data.linkHomologacaoNa}, ${data.linkPncp}, ${data.linkPncpNa}, ${data.linkRetificacao}, ${data.linkCancelamento}, ${data.linkCancelamentoNa}, ${data.parecerNumero}, ${data.parecerAno}, ${data.parecerNa},
             ${data.status}, current_date,
             ${historicoJson}, ${context.userId}, ${autorNome}, false

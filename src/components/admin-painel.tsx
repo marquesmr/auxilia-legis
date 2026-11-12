@@ -86,7 +86,9 @@ type FormAdmin = {
   valorMensal: string;
   valorEstimado: string;
   pagamentoDemanda: boolean;
-  pagamentos: { id: string; data: string; valor: string; descricao: string; numero?: number; invalido?: boolean }[];
+  retencaoImpostos: boolean;
+  retencao: string;
+  pagamentos: { id: string; data: string; valor: string; descricao: string; numero?: number; invalido?: boolean; descontoCentavos?: number }[];
   ciNumero: string;
   ciAno: number;
   ciOrigem: string;
@@ -200,6 +202,8 @@ function vazio(): FormAdmin {
     valorMensal: "",
     valorEstimado: "",
     pagamentoDemanda: false,
+    retencaoImpostos: false,
+    retencao: "",
     pagamentos: [],
     ciNumero: "",
     ciAno: new Date().getFullYear(),
@@ -256,6 +260,8 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
     valorMensal: centavosParaCampo(p.valorMensalCentavos),
     valorEstimado: centavosParaCampo(p.valorEstimadoCentavos),
     pagamentoDemanda: p.pagamentoDemanda,
+    retencaoImpostos: p.retencaoImpostos,
+    retencao: centavosParaCampo(p.retencaoCentavos),
     pagamentos: p.pagamentos.map((item) => ({
       id: item.id,
       data: item.data,
@@ -263,6 +269,7 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
       descricao: item.descricao,
       numero: item.numero,
       invalido: item.invalido,
+      descontoCentavos: item.descontoCentavos,
     })),
     ciNumero: p.ciNumero != null ? String(p.ciNumero) : "",
     ciAno: p.ciAno ?? new Date().getFullYear(),
@@ -352,6 +359,12 @@ function validar(form: FormAdmin): string[] {
   } else if (!form.pagamentoDemanda && form.valorEstimado.trim() && reaisParaCentavos(form.valorEstimado) == null) {
     erros.push("O valor estimado está inválido.");
   }
+  if (form.retencaoImpostos && form.status !== "cancelado") {
+    const retencao = reaisParaCentavos(form.retencao);
+    const mensal = reaisParaCentavos(form.valorMensal);
+    if (retencao == null || retencao <= 0) erros.push("Informe o valor da retenção de impostos.");
+    else if (!form.pagamentoDemanda && mensal != null && retencao > mensal) erros.push("A retenção não pode ser maior que o valor mensal.");
+  }
   if (permiteDoisContratados(form.tipo) && (form.status === "encerrado" || form.status === "execucao")) {
     const nome2 = form.contratado2.trim();
     const doc2 = form.documento2.replace(/\D/g, "");
@@ -432,6 +445,8 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
       valorMensalCentavos: null,
       valorEstimadoCentavos: form.status === "execucao" || form.status === "encerrado" ? null : reaisParaCentavos(form.valorEstimado),
       pagamentoDemanda: false,
+      retencaoImpostos: false,
+      retencaoCentavos: null,
       pagamentos: [],
       ciNumero: numeroPeca(form.ciNumero),
       ciAno: form.ciAno,
@@ -473,7 +488,7 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
         if (item.invalido && item.numero) return [{ id: item.id, data: "", valorCentavos: 0, descricao: "", numero: item.numero, invalido: true as const }];
         const valor = reaisParaCentavos(item.valor);
         if (valor == null) return [];
-        return [{ id: item.id, data: item.data, valorCentavos: valor, descricao: item.descricao.trim(), ...(item.numero ? { numero: item.numero } : {}) }];
+        return [{ id: item.id, data: item.data, valorCentavos: valor, descricao: item.descricao.trim(), ...(item.numero ? { numero: item.numero } : {}), ...(item.descontoCentavos ? { descontoCentavos: item.descontoCentavos } : {}) }];
       });
   return {
     id: base.id,
@@ -501,6 +516,8 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     valorMensalCentavos: demanda ? somaPagamentos(pagamentos) : execucao ? reaisParaCentavos(form.valorMensal) : null,
     valorEstimadoCentavos: demanda || execucao || encerrado ? null : reaisParaCentavos(form.valorEstimado),
     pagamentoDemanda: demanda,
+    retencaoImpostos: form.retencaoImpostos && !cancelado && !tipoSimples(form.tipo),
+    retencaoCentavos: form.retencaoImpostos && !cancelado && !tipoSimples(form.tipo) ? reaisParaCentavos(form.retencao) : null,
     pagamentos,
     ciNumero: numeroPeca(form.ciNumero),
     ciAno: form.ciAno,
@@ -1035,10 +1052,22 @@ export function AdminPainel({
       return;
     }
     const descricao = pagAndDescricao.trim();
+    const desconto = mensalFixo && atual.retencaoImpostos && atual.retencaoCentavos ? atual.retencaoCentavos : 0;
+    if (desconto > valorNovo) {
+      onToast("A retenção é maior que o valor do pagamento.");
+      return;
+    }
     const ultimo = atual.pagamentos.reduce((maior, item, indice) => Math.max(maior, item.numero ?? indice + 1), 0);
     const pagamentos = [
       ...atual.pagamentos,
-      { id: crypto.randomUUID(), data: pagAndData, valorCentavos: valorNovo, descricao, ...(atual.pagamentos.some((item) => item.numero) ? { numero: ultimo + 1 } : {}) },
+      {
+        id: crypto.randomUUID(),
+        data: pagAndData,
+        valorCentavos: valorNovo,
+        descricao,
+        ...(atual.pagamentos.some((item) => item.numero) ? { numero: ultimo + 1 } : {}),
+        ...(desconto > 0 ? { descontoCentavos: desconto } : {}),
+      },
     ];
     const atualizado: ProcessoAdmin = {
       ...atual,
@@ -1067,6 +1096,10 @@ export function AdminPainel({
     const valorNovo = reaisParaCentavos(valorTexto);
     if (valorNovo == null) {
       onToast("Informe o valor do pagamento.");
+      return;
+    }
+    if (anterior.descontoCentavos && valorNovo < anterior.descontoCentavos) {
+      onToast("O valor não pode ser menor que a retenção.");
       return;
     }
     const pagamentos = atual.pagamentos.map((item) => (item.id === pagamentoId ? { ...item, data, valorCentavos: valorNovo } : item));
@@ -2034,6 +2067,36 @@ export function AdminPainel({
                   </div>
                 )}
                 {form.status !== "cancelado" && <PagamentoPorDemanda form={form} onChange={setForm} />}
+                {form.status !== "cancelado" && (
+                  <div className="rounded-2xl border border-line bg-paper p-3">
+                    <label className="flex items-start gap-2 text-sm font-medium text-ink">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={form.retencaoImpostos}
+                        onChange={(evento) => setForm({ ...form, retencaoImpostos: evento.target.checked, retencao: evento.target.checked ? form.retencao : "" })}
+                      />
+                      <span>
+                        Retenção de impostos
+                        <span className="mt-1 block font-normal text-muted">Marcada, cada pagamento mensal desconta este valor. O relatório mostra o bruto, o desconto e o líquido.</span>
+                      </span>
+                    </label>
+                    {form.retencaoImpostos && (
+                      <div className="mt-3">
+                        <Campo label="Valor da retenção">
+                          <input
+                            value={form.retencao}
+                            onChange={(evento) => setForm({ ...form, retencao: mascaraReais(evento.target.value) })}
+                            className={inputCls}
+                            inputMode="decimal"
+                            placeholder="0,00"
+                            required
+                          />
+                        </Campo>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <Campo label="Nota do lançamento">
                   <textarea
                     value={form.nota}
@@ -3537,6 +3600,7 @@ function RelatorioPagamentos({
             <Info rotulo="Vigência" valor={escolhido.vigenciaInicio ? `${formatDate(escolhido.vigenciaInicio)} a ${escolhido.vigenciaFim ? formatDate(escolhido.vigenciaFim) : "—"}` : "—"} largo />
             <Info rotulo={escolhido.pagamentoDemanda || escolhido.possuiContrato ? "Valor anual" : "Valor da contratação"} valor={formatarReais(escolhido.valorTotalCentavos)} />
             <Info rotulo="Valor mensal" valor={formatarReais(escolhido.pagamentoDemanda ? somaPagamentos(escolhido.pagamentos) : escolhido.valorMensalCentavos)} />
+            {escolhido.retencaoImpostos ? <Info rotulo="Retenção de impostos" valor={formatarReais(escolhido.retencaoCentavos)} /> : null}
             <Info rotulo="Lançado por" valor={escolhido.autorNome || "sem nome"} />
           </dl>
           {pagamentos.length === 0 ? (
@@ -3549,7 +3613,15 @@ function RelatorioPagamentos({
                   <tr className="border-b border-line text-xs text-muted">
                     <th className="py-2 pr-3 font-medium">Nº</th>
                     <th className="py-2 pr-3 font-medium">Data</th>
-                    <th className="py-2 pr-3 font-medium">Valor</th>
+                    {pagamentos.some((item) => "descontoCentavos" in item && item.descontoCentavos) ? (
+                      <>
+                        <th className="py-2 pr-3 font-medium">Valor bruto</th>
+                        <th className="py-2 pr-3 font-medium">Desconto</th>
+                        <th className="py-2 pr-3 font-medium">Valor líquido</th>
+                      </>
+                    ) : (
+                      <th className="py-2 pr-3 font-medium">Valor</th>
+                    )}
                     <th className="no-print py-2 font-medium" />
                   </tr>
                 </thead>
@@ -3596,7 +3668,15 @@ function RelatorioPagamentos({
                         {numero}
                       </td>
                       <td className="py-2 pr-3 text-ink">{invalido ? "Número inutilizado" : item.data ? formatDate(item.data) : "Sem data"}</td>
-                      <td className="py-2 pr-3 font-medium text-ink">{invalido ? "—" : formatarReais(item.valorCentavos)}</td>
+                      {pagamentos.some((pagamento) => "descontoCentavos" in pagamento && pagamento.descontoCentavos) ? (
+                        <>
+                          <td className="py-2 pr-3 font-medium text-ink">{invalido ? "—" : formatarReais(item.valorCentavos)}</td>
+                          <td className="py-2 pr-3 text-ink">{invalido ? "—" : formatarReais("descontoCentavos" in item ? item.descontoCentavos ?? 0 : 0)}</td>
+                          <td className="py-2 pr-3 font-medium text-ink">{invalido ? "—" : formatarReais(item.valorCentavos - ("descontoCentavos" in item ? item.descontoCentavos ?? 0 : 0))}</td>
+                        </>
+                      ) : (
+                        <td className="py-2 pr-3 font-medium text-ink">{invalido ? "—" : formatarReais(item.valorCentavos)}</td>
+                      )}
                       <td className="no-print py-2 text-right">
                         {sequencia && !invalido ? (
                           <span className="inline-flex items-center justify-end">
@@ -3614,7 +3694,15 @@ function RelatorioPagamentos({
                   })}
                 </tbody>
               </table>
-              <p className="mt-3 text-sm font-medium text-ink">Total: {formatarReais(somaPagamentos(pagamentos))}</p>
+              {pagamentos.some((item) => "descontoCentavos" in item && item.descontoCentavos) ? (
+                <>
+                  <p className="mt-3 text-sm font-medium text-ink">Total bruto: {formatarReais(somaPagamentos(pagamentos))}</p>
+                  <p className="mt-1 text-sm text-ink">Total do desconto: {formatarReais(pagamentos.reduce((soma, item) => soma + ("descontoCentavos" in item && !item.invalido ? item.descontoCentavos ?? 0 : 0), 0))}</p>
+                  <p className="mt-1 text-sm font-medium text-ink">Total líquido: {formatarReais(somaPagamentos(pagamentos) - pagamentos.reduce((soma, item) => soma + ("descontoCentavos" in item && !item.invalido ? item.descontoCentavos ?? 0 : 0), 0))}</p>
+                </>
+              ) : (
+                <p className="mt-3 text-sm font-medium text-ink">Total: {formatarReais(somaPagamentos(pagamentos))}</p>
+              )}
               {escolhido && !escolhido.pagamentoDemanda && escolhido.valorMensalCentavos != null && escolhido.valorTotalCentavos != null ? (
                 <p className="mt-1 text-sm text-muted">Valor anual: {formatarReais(escolhido.valorTotalCentavos)}</p>
               ) : null}

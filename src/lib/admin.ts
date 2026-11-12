@@ -128,6 +128,7 @@ export type PagamentoDemanda = {
   descricao: string;
   numero?: number;
   invalido?: boolean;
+  descontoCentavos?: number;
 };
 
 export type ProcessoAdmin = {
@@ -156,6 +157,8 @@ export type ProcessoAdmin = {
   valorMensalCentavos: number | null;
   valorEstimadoCentavos: number | null;
   pagamentoDemanda: boolean;
+  retencaoImpostos: boolean;
+  retencaoCentavos: number | null;
   pagamentos: PagamentoDemanda[];
   ciNumero: number | null;
   ciAno: number | null;
