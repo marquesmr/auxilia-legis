@@ -579,6 +579,7 @@ export function AdminPainel({
   const [pagAndData, setPagAndData] = useState("");
   const [pagAndValor, setPagAndValor] = useState("");
   const [pagAndDescricao, setPagAndDescricao] = useState("");
+  const [outroValor, setOutroValor] = useState(false);
   const [escolhaLink, setEscolhaLink] = useState(false);
   const [linksAndamento, setLinksAndamento] = useState<Partial<Record<TipoLinkAndamento, string>>>({});
   const [periodo, setPeriodo] = useState<PeriodoRelatorio>("mensal");
@@ -994,6 +995,7 @@ export function AdminPainel({
     setPagAndData("");
     setPagAndValor("");
     setPagAndDescricao("");
+    setOutroValor(false);
   }
 
   function gravarProcesso(atualizado: ProcessoAdmin, aviso: string) {
@@ -1026,9 +1028,10 @@ export function AdminPainel({
       onToast("Informe a data do pagamento.");
       return;
     }
-    const valorNovo = reaisParaCentavos(pagAndValor);
+    const mensalFixo = !atual.pagamentoDemanda && atual.valorMensalCentavos != null;
+    const valorNovo = mensalFixo && !outroValor ? atual.valorMensalCentavos : reaisParaCentavos(pagAndValor);
     if (valorNovo == null) {
-      onToast("Informe o valor do pagamento.");
+      onToast(mensalFixo ? "Informe o outro valor do pagamento." : "Informe o valor do pagamento.");
       return;
     }
     const descricao = pagAndDescricao.trim();
@@ -1049,6 +1052,7 @@ export function AdminPainel({
     setPagAndData("");
     setPagAndValor("");
     setPagAndDescricao("");
+    setOutroValor(false);
     gravarProcesso(atualizado, "Pagamento lançado");
   }
 
@@ -1654,6 +1658,7 @@ export function AdminPainel({
                       setPagAndData("");
                       setPagAndValor("");
                       setPagAndDescricao("");
+                      setOutroValor(false);
                     }}
                     onExcluir={() => setDeleteId(item.id)}
                   />
@@ -2150,12 +2155,45 @@ export function AdminPainel({
                   <Campo label="Data do pagamento">
                     <input type="date" value={pagAndData} onChange={(e) => setPagAndData(e.target.value)} className={inputCls} />
                   </Campo>
-                  <Campo label="Valor">
-                    <input value={pagAndValor} onChange={(e) => setPagAndValor(mascaraReais(e.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" />
-                  </Campo>
-                  <Campo label="Descrição">
-                    <input value={pagAndDescricao} onChange={(e) => setPagAndDescricao(e.target.value)} className={inputCls} placeholder="Opcional" />
-                  </Campo>
+                  {(() => {
+                    const processo = lista.find((item) => item.id === andamentoId);
+                    const mensal = Boolean(processo && !processo.pagamentoDemanda && processo.valorMensalCentavos != null);
+                    if (!mensal) {
+                      return (
+                        <>
+                          <Campo label="Valor">
+                            <input value={pagAndValor} onChange={(e) => setPagAndValor(mascaraReais(e.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" />
+                          </Campo>
+                          <Campo label="Descrição">
+                            <input value={pagAndDescricao} onChange={(e) => setPagAndDescricao(e.target.value)} className={inputCls} placeholder="Opcional" />
+                          </Campo>
+                        </>
+                      );
+                    }
+                    return (
+                      <>
+                        <label className="flex items-center gap-2 text-sm text-ink">
+                          <input
+                            type="checkbox"
+                            checked={outroValor}
+                            onChange={(evento) => {
+                              setOutroValor(evento.target.checked);
+                              if (!evento.target.checked) setPagAndValor("");
+                            }}
+                            className="size-4 accent-pine"
+                          />
+                          Outro valor
+                        </label>
+                        {outroValor ? (
+                          <Campo label="Valor">
+                            <input value={pagAndValor} onChange={(e) => setPagAndValor(mascaraReais(e.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" />
+                          </Campo>
+                        ) : (
+                          <p className="text-sm text-muted">Valor do pagamento: {formatarReais(processo?.valorMensalCentavos ?? null)}</p>
+                        )}
+                      </>
+                    );
+                  })()}
                   <button
                     type="button"
                     onClick={() => void lancarPagamento()}
