@@ -467,14 +467,14 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
         ? form.vigenciaFim || form.dataInicio
         : previsao || form.dataInicio;
   const demanda = form.pagamentoDemanda && !cancelado;
-  const pagamentos = demanda
-    ? form.pagamentos.flatMap((item) => {
+  const pagamentos = tipoSimples(form.tipo)
+    ? []
+    : form.pagamentos.flatMap((item) => {
         if (item.invalido && item.numero) return [{ id: item.id, data: "", valorCentavos: 0, descricao: "", numero: item.numero, invalido: true as const }];
         const valor = reaisParaCentavos(item.valor);
         if (valor == null) return [];
         return [{ id: item.id, data: item.data, valorCentavos: valor, descricao: item.descricao.trim(), ...(item.numero ? { numero: item.numero } : {}) }];
-      })
-    : [];
+      });
   return {
     id: base.id,
     numero: String(numeroPeca(form.numero) ?? ""),
@@ -1021,7 +1021,7 @@ export function AdminPainel({
   function lancarPagamento() {
     if (!andamentoId) return;
     const atual = listaViva.current.find((item) => item.id === andamentoId);
-    if (!atual?.pagamentoDemanda) return;
+    if (!atual || tipoSimples(atual.tipo)) return;
     if (!pagAndData) {
       onToast("Informe a data do pagamento.");
       return;
@@ -1040,7 +1040,7 @@ export function AdminPainel({
     const atualizado: ProcessoAdmin = {
       ...atual,
       pagamentos,
-      valorMensalCentavos: somaPagamentos(pagamentos),
+      valorMensalCentavos: atual.pagamentoDemanda ? somaPagamentos(pagamentos) : atual.valorMensalCentavos,
       historico: [
         ...atual.historico,
         evento(`Lançou pagamento de ${formatarReais(valorNovo)}${descricao ? ` (${descricao})` : ""}.`, meuNome),
@@ -1070,7 +1070,7 @@ export function AdminPainel({
       {
         ...atual,
         pagamentos,
-        valorMensalCentavos: somaPagamentos(pagamentos),
+        valorMensalCentavos: atual.pagamentoDemanda ? somaPagamentos(pagamentos) : atual.valorMensalCentavos,
         historico: [
           ...atual.historico,
           evento(`Alterou o pagamento de ${formatDate(anterior.data) || "sem data"} para ${formatDate(data)}, no valor de ${formatarReais(valorNovo)}.`, meuNome),
@@ -1089,7 +1089,7 @@ export function AdminPainel({
       {
         ...atual,
         pagamentos,
-        valorMensalCentavos: somaPagamentos(pagamentos),
+        valorMensalCentavos: atual.pagamentoDemanda ? somaPagamentos(pagamentos) : atual.valorMensalCentavos,
         historico: [
           ...atual.historico,
           evento(`Removeu o pagamento de ${formatarReais(anterior.valorCentavos)}.`, meuNome),
@@ -1101,7 +1101,7 @@ export function AdminPainel({
 
   function invalidarNumeroPagamento(processoId: string, pagamentoId: string) {
     const atual = listaViva.current.find((item) => item.id === processoId);
-    if (!atual?.pagamentoDemanda) return;
+    if (!atual || tipoSimples(atual.tipo)) return;
     const numerados = numerarPagamentos(atual.pagamentos);
     const alvo = numerados.find((item) => item.id === pagamentoId && !item.invalido);
     if (!alvo?.numero) return;
@@ -1114,7 +1114,7 @@ export function AdminPainel({
       {
         ...atual,
         pagamentos,
-        valorMensalCentavos: somaPagamentos(pagamentos),
+        valorMensalCentavos: atual.pagamentoDemanda ? somaPagamentos(pagamentos) : atual.valorMensalCentavos,
         historico: [...atual.historico, evento(`Invalidou o número ${corte} dos pagamentos.`, meuNome)],
       },
       "Número invalidado",
@@ -1123,7 +1123,7 @@ export function AdminPainel({
 
   function inverterNumeroPagamento(processoId: string, pagamentoId: string, lado: "cima" | "baixo") {
     const atual = listaViva.current.find((item) => item.id === processoId);
-    if (!atual?.pagamentoDemanda) return;
+    if (!atual || tipoSimples(atual.tipo)) return;
     const numerados = numerarPagamentos(atual.pagamentos);
     const ordenados = [...numerados].sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0));
     const indice = ordenados.findIndex((item) => item.id === pagamentoId);
@@ -1139,7 +1139,7 @@ export function AdminPainel({
       {
         ...atual,
         pagamentos,
-        valorMensalCentavos: somaPagamentos(pagamentos),
+        valorMensalCentavos: atual.pagamentoDemanda ? somaPagamentos(pagamentos) : atual.valorMensalCentavos,
         historico: [...atual.historico, evento(`Inverteu o número ${atualNumero} com o ${vizinho.numero}.`, meuNome)],
       },
       "Números invertidos",
@@ -1149,7 +1149,7 @@ export function AdminPainel({
   function arrastarPagamento(processoId: string, origemId: string, destinoId: string) {
     if (!origemId || origemId === destinoId) return;
     const atual = listaViva.current.find((item) => item.id === processoId);
-    if (!atual?.pagamentoDemanda) return;
+    if (!atual || tipoSimples(atual.tipo)) return;
     const ordenados = numerarPagamentos(atual.pagamentos).sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0));
     const de = ordenados.findIndex((item) => item.id === origemId);
     const para = ordenados.findIndex((item) => item.id === destinoId);
@@ -1161,7 +1161,7 @@ export function AdminPainel({
       {
         ...atual,
         pagamentos,
-        valorMensalCentavos: somaPagamentos(pagamentos),
+        valorMensalCentavos: atual.pagamentoDemanda ? somaPagamentos(pagamentos) : atual.valorMensalCentavos,
         historico: [...atual.historico, evento("Reordenou os pagamentos arrastando.", meuNome)],
       },
       "Ordem atualizada",
@@ -1182,7 +1182,7 @@ export function AdminPainel({
       {
         ...atual,
         pagamentos,
-        valorMensalCentavos: somaPagamentos(pagamentos),
+        valorMensalCentavos: atual.pagamentoDemanda ? somaPagamentos(pagamentos) : atual.valorMensalCentavos,
         historico: [...atual.historico, evento("Reordenou os pagamentos por demanda.", meuNome)],
       },
       "Ordem atualizada",
@@ -2086,7 +2086,7 @@ export function AdminPainel({
                 const campo = (e.target as HTMLElement).closest("input, textarea") as HTMLInputElement | HTMLTextAreaElement | null;
                 if (campo?.tagName === "TEXTAREA") return;
                 if (campo instanceof HTMLInputElement && (campo.type === "url" || campo.placeholder === "Opcional")) return;
-                if (!lista.find((item) => item.id === andamentoId)?.pagamentoDemanda) return;
+                if (lista.find((item) => item.id === andamentoId && tipoSimples(item.tipo))) return;
                 e.preventDefault();
                 void lancarPagamento();
               }}
@@ -2129,7 +2129,7 @@ export function AdminPainel({
                 <Link2 className="size-4" />
                 Adicionar link
               </button>
-              {lista.find((item) => item.id === andamentoId)?.pagamentoDemanda && (
+              {lista.find((item) => item.id === andamentoId && !tipoSimples(item.tipo)) && (
                 <div
                   className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3"
                   onKeyDown={(e) => {
@@ -2511,7 +2511,7 @@ function CardAdmin({
                 <Info rotulo="Lançado por" valor={processo.autorNome || "sem nome"} />
                 <Info rotulo="Equipe" valor={equipes.find((equipe) => equipe.id === processo.equipeId)?.nome ?? "Só meus"} />
               </dl>
-              {processo.pagamentoDemanda && processo.pagamentos.some((item) => !item.invalido) && (
+              {processo.pagamentos.some((item) => !item.invalido) && (
                 <ul className="mt-3 max-h-[4.5rem] overflow-y-auto text-sm leading-6">
                   {[...processo.pagamentos].filter((item) => !item.invalido).sort((a, b) => (!a.data || !b.data ? (a.data ? -1 : b.data ? 1 : 0) : b.data.localeCompare(a.data))).map((item) => (
                     <li key={item.id} className="truncate text-ink">
@@ -3438,8 +3438,9 @@ function RelatorioPagamentos({
     .filter((item) => !tipoSimples(item.tipo) && item.status !== "cancelado")
     .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
   const escolhido = opcoes.find((item) => item.id === id) ?? null;
-  const pagamentos = escolhido?.pagamentoDemanda
-    ? numerarPagamentos(escolhido.pagamentos).sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0))
+  const sequencia = Boolean(escolhido && !tipoSimples(escolhido.tipo) && escolhido.pagamentos.length > 0);
+  const pagamentos = sequencia
+    ? numerarPagamentos(escolhido!.pagamentos).sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0))
     : escolhido?.valorMensalCentavos != null
       ? [{ id: "mensal", data: escolhido.vigenciaInicio ?? escolhido.dataInicio, valorCentavos: escolhido.valorMensalCentavos, descricao: "" }]
       : escolhido?.valorTotalCentavos != null
@@ -3504,7 +3505,7 @@ function RelatorioPagamentos({
             <p className="mt-4 text-sm text-muted">Este processo ainda não tem pagamentos lançados.</p>
           ) : (
             <div className="relatorio-tabela-wrap mt-4">
-              {escolhido.pagamentoDemanda ? <p className="no-print mb-2 text-xs text-muted">Arraste para organizar.</p> : null}
+              {sequencia ? <p className="no-print mb-2 text-xs text-muted">Arraste para organizar.</p> : null}
               <table className="relatorio-tabela w-full border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-line text-xs text-muted">
@@ -3523,7 +3524,7 @@ function RelatorioPagamentos({
                     return (
                     <tr key={item.id} data-pagamento={item.id} className={"border-b border-line " + (sobre === item.id ? "bg-pine-soft" : indice % 2 === 0 ? "bg-pine-soft/60" : "")}>
                       <td className="py-2 pr-3 font-medium text-ink">
-                        {escolhido.pagamentoDemanda ? (
+                        {sequencia ? (
                           <button
                             type="button"
                             aria-label="Arrastar pagamento"
@@ -3559,7 +3560,7 @@ function RelatorioPagamentos({
                       <td className="py-2 pr-3 text-ink">{invalido ? "Número inutilizado" : item.data ? formatDate(item.data) : "Sem data"}</td>
                       <td className="py-2 pr-3 font-medium text-ink">{invalido ? "—" : formatarReais(item.valorCentavos)}</td>
                       <td className="no-print py-2 text-right">
-                        {escolhido.pagamentoDemanda && !invalido ? (
+                        {sequencia && !invalido ? (
                           <span className="inline-flex items-center justify-end">
                             <MenuInverter
                               podeCima={Boolean(anterior)}
@@ -4110,10 +4111,10 @@ function SegundoContratado({
 }
 
 function mensalNoRelatorio(item: ProcessoAdmin, inicio: string, fim: string): number | null {
-  if (item.pagamentoDemanda || item.pagamentos.length > 0) {
-    const noPeriodo = item.pagamentos.filter((pagamento) => pagamento.data >= inicio && pagamento.data <= fim);
+  if (item.pagamentoDemanda && item.pagamentos.length > 0) {
+    const noPeriodo = item.pagamentos.filter((pagamento) => !pagamento.invalido && pagamento.data >= inicio && pagamento.data <= fim);
     if (noPeriodo.length > 0) return somaPagamentos(noPeriodo);
-    if (item.pagamentos.length > 0) return somaPagamentos(item.pagamentos);
+    return somaPagamentos(item.pagamentos);
   }
   return item.valorMensalCentavos;
 }

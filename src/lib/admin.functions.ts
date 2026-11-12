@@ -155,7 +155,7 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
   if (!simples && status === "encerrado" && !encerramentoInformado) throw new Error("Informe a data de encerramento.");
   const modo = modoValor(tipo, status);
   const pagamentoDemanda = bruto.pagamentoDemanda === true && !simples && status !== "cancelado";
-  const pagamentos = pagamentoDemanda ? pagamentosOk(bruto.pagamentos) : [];
+  const pagamentos = simples ? [] : pagamentosOk(bruto.pagamentos);
   if (modo === "contrato") {
     if (!contratado) throw new Error("Informe os dados do contratado.");
     if (!vigenciaInicio || !vigenciaFim) throw new Error("Informe a vigência do contrato.");
@@ -318,12 +318,10 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
   const previsao = dia(linha.previsao_etapa) ?? (pedePrevisao(status) ? encerramento : null);
   const pagamentoDemanda = bool(linha.pagamento_demanda ?? false);
   let pagamentos: PagamentoDemanda[] = [];
-  if (pagamentoDemanda) {
-    try {
-      pagamentos = pagamentosOk(typeof linha.pagamentos === "string" ? JSON.parse(linha.pagamentos || "[]") : linha.pagamentos);
-    } catch {
-      pagamentos = [];
-    }
+  try {
+    pagamentos = pagamentosOk(typeof linha.pagamentos === "string" ? JSON.parse(linha.pagamentos || "[]") : linha.pagamentos);
+  } catch {
+    pagamentos = [];
   }
   return {
     id: linha.id,
