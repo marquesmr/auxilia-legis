@@ -1,5 +1,4 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import { BadgeCheck, Ban, BarChart3, Check, Copy, FilePen, FileText, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import {
@@ -2175,15 +2174,7 @@ export function AdminPainel({
       >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-10 bg-ink/40" />
-          <Dialog.Content
-            className="fixed inset-x-3 top-1/2 z-10 max-h-[90vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2"
-            onPointerDownOutside={(evento) => {
-              if (evento.target instanceof Element && evento.target.closest("[data-menu-pagamento]")) evento.preventDefault();
-            }}
-            onFocusOutside={(evento) => {
-              if (evento.target instanceof Element && evento.target.closest("[data-menu-pagamento]")) evento.preventDefault();
-            }}
-          >
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-10 max-h-[90vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
             <Dialog.Title className="font-display text-2xl text-ink">Andamento</Dialog.Title>
             <form
               className="mt-4 flex flex-col gap-3"
@@ -3201,6 +3192,7 @@ function ListaPagamentos({
   onReordenar: (origemId: string, destinoId: string) => void;
 }) {
   const [sobre, setSobre] = useState<string | null>(null);
+  const [editando, setEditando] = useState<string | null>(null);
   const origem = useRef<string | null>(null);
 
   function soltar(destino: string) {
@@ -3251,15 +3243,37 @@ function ListaPagamentos({
             {item.descricao ? ` · ${item.descricao}` : ""}
             <span className="ml-2 font-medium">{formatarReais(item.valorCentavos)}</span>
           </span>
-          <MenuPagamento pagamento={item} onSalvar={(data, valor) => onSalvar(item.id, data, valor)} onRemover={() => onRemover(item.id)} />
+          <button
+            type="button"
+            onClick={() => setEditando((atual) => (atual === item.id ? null : item.id))}
+            className="grid size-8 shrink-0 place-items-center rounded-lg text-muted"
+            aria-label="Ações do pagamento"
+            aria-expanded={editando === item.id}
+          >
+            <MoreVertical className="size-4" />
+          </button>
         </li>
       ))}
       </ul>
+      {pagamentos.filter((item) => item.id === editando && !item.invalido).map((item) => (
+        <EditorPagamento
+          key={item.id}
+          pagamento={item}
+          onSalvar={(data, valor) => {
+            onSalvar(item.id, data, valor);
+            setEditando(null);
+          }}
+          onRemover={() => {
+            onRemover(item.id);
+            setEditando(null);
+          }}
+        />
+      ))}
     </div>
   );
 }
 
-function MenuPagamento({
+function EditorPagamento({
   pagamento,
   onSalvar,
   onRemover,
@@ -3268,107 +3282,45 @@ function MenuPagamento({
   onSalvar: (data: string, valor: string) => void;
   onRemover: () => void;
 }) {
-  const [aberto, setAberto] = useState(false);
   const [confirmar, setConfirmar] = useState(false);
   const [data, setData] = useState(pagamento.data);
   const [valor, setValor] = useState(centavosParaCampo(pagamento.valorCentavos));
-  const botao = useRef<HTMLButtonElement>(null);
-  const [posicao, setPosicao] = useState({ top: 0, left: 0 });
-  useEffect(() => {
-    setData(pagamento.data);
-    setValor(centavosParaCampo(pagamento.valorCentavos));
-  }, [pagamento.data, pagamento.valorCentavos]);
-  useEffect(() => {
-    if (!aberto) return;
-    const fechar = (evento: Event) => {
-      if (evento.target instanceof Element && evento.target.closest("[data-menu-pagamento]")) return;
-      setAberto(false);
-    };
-    window.addEventListener("scroll", fechar, true);
-    window.addEventListener("resize", fechar);
-    return () => {
-      window.removeEventListener("scroll", fechar, true);
-      window.removeEventListener("resize", fechar);
-    };
-  }, [aberto]);
-  function posicionar() {
-    const rect = botao.current?.getBoundingClientRect();
-    if (!rect) return;
-    const largura = 224;
-    const altura = 280;
-    const left = Math.max(8, Math.min(rect.right - largura, window.innerWidth - largura - 8));
-    const abaixo = rect.bottom + 4;
-    const top = abaixo + altura > window.innerHeight ? Math.max(8, rect.top - altura - 4) : abaixo;
-    setPosicao({ top, left });
-  }
   return (
-    <div className="shrink-0" onKeyDown={(evento) => evento.stopPropagation()}>
+    <div className="mt-2 rounded-xl border border-line bg-sheet p-3" onKeyDown={(evento) => evento.stopPropagation()}>
+      <p className="text-sm font-medium text-ink">Editar lançamento</p>
+      <label className="mt-2 block text-xs font-medium text-ink">
+        Data
+        <input type="date" value={data} onChange={(evento) => setData(evento.target.value)} className={`${inputCls} mt-1`} />
+      </label>
+      <label className="mt-2 block text-xs font-medium text-ink">
+        Valor
+        <input value={valor} onChange={(evento) => setValor(mascaraReais(evento.target.value))} className={`${inputCls} mt-1`} inputMode="decimal" placeholder="0,00" />
+      </label>
       <button
-        ref={botao}
         type="button"
-        onClick={() => {
-          if (aberto) {
-            setAberto(false);
-            return;
-          }
-          posicionar();
-          setAberto(true);
-          setConfirmar(false);
-        }}
-        className="grid size-8 place-items-center rounded-lg text-muted"
-        aria-label="Ações do pagamento"
-        aria-expanded={aberto}
+        onClick={() => onSalvar(data, valor)}
+        className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg bg-pine text-sm font-medium text-sheet"
       >
-        <MoreVertical className="size-4" />
+        Salvar
       </button>
-      {aberto && createPortal(
-        <div
-          data-menu-pagamento
-          className="fixed z-50 w-56 rounded-xl border border-line bg-sheet p-3 shadow-lg"
-          style={{ top: posicao.top, left: posicao.left }}
-          onKeyDown={(evento) => evento.stopPropagation()}
-        >
-          <p className="text-sm font-medium text-ink">Editar lançamento</p>
-          <label className="mt-2 block text-xs font-medium text-ink">
-            Data
-            <input type="date" value={data} onChange={(evento) => setData(evento.target.value)} className={`${inputCls} mt-1`} />
-          </label>
-          <label className="mt-2 block text-xs font-medium text-ink">
-            Valor
-            <input value={valor} onChange={(evento) => setValor(mascaraReais(evento.target.value))} className={`${inputCls} mt-1`} inputMode="decimal" placeholder="0,00" />
-          </label>
+      {confirmar ? (
+        <div className="mt-3">
+          <p className="text-sm text-ink">Remover este lançamento?</p>
           <button
             type="button"
             onClick={() => {
-              onSalvar(data, valor);
-              setAberto(false);
+              onRemover();
+              setConfirmar(false);
             }}
-            className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg bg-pine text-sm font-medium text-sheet"
+            className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-lg bg-seal text-sm font-medium text-sheet"
           >
-            Salvar
+            Remover
           </button>
-          {confirmar ? (
-            <div className="mt-3">
-              <p className="text-sm text-ink">Remover este lançamento?</p>
-              <button
-                type="button"
-                onClick={() => {
-                  onRemover();
-                  setAberto(false);
-                  setConfirmar(false);
-                }}
-                className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-lg bg-seal text-sm font-medium text-sheet"
-              >
-                Remover
-              </button>
-            </div>
-          ) : (
-            <button type="button" onClick={() => setConfirmar(true)} className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-lg text-sm font-medium text-seal">
-              Remover lançamento
-            </button>
-          )}
-        </div>,
-        document.body,
+        </div>
+      ) : (
+        <button type="button" onClick={() => setConfirmar(true)} className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-lg text-sm font-medium text-seal">
+          Remover lançamento
+        </button>
       )}
     </div>
   );
