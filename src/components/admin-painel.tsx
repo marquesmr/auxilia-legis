@@ -3566,6 +3566,9 @@ function RelatorioPagamentos({
       : escolhido?.valorTotalCentavos != null
         ? [{ id: "total", data: escolhido.encerramento || escolhido.vigenciaInicio || escolhido.dataInicio, valorCentavos: escolhido.valorTotalCentavos, descricao: "" }]
         : [];
+  const nomeRetencao =
+    rotuloRetencao(escolhido?.retencaoTipo) ||
+    pagamentos.reduce((nome, item) => nome || ("retencaoTipo" in item ? rotuloRetencao(item.retencaoTipo) : ""), "");
   return (
     <div className="min-w-0 rounded-2xl border border-line bg-sheet p-4">
       <h2 className="font-display text-2xl text-ink">Pagamentos</h2>
@@ -3635,7 +3638,7 @@ function RelatorioPagamentos({
                     {pagamentos.some((item) => "descontoCentavos" in item && item.descontoCentavos) ? (
                       <>
                         <th className="py-2 pr-3 font-medium">Valor bruto</th>
-                        <th className="py-2 pr-3 font-medium">Desconto</th>
+                        <th className="py-2 pr-3 font-medium">Retenção de {nomeRetencao}</th>
                         <th className="py-2 pr-3 font-medium">Valor líquido</th>
                       </>
                     ) : (
@@ -3690,7 +3693,7 @@ function RelatorioPagamentos({
                       {pagamentos.some((pagamento) => "descontoCentavos" in pagamento && pagamento.descontoCentavos) ? (
                         <>
                           <td className="py-2 pr-3 font-medium text-ink">{invalido ? "—" : formatarReais(item.valorCentavos)}</td>
-                          <td className="py-2 pr-3 text-ink">{invalido ? "—" : `${"retencaoTipo" in item && item.retencaoTipo ? `${rotuloRetencao(item.retencaoTipo)} · ` : ""}${formatarReais("descontoCentavos" in item ? item.descontoCentavos ?? 0 : 0)}`}</td>
+                          <td className="py-2 pr-3 text-ink">{invalido ? "—" : formatarReais("descontoCentavos" in item ? item.descontoCentavos ?? 0 : 0)}</td>
                           <td className="py-2 pr-3 font-medium text-ink">{invalido ? "—" : formatarReais(item.valorCentavos - ("descontoCentavos" in item ? item.descontoCentavos ?? 0 : 0))}</td>
                         </>
                       ) : (
@@ -3716,7 +3719,7 @@ function RelatorioPagamentos({
               {pagamentos.some((item) => "descontoCentavos" in item && item.descontoCentavos) ? (
                 <>
                   <p className="mt-3 text-sm font-medium text-ink">Total bruto: {formatarReais(somaPagamentos(pagamentos))}</p>
-                  <p className="mt-1 text-sm text-ink">Total do desconto: {formatarReais(pagamentos.reduce((soma, item) => soma + ("descontoCentavos" in item && !item.invalido ? item.descontoCentavos ?? 0 : 0), 0))}</p>
+                  <p className="mt-1 text-sm text-ink">Total da retenção de {nomeRetencao}: {formatarReais(pagamentos.reduce((soma, item) => soma + ("descontoCentavos" in item && !item.invalido ? item.descontoCentavos ?? 0 : 0), 0))}</p>
                   <p className="mt-1 text-sm font-medium text-ink">Total líquido: {formatarReais(somaPagamentos(pagamentos) - pagamentos.reduce((soma, item) => soma + ("descontoCentavos" in item && !item.invalido ? item.descontoCentavos ?? 0 : 0), 0))}</p>
                 </>
               ) : (
