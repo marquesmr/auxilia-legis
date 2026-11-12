@@ -388,7 +388,7 @@ html[data-tema="escuro"][data-cor="roxo"] {
       display: block !important;
     }
 
-    body.imprimindo .relatorio-folha .relatorio-ficha {
+    body.imprimindo .relatorio-folha .relatorio-ficha.grid:not(.relatorio-graficos) {
       display: grid !important;
       grid-template-columns: 1fr 1fr !important;
       column-gap: 8mm !important;

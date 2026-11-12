@@ -3510,7 +3510,7 @@ function RelatorioPagamentos({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-pine">Processos administrativos</p>
-              <h2 className="font-display text-2xl text-ink sm:text-3xl">Pagamentos · {rotuloNumero(escolhido.numero, escolhido.numeroAno)}</h2>
+              <h2 className="font-display text-2xl text-ink sm:text-3xl">Processo · {rotuloNumero(escolhido.numero, escolhido.numeroAno)}</h2>
               <p className="mt-1 text-sm text-muted">{rotuloTipo(escolhido.tipo, escolhido.tipoNumero, escolhido.tipoAno)}{escolhido.contratado ? ` · ${escolhido.contratado}` : ""}</p>
             </div>
           </div>
