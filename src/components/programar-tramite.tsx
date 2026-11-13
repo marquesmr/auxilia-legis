@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Clock, X } from "lucide-react";
 import { pedePrevisao, rotuloNumero, statusAdminLabel, type ProcessoAdmin } from "@/lib/admin";
@@ -39,8 +39,14 @@ function TelaTramite({ equipeId, onFechar }: { equipeId: string | null; onFechar
   const [prazo, setPrazo] = useState("");
   const [aviso, setAviso] = useState("");
   const [erro, setErro] = useState("");
-  const [ocupado, setOcupado] = useState(false);
+  const cancelados = useRef(new Set<string>());
   const pede = status ? pedePrevisao(status) || status === "encerrado" : false;
+
+  function carregarLista() {
+    void listarTramitesProgramados({ data: equipeId })
+      .then(setProgramados)
+      .catch(() => undefined);
+  }
 
   function carregar() {
     void listarAdmin({ data: equipeId })
@@ -61,7 +67,7 @@ function TelaTramite({ equipeId, onFechar }: { equipeId: string | null; onFechar
     carregar();
   }, [equipeId]);
 
-  async function salvar() {
+  function salvar() {
     setErro("");
     setAviso("");
     if (!processoId || !status || !quando) {
@@ -72,28 +78,47 @@ function TelaTramite({ equipeId, onFechar }: { equipeId: string | null; onFechar
       setErro(status === "encerrado" ? "Informe a data de encerramento." : "Informe o prazo do novo status.");
       return;
     }
-    setOcupado(true);
-    try {
-      await programarTramite({
-        data: {
-          processoId,
-          status,
-          quando: new Date(quando).toISOString(),
-          prazo: prazo || null,
-          equipeId,
-        },
+    const escolhido = processos.find((item) => item.id === processoId);
+    if (!escolhido) return;
+    const temporario = `temp-${crypto.randomUUID()}`;
+    const entrada = {
+      id: temporario,
+      processoId,
+      status,
+      quando: new Date(quando).toISOString(),
+      prazo: prazo || null,
+      numero: escolhido.numero,
+      numeroAno: escolhido.numeroAno,
+      referencia: escolhido.referencia,
+    };
+    setProgramados((atual) => [...atual, entrada].sort((a, b) => a.quando.localeCompare(b.quando)));
+    setAviso("Trâmite programado.");
+    setProcessoId("");
+    setStatus("");
+    setQuando("");
+    setPrazo("");
+    void programarTramite({
+      data: {
+        processoId: entrada.processoId,
+        status: entrada.status,
+        quando: entrada.quando,
+        prazo: entrada.prazo,
+        equipeId,
+      },
+    })
+      .then((res) => {
+        if (cancelados.current.has(temporario)) {
+          cancelados.current.delete(temporario);
+          void cancelarTramiteProgramado({ data: res.id }).catch(() => undefined);
+          return;
+        }
+        setProgramados((atual) => atual.map((item) => (item.id === temporario ? { ...item, id: res.id } : item)));
+      })
+      .catch((err: unknown) => {
+        setProgramados((atual) => atual.filter((item) => item.id !== temporario));
+        setAviso("");
+        setErro(err instanceof Error ? err.message : "Não foi possível programar.");
       });
-      setAviso("Trâmite programado.");
-      setProcessoId("");
-      setStatus("");
-      setQuando("");
-      setPrazo("");
-      carregar();
-    } catch (err) {
-      setErro(err instanceof Error ? err.message : "Não foi possível programar.");
-    } finally {
-      setOcupado(false);
-    }
   }
 
   return createPortal(
@@ -138,20 +163,22 @@ function TelaTramite({ equipeId, onFechar }: { equipeId: string | null; onFechar
           </label>
           {erro ? <p className="text-sm text-seal">{erro}</p> : null}
           {aviso ? <p className="text-sm text-pine">{aviso}</p> : null}
-          <button type="button" onClick={() => void salvar()} disabled={ocupado} className="inline-flex h-11 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50">
+          <button type="button" onClick={salvar} className="inline-flex h-11 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">
             Programar
           </button>
         </div>
         {programados.length > 0 ? (
-          <ul className="mt-4 flex flex-col gap-2 text-sm">
+          <ul className="mt-4 flex max-h-[10.25rem] flex-col gap-2 overflow-y-auto text-sm">
             {programados.map((item) => (
-              <li key={item.id} className="rounded-xl border border-line px-3 py-2">
+              <li key={item.id} className="shrink-0 rounded-xl border border-line px-3 py-2">
                 <p className="text-ink">{rotuloNumero(item.numero, item.numeroAno)}{item.referencia ? ` · ${item.referencia}` : ""} · {statusAdminLabel(item.status)}</p>
                 <p className="text-xs text-muted">{horaLocal(item.quando)}{item.prazo ? ` · prazo ${item.prazo.split("-").reverse().join("/")}` : ""}</p>
                 <button
                   type="button"
                   onClick={() => {
-                    void cancelarTramiteProgramado({ data: item.id }).then(() => carregar());
+                    cancelados.current.add(item.id);
+                    setProgramados((atual) => atual.filter((valor) => valor.id !== item.id));
+                    if (!item.id.startsWith("temp-")) void cancelarTramiteProgramado({ data: item.id }).catch(() => carregarLista());
                   }}
                   className="mt-1 text-xs font-medium text-seal"
                 >
