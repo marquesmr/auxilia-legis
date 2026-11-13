@@ -839,6 +839,14 @@ html[data-tema="escuro"][data-cor="roxo"] {
     line-height: 1.35;
   }
 
+  body.imprimindo-capa .capa-volume {
+    margin: 0 0 4mm;
+    text-align: center;
+    font-weight: 700;
+    font-size: 14pt;
+    letter-spacing: 0.08em;
+  }
+
   body.imprimindo-capa .capa-regua {
     height: 0;
     border-top: 3.2pt double #111;

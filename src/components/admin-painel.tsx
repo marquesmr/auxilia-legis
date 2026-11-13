@@ -2490,6 +2490,9 @@ function CardAdmin({
   const [capaAberta, setCapaAberta] = useState(false);
   const [idsCapa, setIdsCapa] = useState<string[]>([]);
   const [capaEscolha, setCapaEscolha] = useState("");
+  const [volumeCapa, setVolumeCapa] = useState(false);
+  const [numeroVolume, setNumeroVolume] = useState("");
+  const [erroVolume, setErroVolume] = useState("");
   const [termoAberto, setTermoAberto] = useState(false);
   const [termoAssinante, setTermoAssinante] = useState("");
   const [termoFuncao, setTermoFuncao] = useState("");
@@ -2606,6 +2609,9 @@ function CardAdmin({
                         onClick={() => {
                           setIdsCapa([]);
                           setCapaEscolha("");
+                          setVolumeCapa(false);
+                          setNumeroVolume("");
+                          setErroVolume("");
                           setCapaAberta(true);
                         }}
                         className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-xs font-medium text-ink"
@@ -2855,6 +2861,38 @@ function CardAdmin({
                 Adicionar
               </button>
             </div>
+            <label className="mt-4 flex items-center gap-2 text-sm font-medium text-ink">
+              <input
+                type="checkbox"
+                checked={volumeCapa}
+                onChange={(evento) => {
+                  setVolumeCapa(evento.target.checked);
+                  setErroVolume("");
+                  if (!evento.target.checked) setNumeroVolume("");
+                }}
+                className="size-4 accent-pine"
+              />
+              Imprimir volume
+            </label>
+            {volumeCapa ? (
+              <div className="mt-3">
+                <Campo label="Qual volume?">
+                  <input
+                    value={numeroVolume}
+                    onChange={(evento) => {
+                      setNumeroVolume(evento.target.value.replace(/\D/g, "").slice(0, 4));
+                      setErroVolume("");
+                    }}
+                    className={inputCls}
+                    inputMode="numeric"
+                    placeholder="2"
+                    autoComplete="off"
+                  />
+                </Campo>
+                {Number(numeroVolume) >= 1 ? <p className="mt-2 text-sm text-muted">Na capa: VOLUME {romano(Number(numeroVolume))}</p> : null}
+                {erroVolume ? <p className="mt-2 text-sm text-seal">{erroVolume}</p> : null}
+              </div>
+            ) : null}
             <div className="mt-4 flex gap-2">
               <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
                 Cancelar
@@ -2862,8 +2900,13 @@ function CardAdmin({
               <button
                 type="button"
                 onClick={() => {
+                  const numero = Number(numeroVolume);
+                  if (volumeCapa && (!Number.isInteger(numero) || numero < 1 || numero > 3999)) {
+                    setErroVolume("Informe o número do volume, de 1 a 3999.");
+                    return;
+                  }
                   const juntos = [processo, ...idsCapa.map((id) => processos.find((item) => item.id === id)).filter((item): item is ProcessoAdmin => Boolean(item))];
-                  imprimirCapas(juntos);
+                  imprimirCapas(juntos, volumeCapa ? numero : null);
                   setCapaAberta(false);
                 }}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet"
@@ -5068,7 +5111,34 @@ function alturaCapa(processo: ProcessoAdmin) {
   return 36 + linhas * 5.3;
 }
 
-function imprimirCapas(lista: ProcessoAdmin[]) {
+function romano(numero: number) {
+  const pares: [number, string][] = [
+    [1000, "M"],
+    [900, "CM"],
+    [500, "D"],
+    [400, "CD"],
+    [100, "C"],
+    [90, "XC"],
+    [50, "L"],
+    [40, "XL"],
+    [10, "X"],
+    [9, "IX"],
+    [5, "V"],
+    [4, "IV"],
+    [1, "I"],
+  ];
+  let restante = numero;
+  let texto = "";
+  for (const [valor, letra] of pares) {
+    while (restante >= valor) {
+      texto += letra;
+      restante -= valor;
+    }
+  }
+  return texto;
+}
+
+function imprimirCapas(lista: ProcessoAdmin[], volume: number | null = null) {
   if (!lista.length) return;
   const varios = lista.length > 1;
   const grupos: ProcessoAdmin[][] = [];
@@ -5095,6 +5165,12 @@ function imprimirCapas(lista: ProcessoAdmin[]) {
   const folhas = grupos.map((grupo) => {
     const folha = document.createElement("article");
     folha.className = varios ? "capa-processo capa-varias" : "capa-processo";
+    if (volume && volume >= 1) {
+      const topo = document.createElement("p");
+      topo.className = "capa-volume";
+      topo.textContent = `VOLUME ${romano(volume)}`;
+      folha.append(topo);
+    }
     grupo.forEach((item) => folha.append(blocoCapa(item)));
     return folha;
   });
