@@ -2488,7 +2488,7 @@ function CardAdmin({
   const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string }[]>([]);
   const [extratoEscolha, setExtratoEscolha] = useState("");
   const [capaAberta, setCapaAberta] = useState(false);
-  const [idsCapa, setIdsCapa] = useState<string[]>([]);
+  const [idsCapa, setIdsCapa] = useState<{ id: string; volume: boolean; numero: string }[]>([]);
   const [capaEscolha, setCapaEscolha] = useState("");
   const [volumeCapa, setVolumeCapa] = useState(false);
   const [numeroVolume, setNumeroVolume] = useState("");
@@ -2825,15 +2825,39 @@ function CardAdmin({
             </Dialog.Description>
             <ul className="mt-4 flex flex-col gap-2 text-sm">
               <li className="rounded-xl border border-line px-3 py-2 text-ink">{rotuloLista(processo)}</li>
-              {idsCapa.map((id) => {
-                const item = processos.find((atual) => atual.id === id);
+              {idsCapa.map((capa) => {
+                const item = processos.find((atual) => atual.id === capa.id);
                 if (!item) return null;
                 return (
-                  <li key={id} className="flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-ink">
-                    <span className="min-w-0 break-words">{rotuloLista(item)}</span>
-                    <button type="button" onClick={() => setIdsCapa((atual) => atual.filter((valor) => valor !== id))} className="shrink-0 text-xs font-medium text-seal">
-                      Remover
-                    </button>
+                  <li key={capa.id} className="rounded-xl border border-line px-3 py-2 text-ink">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 break-words">{rotuloLista(item)}</span>
+                      <button type="button" onClick={() => setIdsCapa((atual) => atual.filter((valor) => valor.id !== capa.id))} className="shrink-0 text-xs font-medium text-seal">
+                        Remover
+                      </button>
+                    </div>
+                    <label className="mt-2 flex items-center gap-2 text-xs font-medium">
+                      <input
+                        type="checkbox"
+                        checked={capa.volume}
+                        onChange={(evento) => setIdsCapa((atual) => atual.map((valor) => valor.id === capa.id ? { ...valor, volume: evento.target.checked, numero: evento.target.checked ? valor.numero : "" } : valor))}
+                        className="size-4 accent-pine"
+                      />
+                      Tem volume
+                    </label>
+                    {capa.volume ? (
+                      <div className="mt-2">
+                        <input
+                          value={capa.numero}
+                          onChange={(evento) => setIdsCapa((atual) => atual.map((valor) => valor.id === capa.id ? { ...valor, numero: evento.target.value.replace(/\D/g, "").slice(0, 4) } : valor))}
+                          className={inputCls}
+                          inputMode="numeric"
+                          placeholder="Número do volume"
+                          autoComplete="off"
+                        />
+                        {Number(capa.numero) >= 1 ? <p className="mt-1 text-xs text-muted">VOLUME {romano(Number(capa.numero))}</p> : null}
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}
@@ -2842,7 +2866,7 @@ function CardAdmin({
               <select value={capaEscolha} onChange={(evento) => setCapaEscolha(evento.target.value)} className={inputCls + " min-w-0 flex-1"}>
                 <option value="">Adicionar outro processo</option>
                 {processos
-                  .filter((item) => item.id !== processo.id && !idsCapa.includes(item.id))
+                  .filter((item) => item.id !== processo.id && !idsCapa.some((capa) => capa.id === item.id))
                   .map((item) => (
                     <option key={item.id} value={item.id}>
                       {rotuloLista(item)}
@@ -2853,7 +2877,7 @@ function CardAdmin({
                 type="button"
                 disabled={!capaEscolha}
                 onClick={() => {
-                  setIdsCapa((atual) => [...atual, capaEscolha]);
+                  setIdsCapa((atual) => [...atual, { id: capaEscolha, volume: false, numero: "" }]);
                   setCapaEscolha("");
                 }}
                 className="inline-flex h-11 shrink-0 items-center rounded-xl border border-line px-3 text-sm font-medium text-ink disabled:opacity-50"
@@ -2890,9 +2914,9 @@ function CardAdmin({
                   />
                 </Campo>
                 {Number(numeroVolume) >= 1 ? <p className="mt-2 text-sm text-muted">Na capa: VOLUME {romano(Number(numeroVolume))}</p> : null}
-                {erroVolume ? <p className="mt-2 text-sm text-seal">{erroVolume}</p> : null}
               </div>
             ) : null}
+            {erroVolume ? <p className="mt-3 text-sm text-seal">{erroVolume}</p> : null}
             <div className="mt-4 flex gap-2">
               <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
                 Cancelar
@@ -2900,13 +2924,25 @@ function CardAdmin({
               <button
                 type="button"
                 onClick={() => {
+                  const volumes: Record<string, number> = {};
                   const numero = Number(numeroVolume);
                   if (volumeCapa && (!Number.isInteger(numero) || numero < 1 || numero > 3999)) {
                     setErroVolume("Informe o número do volume, de 1 a 3999.");
                     return;
                   }
-                  const juntos = [processo, ...idsCapa.map((id) => processos.find((item) => item.id === id)).filter((item): item is ProcessoAdmin => Boolean(item))];
-                  imprimirCapas(juntos, volumeCapa ? { numero, processoId: processo.id } : null);
+                  if (volumeCapa) volumes[processo.id] = numero;
+                  for (const capa of idsCapa) {
+                    if (!capa.volume) continue;
+                    const numeroExtra = Number(capa.numero);
+                    if (!Number.isInteger(numeroExtra) || numeroExtra < 1 || numeroExtra > 3999) {
+                      const nome = processos.find((item) => item.id === capa.id);
+                      setErroVolume(`Informe o volume de ${nome ? rotuloLista(nome) : "o processo adicional"}.`);
+                      return;
+                    }
+                    volumes[capa.id] = numeroExtra;
+                  }
+                  const juntos = [processo, ...idsCapa.map((capa) => processos.find((item) => item.id === capa.id)).filter((item): item is ProcessoAdmin => Boolean(item))];
+                  imprimirCapas(juntos, volumes);
                   setCapaAberta(false);
                 }}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet"
@@ -5144,7 +5180,7 @@ function romano(numero: number) {
   return texto;
 }
 
-function imprimirCapas(lista: ProcessoAdmin[], volume: { numero: number; processoId: string } | null = null) {
+function imprimirCapas(lista: ProcessoAdmin[], volumes: Record<string, number> = {}) {
   if (!lista.length) return;
   const varios = lista.length > 1;
   const grupos: ProcessoAdmin[][] = [];
@@ -5171,7 +5207,7 @@ function imprimirCapas(lista: ProcessoAdmin[], volume: { numero: number; process
   const folhas = grupos.map((grupo) => {
     const folha = document.createElement("article");
     folha.className = varios ? "capa-processo capa-varias" : "capa-processo";
-    grupo.forEach((item) => folha.append(blocoCapa(item, volume && item.id === volume.processoId ? volume.numero : null)));
+    grupo.forEach((item) => folha.append(blocoCapa(item, volumes[item.id] ?? null)));
     return folha;
   });
   folhas.forEach((folha) => document.body.appendChild(folha));
