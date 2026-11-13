@@ -2906,7 +2906,7 @@ function CardAdmin({
                     return;
                   }
                   const juntos = [processo, ...idsCapa.map((id) => processos.find((item) => item.id === id)).filter((item): item is ProcessoAdmin => Boolean(item))];
-                  imprimirCapas(juntos, volumeCapa ? numero : null);
+                  imprimirCapas(juntos, volumeCapa ? { numero, processoId: processo.id } : null);
                   setCapaAberta(false);
                 }}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet"
@@ -5076,7 +5076,7 @@ ${timbre.rodape2.trim() ? `<p class="rodape">${escaparHtml(timbre.rodape2.trim()
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
 }
 
-function blocoCapa(processo: ProcessoAdmin) {
+function blocoCapa(processo: ProcessoAdmin, volume: number | null = null) {
   const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
   const tipoNumero =
     processo.tipo !== "Outros" && processo.tipoNumero != null
@@ -5102,6 +5102,12 @@ function blocoCapa(processo: ProcessoAdmin) {
   const objeto = document.createElement("div");
   objeto.className = "capa-objeto";
   objeto.textContent = processo.objeto.trim();
+  if (volume && volume >= 1) {
+    const topo = document.createElement("p");
+    topo.className = "capa-volume";
+    topo.textContent = `VOLUME ${romano(volume)}`;
+    bloco.append(topo);
+  }
   bloco.append(regua(), caixa, titulo, objeto, regua());
   return bloco;
 }
@@ -5138,7 +5144,7 @@ function romano(numero: number) {
   return texto;
 }
 
-function imprimirCapas(lista: ProcessoAdmin[], volume: number | null = null) {
+function imprimirCapas(lista: ProcessoAdmin[], volume: { numero: number; processoId: string } | null = null) {
   if (!lista.length) return;
   const varios = lista.length > 1;
   const grupos: ProcessoAdmin[][] = [];
@@ -5165,13 +5171,7 @@ function imprimirCapas(lista: ProcessoAdmin[], volume: number | null = null) {
   const folhas = grupos.map((grupo) => {
     const folha = document.createElement("article");
     folha.className = varios ? "capa-processo capa-varias" : "capa-processo";
-    if (volume && volume >= 1) {
-      const topo = document.createElement("p");
-      topo.className = "capa-volume";
-      topo.textContent = `VOLUME ${romano(volume)}`;
-      folha.append(topo);
-    }
-    grupo.forEach((item) => folha.append(blocoCapa(item)));
+    grupo.forEach((item) => folha.append(blocoCapa(item, volume && item.id === volume.processoId ? volume.numero : null)));
     return folha;
   });
   folhas.forEach((folha) => document.body.appendChild(folha));
