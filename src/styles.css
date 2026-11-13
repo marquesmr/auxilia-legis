@@ -840,11 +840,16 @@ html[data-tema="escuro"][data-cor="roxo"] {
   }
 
   body.imprimindo-capa .capa-volume {
-    margin: 0 0 4mm;
+    margin: 4mm 0 0;
     text-align: center;
     font-weight: 700;
     font-size: 14pt;
     letter-spacing: 0.08em;
+  }
+
+  body.imprimindo-capa .capa-volume + .capa-caixa,
+  body.imprimindo-capa .capa-varias .capa-volume + .capa-caixa {
+    margin-top: 4mm;
   }
 
   body.imprimindo-capa .capa-regua {

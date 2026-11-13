@@ -5138,13 +5138,14 @@ function blocoCapa(processo: ProcessoAdmin, volume: number | null = null) {
   const objeto = document.createElement("div");
   objeto.className = "capa-objeto";
   objeto.textContent = processo.objeto.trim();
+  bloco.append(regua());
   if (volume && volume >= 1) {
     const topo = document.createElement("p");
     topo.className = "capa-volume";
     topo.textContent = `VOLUME ${romano(volume)}`;
     bloco.append(topo);
   }
-  bloco.append(regua(), caixa, titulo, objeto, regua());
+  bloco.append(caixa, titulo, objeto, regua());
   return bloco;
 }
 
