@@ -442,6 +442,7 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
         "create table if not exists ci_inutilizada (ano integer not null, numero integer not null, primary key (ano, numero))",
         "alter table ci_inutilizada add column if not exists destino text not null default ''",
         "alter table ci_inutilizada add column if not exists desativada boolean not null default false",
+        "create table if not exists tramites_programados (id text primary key, processo_id text not null, status text not null, quando timestamptz not null, prazo date, user_id text not null, team_id text, aplicado boolean not null default false)",
       ];
       for (const comando of comandos) await sql.query(comando);
     })().catch((err) => {
@@ -467,6 +468,161 @@ function somarDias(iso: string, dias: number) {
   const [ano, mes, dia] = iso.split("-").map(Number);
   return todayIso(new Date(ano || 1970, (mes || 1) - 1, (dia || 1) + dias));
 }
+
+function statusPedePrazo(codigo: string, nome: string) {
+  const texto = `${codigo} ${nome}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return (
+    /\brecebendo propostas?\b/.test(texto) ||
+    /tramitacao de documentos?/.test(texto) ||
+    /\bpareceres\b/.test(texto) ||
+    /assinatura de contrato/.test(texto)
+  );
+}
+
+async function aplicarProgramados(sql: Awaited<ReturnType<typeof getSql>>) {
+  const devidos = await sql<{ id: string; processo_id: string; status: string; prazo: string | null }>`
+    update tramites_programados
+    set aplicado = true
+    where aplicado = false and quando <= now()
+    returning id, processo_id, status, prazo::text as prazo
+  `;
+  for (const item of devidos) {
+    const atual = await sql<{ status: string; historico: string }>`
+      select status, historico from processos_admin where id = ${item.processo_id}
+    `;
+    if (!atual.length) continue;
+    const nome = await sql<{ nome: string }>`
+      select nome from status_catalogo where area = 'administrativo' and codigo = ${item.status} limit 1
+    `;
+    const destinoNome = nome[0]?.nome || item.status;
+    const prazo = item.prazo ? String(item.prazo).slice(0, 10) : null;
+    const pede = statusPedePrazo(item.status, destinoNome);
+    const encerra = item.status === "encerrado" || item.status === "cancelado";
+    let lista: Andamento[] = [];
+    try {
+      const bruto = JSON.parse(atual[0].historico || "[]");
+      if (Array.isArray(bruto)) lista = bruto;
+    } catch {
+      lista = [];
+    }
+    lista.push({
+      id: crypto.randomUUID(),
+      em: new Date().toISOString(),
+      texto: `Trâmite programado: status alterado para ${destinoNome}${prazo ? `. Prazo ${prazo.split("-").reverse().join("/")}` : ""}.`,
+      autorNome: "Sistema",
+    });
+    await sql`
+      update processos_admin
+      set status = ${item.status},
+          status_em = current_date,
+          previsao_etapa = case when ${prazo}::date is not null and ${pede} then ${prazo}::date else previsao_etapa end,
+          encerramento = case when ${prazo}::date is not null and (${pede} or ${encerra}) then ${prazo}::date else encerramento end,
+          historico = ${JSON.stringify(lista)}
+      where id = ${item.processo_id}
+    `;
+  }
+}
+
+export const listarTramitesProgramados = createServerFn({ method: "GET" })
+  .validator((equipeId: unknown) => {
+    if (equipeId == null || equipeId === "") return null;
+    if (typeof equipeId !== "string" || !equipeId.trim()) throw new Error("Dados inválidos");
+    return equipeId.trim().slice(0, 80);
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data: equipeId }) => {
+    const sql = await getSql();
+    await garantirColunas(sql);
+    const linhas = await sql<{ id: string; processo_id: string; status: string; quando: string; prazo: string | null; numero: string; numero_ano: number | null }>`
+      select t.id, t.processo_id, t.status, t.quando::text as quando, t.prazo::text as prazo, p.numero, p.numero_ano
+      from tramites_programados t
+      join processos_admin p on p.id = t.processo_id
+      where t.aplicado = false
+        and (
+          (${equipeId}::text is not null and p.team_id = ${equipeId})
+          or (${equipeId}::text is null and p.team_id is null and p.user_id = ${context.userId})
+        )
+      order by t.quando asc
+    `;
+    return linhas.map((linha) => ({
+      id: linha.id,
+      processoId: linha.processo_id,
+      status: linha.status,
+      quando: new Date(linha.quando).toISOString(),
+      prazo: linha.prazo ? String(linha.prazo).slice(0, 10) : null,
+      numero: linha.numero,
+      numeroAno: linha.numero_ano,
+    }));
+  });
+
+export const programarTramite = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { processoId?: unknown; status?: unknown; quando?: unknown; prazo?: unknown; equipeId?: unknown };
+    const processoId = typeof bruto.processoId === "string" ? bruto.processoId.trim().slice(0, 80) : "";
+    const status = typeof bruto.status === "string" ? normalizarStatus(bruto.status) : "";
+    const quando = typeof bruto.quando === "string" ? new Date(bruto.quando) : new Date("");
+    const prazo = bruto.prazo == null || bruto.prazo === "" ? null : dataOk(bruto.prazo) ? bruto.prazo : null;
+    if (!processoId || !status || Number.isNaN(quando.getTime())) throw new Error("Informe o processo, o status e o horário.");
+    if (quando.getTime() < Date.now() - 60_000) throw new Error("Escolha um horário futuro.");
+    if (bruto.prazo && !prazo) throw new Error("Informe o prazo.");
+    const equipeId = bruto.equipeId == null || bruto.equipeId === "" ? null : typeof bruto.equipeId === "string" ? bruto.equipeId.trim().slice(0, 80) : null;
+    return { processoId, status, quando: quando.toISOString(), prazo, equipeId };
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    await garantirColunas(sql);
+    const { exigirEscrita } = await import("./gestao.server");
+    await exigirEscrita(context.userId);
+    const processo = await sql<{ id: string; team_id: string | null; user_id: string }>`
+      select id, team_id, user_id from processos_admin where id = ${data.processoId}
+    `;
+    if (!processo.length) throw new Error("Processo não encontrado.");
+    const dono = processo[0];
+    if (data.equipeId) {
+      if (dono.team_id !== data.equipeId) throw new Error("Processo não encontrado.");
+      const membro = await sql<{ ok: number }>`select 1 as ok from equipe_membros where equipe_id = ${data.equipeId} and user_id = ${context.userId}`;
+      if (!membro.length) throw new Error("Você não faz parte desta equipe.");
+    } else if (dono.team_id || dono.user_id !== context.userId) {
+      throw new Error("Processo não encontrado.");
+    }
+    const nome = await sql<{ nome: string }>`select nome from status_catalogo where area = 'administrativo' and codigo = ${data.status} limit 1`;
+    const destinoNome = nome[0]?.nome || data.status;
+    if ((statusPedePrazo(data.status, destinoNome) || data.status === "encerrado") && !data.prazo) throw new Error("Informe o prazo do novo status.");
+    const id = crypto.randomUUID();
+    await sql`
+      insert into tramites_programados (id, processo_id, status, quando, prazo, user_id, team_id, aplicado)
+      values (${id}, ${data.processoId}, ${data.status}, ${data.quando}::timestamptz, ${data.prazo}::date, ${context.userId}, ${dono.team_id}, false)
+    `;
+    return { id };
+  });
+
+export const cancelarTramiteProgramado = createServerFn({ method: "POST" })
+  .validator((id: unknown) => {
+    if (typeof id !== "string" || !id.trim()) throw new Error("Dados inválidos");
+    return id.trim().slice(0, 80);
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data: id }) => {
+    const sql = await getSql();
+    await garantirColunas(sql);
+    await sql`
+      delete from tramites_programados t
+      using processos_admin p
+      where t.id = ${id}
+        and t.aplicado = false
+        and t.processo_id = p.id
+        and (
+          (p.team_id is null and p.user_id = ${context.userId})
+          or p.team_id in (select equipe_id from equipe_membros where user_id = ${context.userId})
+        )
+    `;
+    return { id };
+  });
 
 async function aplicarTramites(sql: Awaited<ReturnType<typeof getSql>>) {
   const regras = await sql<{ codigo: string; dias: number; destino: string; destino_nome: string }>`
@@ -527,6 +683,7 @@ async function aplicarTramites(sql: Awaited<ReturnType<typeof getSql>>) {
 export async function adminDaConta(userId: string, equipeId: string | null) {
   const sql = await getSql();
   await garantirColunas(sql);
+  await aplicarProgramados(sql);
   await aplicarTramites(sql);
   if (!equipeId) {
     const linhas = await sql.query<Linha>(

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as EventoTeclado } from "react";
 import { createPortal } from "react-dom";
 import { Calculator, X } from "lucide-react";
+import { BotaoTramite } from "@/components/programar-tramite";
 
 type Operacao = "+" | "−" | "×" | "÷";
 
@@ -15,11 +16,12 @@ function mostrarNumero(valor: number) {
   return texto.replace(".", ",");
 }
 
-export function CalculadoraAbaixo() {
+export function CalculadoraAbaixo({ equipeId = null }: { equipeId?: string | null }) {
   const [aberta, setAberta] = useState(false);
   return (
     <>
-      <div className="mt-2 flex justify-end">
+      <div className="mt-2 flex justify-end gap-2">
+        <BotaoTramite equipeId={equipeId} />
         <button
           type="button"
           onClick={() => setAberta(true)}

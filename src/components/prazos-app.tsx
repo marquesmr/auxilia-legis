@@ -1110,7 +1110,7 @@ export function PrazosApp() {
 
       <div className="mt-6 min-w-0 xl:col-start-1">
       <div className="xl:hidden">
-        <CalendarioExpediente dias={diasMarcados} />
+        <CalendarioExpediente dias={diasMarcados} equipeId={equipeVisivel} />
       </div>
 
       {area === "administrativo" ? (
@@ -1865,7 +1865,7 @@ export function PrazosApp() {
       <AvisoManutencao aviso={avisoManutencao} onFechar={() => fecharAvisoManutencao(avisoManutencao, setAvisoManutencao)} />
       </div>
       <div className="mt-6 hidden xl:sticky xl:top-6 xl:z-20 xl:col-start-2 xl:row-start-2 xl:block xl:self-start">
-        <CalendarioExpediente dias={diasMarcados} />
+        <CalendarioExpediente dias={diasMarcados} equipeId={equipeVisivel} />
         <div id="lei-busca-nav" />
       </div>
     </div>

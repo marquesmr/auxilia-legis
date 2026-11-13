@@ -9,7 +9,7 @@ function isoDo(ano: number, mes: number, dia: number) {
   return `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
 
-export function CalendarioExpediente({ dias }: { dias: DiaMarcado[] }) {
+export function CalendarioExpediente({ dias, equipeId = null }: { dias: DiaMarcado[]; equipeId?: string | null }) {
   const [cursor, setCursor] = useState(() => {
     const hoje = new Date();
     return new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -102,7 +102,7 @@ export function CalendarioExpediente({ dias }: { dias: DiaMarcado[] }) {
         </ul>
       )}
     </section>
-    <CalculadoraAbaixo />
+    <CalculadoraAbaixo equipeId={equipeId} />
     </>
   );
 }
