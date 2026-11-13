@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Clock, X } from "lucide-react";
-import { pedePrevisao, rotuloNumero, rotuloTipo, statusAdminLabel, type ProcessoAdmin } from "@/lib/admin";
+import { pedePrevisao, rotuloNumero, statusAdminLabel, type ProcessoAdmin } from "@/lib/admin";
 import { cancelarTramiteProgramado, listarAdmin, listarTramitesProgramados, programarTramite } from "@/lib/admin.functions";
 import { listaCodigos } from "@/lib/status-catalogo";
 
@@ -32,7 +32,7 @@ export function BotaoTramite({ equipeId }: { equipeId: string | null }) {
 
 function TelaTramite({ equipeId, onFechar }: { equipeId: string | null; onFechar: () => void }) {
   const [processos, setProcessos] = useState<ProcessoAdmin[]>([]);
-  const [programados, setProgramados] = useState<{ id: string; processoId: string; status: string; quando: string; prazo: string | null; numero: string; numeroAno: number | null }[]>([]);
+  const [programados, setProgramados] = useState<{ id: string; processoId: string; status: string; quando: string; prazo: string | null; numero: string; numeroAno: number | null; referencia: string }[]>([]);
   const [processoId, setProcessoId] = useState("");
   const [status, setStatus] = useState("");
   const [quando, setQuando] = useState("");
@@ -44,7 +44,13 @@ function TelaTramite({ equipeId, onFechar }: { equipeId: string | null; onFechar
 
   function carregar() {
     void listarAdmin({ data: equipeId })
-      .then((lista) => setProcessos(lista.filter((item) => item.status !== "cancelado")))
+      .then((lista) =>
+        setProcessos(
+          lista
+            .filter((item) => !item.possuiContrato && item.status !== "encerrado")
+            .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true })),
+        ),
+      )
       .catch(() => setErro("Não foi possível carregar os processos."));
     void listarTramitesProgramados({ data: equipeId })
       .then(setProgramados)
@@ -107,8 +113,8 @@ function TelaTramite({ equipeId, onFechar }: { equipeId: string | null; onFechar
               <option value="">Selecione</option>
               {processos.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {rotuloNumero(item.numero, item.numeroAno)} · {rotuloTipo(item.tipo, item.tipoNumero, item.tipoAno)}
-                  {item.contratado ? ` · ${item.contratado}` : ""}
+                  {rotuloNumero(item.numero, item.numeroAno)}
+                  {item.referencia ? ` · ${item.referencia}` : ""}
                 </option>
               ))}
             </select>
@@ -140,7 +146,7 @@ function TelaTramite({ equipeId, onFechar }: { equipeId: string | null; onFechar
           <ul className="mt-4 flex flex-col gap-2 text-sm">
             {programados.map((item) => (
               <li key={item.id} className="rounded-xl border border-line px-3 py-2">
-                <p className="text-ink">{rotuloNumero(item.numero, item.numeroAno)} · {statusAdminLabel(item.status)}</p>
+                <p className="text-ink">{rotuloNumero(item.numero, item.numeroAno)}{item.referencia ? ` · ${item.referencia}` : ""} · {statusAdminLabel(item.status)}</p>
                 <p className="text-xs text-muted">{horaLocal(item.quando)}{item.prazo ? ` · prazo ${item.prazo.split("-").reverse().join("/")}` : ""}</p>
                 <button
                   type="button"

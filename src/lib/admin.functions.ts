@@ -536,8 +536,8 @@ export const listarTramitesProgramados = createServerFn({ method: "GET" })
   .handler(async ({ context, data: equipeId }) => {
     const sql = await getSql();
     await garantirColunas(sql);
-    const linhas = await sql<{ id: string; processo_id: string; status: string; quando: string; prazo: string | null; numero: string; numero_ano: number | null }>`
-      select t.id, t.processo_id, t.status, t.quando::text as quando, t.prazo::text as prazo, p.numero, p.numero_ano
+    const linhas = await sql<{ id: string; processo_id: string; status: string; quando: string; prazo: string | null; numero: string; numero_ano: number | null; referencia: string }>`
+      select t.id, t.processo_id, t.status, t.quando::text as quando, t.prazo::text as prazo, p.numero, p.numero_ano, p.referencia
       from tramites_programados t
       join processos_admin p on p.id = t.processo_id
       where t.aplicado = false
@@ -555,6 +555,7 @@ export const listarTramitesProgramados = createServerFn({ method: "GET" })
       prazo: linha.prazo ? String(linha.prazo).slice(0, 10) : null,
       numero: linha.numero,
       numeroAno: linha.numero_ano,
+      referencia: linha.referencia || "",
     }));
   });
 
