@@ -1405,7 +1405,7 @@ export function AdminPainel({
       <section className="min-w-0">
         <div className="mb-4 flex flex-col gap-2 xl:flex-row xl:items-stretch">
           <div className="flex min-w-0 flex-1 flex-wrap gap-2 xl:flex-col xl:flex-nowrap">
-            <div className="contents xl:flex xl:flex-wrap xl:gap-2">
+            <div className="contents xl:flex xl:gap-2">
               <GuiaBotao ativo={guia === "lista"} onClick={() => setGuia("lista")} className="min-w-fit flex-1 xl:flex-none">
                 Lista
               </GuiaBotao>
@@ -1422,13 +1422,13 @@ export function AdminPainel({
                 Documentos
               </GuiaBotao>
               <GuiaBotao ativo={guia === "comunicacoes"} onClick={() => setGuia("comunicacoes")} className="min-w-fit flex-1 xl:flex-none">
-                Comunicações Internas
+                C.I
               </GuiaBotao>
-              <GuiaBotao ativo={guia === "setores"} onClick={() => setGuia("setores")} className="min-w-fit flex-1 xl:flex-none">
+              <GuiaBotao ativo={guia === "setores"} onClick={() => setGuia("setores")} className="min-w-fit flex-1">
                 C.I - Setores
               </GuiaBotao>
             </div>
-            <div className="contents xl:flex xl:flex-wrap xl:gap-2">
+            <div className="contents xl:flex xl:gap-2">
               <GuiaBotao ativo={guia === "pareceres"} onClick={() => setGuia("pareceres")} className="min-w-fit flex-1 xl:flex-none">
                 Pareceres do Agente de Contratações
               </GuiaBotao>
@@ -1440,7 +1440,7 @@ export function AdminPainel({
                 <Scale className="size-4" />
                 Lei de Licitações
               </GuiaBotao>
-              <GuiaBotao ativo={guia === "cnpj"} onClick={() => setGuia("cnpj")} className="min-w-fit flex-1 xl:flex-none">
+              <GuiaBotao ativo={guia === "cnpj"} onClick={() => setGuia("cnpj")} className="min-w-fit flex-1">
                 <Search className="size-4" />
                 Consulta CPF/CNPJ
               </GuiaBotao>
