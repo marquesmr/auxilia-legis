@@ -3359,8 +3359,7 @@ function PainelDocumentos({
                     return;
                   }
                   setPrecoErro("");
-                  const rotulo = fundamentosDoTipo(processo.tipo).find((opcao) => opcao.valor === parecerFundamento)?.rotulo ?? parecerFundamento;
-                  void baixarJustificativa(processo, termoTimbre, parecerFundamento.trim(), rotulo, termoAssinante, termoFuncao.trim(), houveDesclassificacao ? marcadas : [])
+                  void baixarJustificativa(processo, termoTimbre, parecerFundamento.trim(), termoAssinante, termoFuncao.trim(), houveDesclassificacao ? marcadas : [])
                     .then(() => setPrecoAberto(false))
                     .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar a justificativa."));
                 }}
@@ -5927,6 +5926,16 @@ function reaisDocumento(centavos: number) {
   return formatarReais(centavos).replace(/\u00a0/g, " ");
 }
 
+function artigoDaJustificativa(fundamento: string) {
+  const limpo = fundamento.replace(/\s+da lei 14\.133 de 2021$/i, "").trim();
+  const artigo = limpo.match(/artigo\s+(\d+)/i)?.[1];
+  const inciso = limpo.match(/inciso\s+([IVXLCDM]+|\d+)/i)?.[1];
+  const alinea = limpo.match(/alínea\s+([a-z])/i)?.[1];
+  if (!artigo) return limpo.charAt(0).toLocaleUpperCase("pt-BR") + limpo.slice(1);
+  const meio = [inciso ? `inciso ${inciso}` : "", alinea ? `alínea ${alinea}` : ""].filter(Boolean).join(", ");
+  return `Art. ${artigo}${meio ? `, ${meio}` : ""}, da Lei nº 14.133/2021`;
+}
+
 function colocada(ordem: number) {
   const nomes = ["primeira", "segunda", "terceira", "quarta", "quinta", "sexta", "sétima", "oitava", "nona", "décima"];
   return nomes[ordem - 1] ?? `${ordem}ª`;
@@ -5936,7 +5945,6 @@ async function baixarJustificativa(
   processo: ProcessoAdmin,
   timbre: TimbradoEquipe,
   fundamento: string,
-  rotuloFundamento: string,
   assinante: string,
   funcao: string,
   desclassificados: { indice: number; motivo: string }[],
@@ -5954,7 +5962,10 @@ async function baixarJustificativa(
   const soma = fornecedores.reduce((total, item) => total + item.valorCentavos, 0);
   const media = Math.round(soma / fornecedores.length);
   const posicao = (item: (typeof ordem)[number]) => ordem.findIndex((atual) => atual.indice === item.indice);
-  const comparacao = (centavos: number) => (centavos < media ? "abaixo do preço médio de mercado" : "compatível com o preço médio de mercado");
+  const comparacaoPartes = (centavos: number): { texto: string; negrito?: boolean }[] =>
+    centavos < media
+      ? [{ texto: "abaixo do preço médio", negrito: true }, { texto: " de mercado" }]
+      : [{ texto: "compatível com o preço médio", negrito: true }, { texto: " de mercado" }];
   const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
   const peca =
     processo.tipo !== "Outros" && processo.tipoNumero != null && processo.tipoAno != null
@@ -5966,37 +5977,64 @@ async function baixarJustificativa(
   const valor = reaisDocumento(escolhido.valorCentavos);
   const extenso = reaisPorExtenso(escolhido.valorCentavos);
   const mediaTexto = reaisDocumento(media);
-  const baseCurta = rotuloFundamento.split("—")[0].trim() || fundamento;
-  const baseFrase = fundamento.replace(/\s+da lei 14\.133 de 2021$/i, "");
+  const artigo = artigoDaJustificativa(fundamento);
+  const aposNumero =
+    processo.tipo === "Dispensa de Licitação"
+      ? "(art. 72 e 75 da Lei 14.133/2021)"
+      : processo.tipo === "Inexigibilidade de Licitação"
+        ? "(art. 72 e 74 da Lei 14.133/2021)"
+        : "";
+  const linhaTipo = [peca ? `${processo.tipo}: ${peca}` : processo.tipo, aposNumero].filter(Boolean).join(" ");
   const direta = processo.tipo === "Dispensa de Licitação" || processo.tipo === "Inexigibilidade de Licitação";
-  const complemento = /inciso II do artigo 75/i.test(fundamento) ? ", que se aplica a contratações de serviços e compras de valor inferior a R$ 65.492,11" : "";
+  const limite75 = /inciso II do artigo 75/i.test(fundamento);
   const data = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
   const cidade = timbre.linha2.trim() || (timbre.arquivo ? await cidadeDoTimbrado(timbre.arquivo) : "") || timbre.linha1.trim();
   const dataCompleta = cidade ? `${cidade}, ${data}.` : `${data}.`;
   const funcaoFinal = funcao.startsWith("Presidente da Câmara Municipal") && cidade ? `Presidente da Câmara Municipal de ${cidade}` : funcao;
   const anteriores = ordem.filter((item) => motivos.has(item.indice) && posicao(item) < posicao(escolhido));
   const posteriores = ordem.filter((item) => motivos.has(item.indice) && posicao(item) > posicao(escolhido));
-  const trechos: string[] = [];
-  for (const item of anteriores) {
-    const lugar = posicao(item) + 1;
-    const valorItem = reaisDocumento(item.valorCentavos);
-    const motivo = motivos.get(item.indice) ?? "";
-    if (lugar === 1) {
-      trechos.push(`Considerando que a proposta apresentada pela empresa ${item.fornecedor}, no valor de ${valorItem}, encontra-se ${comparacao(item.valorCentavos)} e demonstra compatibilidade de custos, porém, apesar de apresentar menor valor, ${motivo}, sendo assim, inapta para o prosseguimento do processo`);
-    } else {
-      trechos.push(`passamos para a ${colocada(lugar)} colocada ${item.fornecedor}, no valor de ${valorItem}, porém, ${motivo}, sendo assim, inapta para o prosseguimento do processo`);
-    }
-  }
-  if (trechos.length > 0) {
+  const proposta = (intro: string, item: (typeof ordem)[number], fecho: string): { texto: string; negrito?: boolean }[] => [
+    { texto: intro },
+    { texto: item.fornecedor, negrito: true },
+    { texto: ", no valor de " },
+    { texto: reaisDocumento(item.valorCentavos), negrito: true },
+    { texto: fecho },
+  ];
+  const escolha: { texto: string; negrito?: boolean }[] = [];
+  if (anteriores.length === 0) {
+    escolha.push(
+      ...proposta("Dessa forma, a proposta apresentada pela empresa ", escolhido, ", encontra-se "),
+      ...comparacaoPartes(escolhido.valorCentavos),
+      { texto: " e demonstra compatibilidade de custos, sendo o valor global uma estimativa de gastos para atendimento das demandas durante o exercício." },
+    );
+  } else {
+    anteriores.forEach((item, indice) => {
+      const lugar = posicao(item) + 1;
+      const motivo = motivos.get(item.indice) ?? "";
+      if (indice > 0) escolha.push({ texto: ", " });
+      if (lugar === 1) {
+        escolha.push(
+          ...proposta("Considerando que a proposta apresentada pela empresa ", item, ", encontra-se "),
+          ...comparacaoPartes(item.valorCentavos),
+          { texto: ` e demonstra compatibilidade de custos, porém, apesar de apresentar menor valor, ${motivo}, sendo assim, inapta para o prosseguimento do processo` },
+        );
+      } else {
+        escolha.push(
+          ...proposta(`passamos para a ${colocada(lugar)} colocada `, item, ", porém, "),
+          { texto: `${motivo}, sendo assim, inapta para o prosseguimento do processo` },
+        );
+      }
+    });
     const lugar = posicao(escolhido) + 1;
-    trechos.push(`passamos para a ${colocada(lugar)} colocada ${escolhido.fornecedor}, no valor de ${valor} que ainda se encontra ${comparacao(escolhido.valorCentavos)} e demonstra compatibilidade de custos, sendo o valor global uma estimativa de gastos para atendimento das demandas durante o exercício`);
+    escolha.push(
+      { texto: ", " },
+      ...proposta(`passamos para a ${colocada(lugar)} colocada `, escolhido, " que ainda se encontra "),
+      ...comparacaoPartes(escolhido.valorCentavos),
+      { texto: " e demonstra compatibilidade de custos, sendo o valor global uma estimativa de gastos para atendimento das demandas durante o exercício." },
+    );
   }
-  let escolha = trechos.length > 0
-    ? `${trechos.join(", ")}.`
-    : `Dessa forma, a proposta apresentada pela empresa ${escolhido.fornecedor}, no valor de ${valor}, encontra-se ${comparacao(escolhido.valorCentavos)} e demonstra compatibilidade de custos, sendo o valor global uma estimativa de gastos para atendimento das demandas durante o exercício.`;
   if (posteriores.length > 0) {
-    const extra = posteriores.map((item) => `${item.fornecedor}, ${motivos.get(item.indice)}`).join("; ");
-    escolha += ` Registra-se, ainda, a desclassificação de ${extra}.`;
+    escolha.push({ texto: ` Registra-se, ainda, a desclassificação de ${posteriores.map((item) => `${item.fornecedor}, ${motivos.get(item.indice)}`).join("; ")}.` });
   }
   const fecho = anteriores.length === 0
     ? "conforme demonstrado pelo balizador de preço."
@@ -6007,13 +6045,19 @@ async function baixarJustificativa(
   const blocos: BlocoTermo[] = [
     bloco({ titulo: true, junto: true, partes: [{ texto: "JUSTIFICATIVA DO PREÇO E ESCOLHA DO FORNECEDOR" }] }),
     bloco({ centro: true, italico: true, tamanho: 18, partes: [{ texto: "(Lei 14.133 de 01 de abril de 2021)" }] }),
-    bloco({ junto: true, partes: [{ texto: `Ref.: ${objeto}`, negrito: true }] }),
+    bloco({ junto: true, partes: [{ texto: "Ref.: ", negrito: true }, { texto: objeto }] }),
     bloco({ junto: true, partes: [{ texto: `Processo Administrativo: ${numero}`, negrito: true }] }),
-    bloco({ partes: [{ texto: peca ? `${processo.tipo}: ${peca} (${baseCurta})` : `${processo.tipo} (${baseCurta})`, negrito: true }] }),
+    bloco({ partes: [{ texto: linhaTipo, negrito: true }] }),
     bloco({ partes: [{ texto: "1. JUSTIFICATIVA DO PREÇO PROPOSTO E BALIZADOR DE MERCADO", negrito: true }] }),
     bloco({
       recuo: true,
-      partes: [{ texto: `O preço global estimado de ${valor} (${extenso}) para a aquisição é justificado e demonstrado como vantajoso para a Administração, em cumprimento ao ${direta ? "Art. 72, inciso VII, da Lei 14.133/2021" : "disposto na Lei nº 14.133/2021"}.` }],
+      partes: [
+        { texto: "O preço global estimado de " },
+        { texto: valor, negrito: true },
+        { texto: ` (${extenso}) para a aquisição é justificado e demonstrado como vantajoso para a Administração, em cumprimento ao ` },
+        { texto: direta ? "Art. 72, inciso VII, da Lei 14.133/2021" : "Lei nº 14.133/2021", negrito: true },
+        { texto: "." },
+      ],
     }),
     bloco({
       recuo: true,
@@ -6021,13 +6065,44 @@ async function baixarJustificativa(
     }),
     bloco({ partes: [], tabela: [fornecedores.map((item) => item.fornecedor.toLocaleUpperCase("pt-BR")), fornecedores.map((item) => reaisDocumento(item.valorCentavos))] }),
     bloco({ partes: [{ texto: `• Preço Médio de Mercado Apurado: ${mediaTexto}`, negrito: true }] }),
-    bloco({ recuo: true, partes: [{ texto: escolha }] }),
-    bloco({ recuo: true, partes: [{ texto: "Cabe ressaltar que também foi realizada consulta no site oficial do governo federal Portal Nacional de Compras Públicas PNCP, a fim de comprovação de compatibilidade de preço com demais órgãos públicos." }] }),
+    bloco({ recuo: true, partes: escolha }),
+    bloco({
+      recuo: true,
+      partes: [
+        { texto: "Cabe ressaltar que também foi realizada consulta no site oficial do governo federal Portal Nacional de Compras Públicas " },
+        { texto: "PNCP (ANEXO AO ETP)", negrito: true },
+        { texto: ", a fim de comprovação de compatibilidade de preço com demais órgãos públicos." },
+      ],
+    }),
     bloco({ partes: [{ texto: "2. FUNDAMENTAÇÃO LEGAL", negrito: true }] }),
-    bloco({ recuo: true, partes: [{ texto: `A presente Justificativa de Preço instrui o processo de ${processo.tipo}, fundamentado no ${baseFrase}, da Lei nº 14.133/2021${complemento}.` }] }),
+    bloco({
+      recuo: true,
+      partes: [
+        { texto: "A presente Justificativa de Preço instrui o processo de " },
+        { texto: processo.tipo, negrito: true },
+        { texto: ", fundamentado no " },
+        { texto: artigo, negrito: true },
+        ...(limite75
+          ? [
+              { texto: ", que se aplica a contratações de serviços e compras de valor inferior a " },
+              { texto: "R$ 65.492,11", negrito: true },
+              { texto: "." },
+            ]
+          : [{ texto: "." }]),
+      ],
+    }),
     bloco({ partes: [{ texto: "3. CONCLUSÃO", negrito: true }] }),
-    bloco({ recuo: true, partes: [{ texto: `Fica comprovado que o preço global proposto de ${valor} está de acordo com os preços praticados no mercado e é o mais vantajoso para a Administração, ${fecho}` }] }),
-    bloco({ direita: true, partes: [{ texto: dataCompleta }] }),
+    bloco({
+      recuo: true,
+      partes: [
+        { texto: "Fica comprovado que o preço global proposto de " },
+        { texto: valor, negrito: true },
+        { texto: " está de acordo com os preços praticados no mercado e é " },
+        { texto: "o mais vantajoso", negrito: true },
+        { texto: ` para a Administração, ${fecho}` },
+      ],
+    }),
+    bloco({ centro: true, partes: [{ texto: dataCompleta }] }),
     bloco({ centro: true, junto: true, antes: true, partes: [{ texto: assinante, negrito: true }] }),
     bloco({ centro: true, junto: true, partes: [{ texto: funcaoFinal }] }),
   ];
