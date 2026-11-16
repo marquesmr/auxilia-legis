@@ -240,14 +240,45 @@ function montarReceitaWs(bruto: Record<string, unknown>, digitos: string): Consu
   };
 }
 
-function interpretar(bruto: Record<string, unknown>, digitos: string): ConsultaCnpj | null {
-  return montarCnpja(bruto, digitos) || montarCnpjWs(bruto, digitos) || montarReceitaWs(bruto, digitos) || montarBrasil(bruto, digitos);
+function montarGenesis(bruto: Record<string, unknown>, digitos: string): ConsultaCnpj | null {
+  const endereco = objeto(bruto.endereco);
+  const razaoSocial = texto(bruto.razao_social);
+  if (!endereco || !razaoSocial || bruto.estabelecimento || bruto.taxId) return null;
+  const atividade = objeto(bruto.atividade_principal);
+  const sociosBrutos = Array.isArray(bruto.socios) ? bruto.socios : [];
+  return {
+    cnpj: formatarCnpj(digitos),
+    razaoSocial,
+    nomeFantasia: texto(bruto.nome_fantasia),
+    situacao: texto(bruto.situacao),
+    abertura: formatarData(texto(bruto.data_abertura)),
+    natureza: texto(bruto.natureza_juridica),
+    porte: texto(bruto.porte),
+    capital: formatarCapital(bruto.capital_social),
+    cnae: [atividade ? texto(atividade.codigo) : "", atividade ? texto(atividade.descricao) : ""].filter(Boolean).join(" — "),
+    endereco: juntarEndereco([texto(endereco.logradouro), texto(endereco.numero), texto(endereco.bairro), texto(endereco.municipio), texto(endereco.uf)]),
+    uf: texto(endereco.uf),
+    municipio: texto(endereco.municipio),
+    cep: formatarCep(texto(endereco.cep)),
+    telefone: texto(bruto.telefone),
+    email: texto(bruto.email),
+    socios: sociosBrutos.slice(0, 30).flatMap((item) => {
+      const socio = objeto(item);
+      const nome = socio ? texto(socio.nome) : "";
+      if (!nome) return [];
+      return [{ nome, qualificacao: texto(socio?.qualificacao) }];
+    }),
+  };
 }
 
-async function buscarJson(url: string): Promise<Record<string, unknown> | "ausente" | null> {
+function interpretar(bruto: Record<string, unknown>, digitos: string): ConsultaCnpj | null {
+  return montarCnpja(bruto, digitos) || montarCnpjWs(bruto, digitos) || montarReceitaWs(bruto, digitos) || montarGenesis(bruto, digitos) || montarBrasil(bruto, digitos);
+}
+
+async function buscarJson(url: string, sinal: AbortSignal): Promise<Record<string, unknown> | "ausente" | null> {
   const resposta = await fetch(url, {
     headers: { accept: "application/json", "user-agent": "AuxiliaLegis/1.0" },
-    signal: AbortSignal.timeout(12000),
+    signal: sinal,
   });
   if (resposta.status === 404) return "ausente";
   if (!resposta.ok) return null;
@@ -256,6 +287,39 @@ async function buscarJson(url: string): Promise<Record<string, unknown> | "ausen
   if (!item) return null;
   if (texto(item.status) === "ERROR" || texto(item.message).toLowerCase().includes("não encontrado")) return "ausente";
   return item;
+}
+
+async function consultarEmpresa(data: string): Promise<ConsultaCnpj> {
+  const fontes = [
+    `https://brasilapi.com.br/api/cnpj/v1/${data}`,
+    `https://cnpj.genesisinnovation.io/api/v1/cnpj/${data}`,
+    `https://open.cnpja.com/office/${data}`,
+    `https://publica.cnpj.ws/cnpj/${data}`,
+    `https://receitaws.com.br/v1/cnpj/${data}`,
+  ];
+  const controle = new AbortController();
+  const prazo = setTimeout(() => controle.abort(), 8000);
+  let ausente = 0;
+  const tentativas = fontes.map(async (fonte) => {
+    const json = await buscarJson(fonte, controle.signal);
+    if (json === "ausente") {
+      ausente += 1;
+      throw new Error("ausente");
+    }
+    if (!json) throw new Error("sem resposta");
+    const consulta = interpretar(json, data);
+    if (!consulta?.razaoSocial) throw new Error("sem nome");
+    return consulta;
+  });
+  try {
+    return await Promise.any(tentativas);
+  } catch {
+    if (ausente === fontes.length) throw new Error("CNPJ não encontrado na Receita Federal.");
+    throw new Error("Não foi possível consultar o CNPJ agora. Tente de novo.");
+  } finally {
+    clearTimeout(prazo);
+    controle.abort();
+  }
 }
 
 export type ResultadoNomeCnpj = {
@@ -346,31 +410,4 @@ async function consultarCpf(digitos: string, nascimento: string): Promise<Consul
     regiao,
     aviso: "Nome e situação cadastral só saem no comprovante da Receita Federal, depois da verificação anti-robô.",
   };
-}
-
-async function consultarEmpresa(data: string): Promise<ConsultaCnpj> {
-    const fontes = [
-      `https://open.cnpja.com/office/${data}`,
-      `https://publica.cnpj.ws/cnpj/${data}`,
-      `https://receitaws.com.br/v1/cnpj/${data}`,
-      `https://brasilapi.com.br/api/cnpj/v1/${data}`,
-      `https://minhareceita.org/${data}`,
-    ];
-    let ausente = false;
-    for (const fonte of fontes) {
-      try {
-        const json = await buscarJson(fonte);
-        if (json === "ausente") {
-          ausente = true;
-          continue;
-        }
-        if (!json) continue;
-        const consulta = interpretar(json, data);
-        if (consulta?.razaoSocial) return consulta;
-      } catch {
-        continue;
-      }
-    }
-    if (ausente) throw new Error("CNPJ não encontrado na Receita Federal.");
-    throw new Error("Não foi possível consultar o CNPJ agora. Tente de novo.");
 }
