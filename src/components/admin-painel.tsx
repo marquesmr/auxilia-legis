@@ -1425,7 +1425,7 @@ export function AdminPainel({
                 Comunicações Internas
               </GuiaBotao>
               <GuiaBotao ativo={guia === "setores"} onClick={() => setGuia("setores")} className="min-w-fit flex-1 xl:flex-none">
-                Comunicações Internas - Setores
+                C.I - Setores
               </GuiaBotao>
             </div>
             <div className="contents xl:flex xl:flex-wrap xl:gap-2">
