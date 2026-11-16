@@ -6110,7 +6110,7 @@ async function baixarJustificativa(
         { texto: ` para a Administração, ${fecho}` },
       ],
     }),
-    bloco({ centro: true, partes: [{ texto: dataCompleta }] }),
+    bloco({ direita: true, partes: [{ texto: dataCompleta }] }),
     bloco({ centro: true, junto: true, antes: true, partes: [{ texto: assinante, negrito: true }] }),
     bloco({ centro: true, junto: true, partes: [{ texto: funcaoFinal }] }),
   ];
