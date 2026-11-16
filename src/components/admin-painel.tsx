@@ -60,7 +60,7 @@ import { encerraStatus, listaCodigos } from "@/lib/status-catalogo";
 
 type FiltroAdmin = string;
 type OrdemAdmin = "numero" | "tipo" | "encerramento";
-type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres" | "links" | "cnpj" | "lei" | "documentos" | "cotacoes";
+type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres" | "links" | "cnpj" | "lei" | "documentos" | "cotacoes" | "lancamento";
 type StatusRelatorio = "todos" | StatusAdmin;
 type ModoRelatorio = "processos" | "pecas" | "pagamentos";
 
@@ -723,9 +723,8 @@ export function AdminPainel({
   const [ordemDir, setOrdemDir] = useState<"asc" | "desc">("asc");
   const [parte, setParte] = useState(0);
   const telaPequena = useTelaPequena();
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<ProcessoAdmin | null>(null);
   const [form, setForm] = useState<FormAdmin>(vazio);
+  const [editing, setEditing] = useState<ProcessoAdmin | null>(null);
   const [erros, setErros] = useState<string[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [cotacaoProcesso, setCotacaoProcesso] = useState("");
@@ -785,8 +784,7 @@ export function AdminPainel({
     setEditing(null);
     setForm(vazio());
     setErros([]);
-    setFormOpen(true);
-    setGuia("lista");
+    setGuia("lancamento");
   }, [sinalNovo]);
 
   useEffect(() => {
@@ -998,7 +996,7 @@ export function AdminPainel({
     const problemas = validar(form);
     setErros(problemas);
     if (problemas.length) return;
-    setFormOpen(false);
+    setGuia("lista");
     const nota = form.nota.trim();
     const base = listaViva.current;
     if (editing) {
@@ -1562,8 +1560,7 @@ export function AdminPainel({
     setEditing(null);
     setForm(vazio());
     setErros([]);
-    setFormOpen(true);
-    setGuia("lista");
+    setGuia("lancamento");
   }
 
   return (
@@ -1664,7 +1661,7 @@ export function AdminPainel({
           </div>
         </div>
 
-        {!pronto && guia !== "cnpj" && guia !== "lei" && guia !== "documentos" ? (
+        {!pronto && guia !== "cnpj" && guia !== "lei" && guia !== "documentos" && guia !== "lancamento" ? (
           <p className="text-sm text-muted">Carregando processos administrativos…</p>
         ) : guia === "lei" ? (
           <LeiLicitacoes />
@@ -1684,7 +1681,7 @@ export function AdminPainel({
             onDocumento={aoDocumentoCotacao}
             onLancar={lancarCotacao}
           />
-        ) : guia === "estatisticas" ? (
+        ) : guia === "lancamento" ? null : guia === "estatisticas" ? (
           <GraficoAdmin processos={lista} />
         ) : guia === "comunicacoes" ? (
           <ControlePecas
@@ -1977,7 +1974,7 @@ export function AdminPainel({
                       setEditing(item);
                       setForm(doProcesso(item));
                       setErros([]);
-                      setFormOpen(true);
+                      setGuia("lancamento");
                     }}
                     onAndamento={() => {
                       setAndamentoId(item.id);
@@ -2032,24 +2029,20 @@ export function AdminPainel({
             )}
           </>
         )}
-      </section>
-
-      <Dialog.Root open={formOpen} onOpenChange={setFormOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-10 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-4 bottom-4 z-10 flex flex-col overflow-hidden rounded-2xl border border-line bg-sheet md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[90vh] md:w-full md:max-w-xl md:-translate-x-1/2 md:-translate-y-1/2">
+        {guia === "lancamento" ? (
+          <div className="rounded-2xl border border-line bg-sheet">
             <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
               <div>
-                <Dialog.Title className="font-display text-2xl text-ink">
+                <h2 className="font-display text-2xl text-ink">
                   {editing ? "Editar processo administrativo" : "Lançar processo administrativo"}
-                </Dialog.Title>
-                <Dialog.Description className="mt-1 text-sm text-muted">
+                </h2>
+                <p className="mt-1 text-sm text-muted">
                   Inclui comunicação interna, parecer do agente de contratações e, se houver, o contrato.
-                </Dialog.Description>
+                </p>
               </div>
-              <Dialog.Close className="grid size-10 place-items-center rounded-lg text-muted" aria-label="Fechar">
+              <button type="button" onClick={() => setGuia("lista")} className="grid size-10 place-items-center rounded-lg text-muted" aria-label="Fechar">
                 <X className="size-4" />
-              </Dialog.Close>
+              </button>
             </div>
             <form
               className="flex min-h-0 flex-1 flex-col"
@@ -2436,9 +2429,9 @@ export function AdminPainel({
                   </ul>
                 )}
                 <div className="flex gap-2">
-                <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
+                <button type="button" onClick={() => setGuia("lista")} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
                   Cancelar
-                </Dialog.Close>
+                </button>
                 <button type="submit" className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-pine text-sm font-medium text-sheet">
                   <Plus className="size-4" />
                   Salvar
@@ -2446,9 +2439,9 @@ export function AdminPainel({
                 </div>
               </div>
             </form>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+          </div>
+        ) : null}
+      </section>
 
       <Dialog.Root
         open={andamentoId !== null}
