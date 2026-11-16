@@ -3126,6 +3126,9 @@ function PainelDocumentos({
   const [termoAviso, setTermoAviso] = useState("");
   const [parecerAberto, setParecerAberto] = useState(false);
   const [parecerFundamento, setParecerFundamento] = useState("");
+  const [houveDesclassificacao, setHouveDesclassificacao] = useState(false);
+  const [desclassificados, setDesclassificados] = useState<Record<number, string>>({});
+  const [precoErro, setPrecoErro] = useState("");
   const processo = processos.find((item) => item.id === processoId) ?? null;
   const ordenados = [...processos].sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
 
@@ -3180,6 +3183,9 @@ function PainelDocumentos({
     if (tipoDoc === "preco") {
       const temCotacao = (escolhido.cotacoes ?? []).some((cotacao) => cotacao.fornecedores.length > 0);
       setParecerFundamento(fundamentoInicial(escolhido.tipo));
+      setHouveDesclassificacao(false);
+      setDesclassificados({});
+      setPrecoErro("");
       if (!temCotacao) {
         setTermoAssinante("");
         setTermoFuncao("");
@@ -3252,13 +3258,55 @@ function PainelDocumentos({
               <p className="mt-4 text-sm text-seal">{termoAviso}</p>
             ) : processo ? (
               <div className="mt-4 flex flex-col gap-3">
-                <ul className="flex max-h-36 flex-col gap-2 overflow-y-auto text-sm">
-                  {processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores).map((fornecedor, ordem) => (
-                    <li key={`${fornecedor.documento}-${ordem}`} className="rounded-xl border border-line bg-paper px-3 py-2 text-ink">
-                      {formatDate(fornecedor.data)} · {fornecedor.fornecedor} · {formatarReais(fornecedor.valorCentavos)}
-                    </li>
-                  ))}
-                </ul>
+                <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                  <input
+                    type="checkbox"
+                    checked={houveDesclassificacao}
+                    onChange={(evento) => {
+                      setHouveDesclassificacao(evento.target.checked);
+                      setDesclassificados({});
+                      setPrecoErro("");
+                    }}
+                    className="size-4 accent-pine"
+                  />
+                  Houve desclassificação?
+                </label>
+                {houveDesclassificacao ? (
+                  <div className="flex flex-col gap-2">
+                    {processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores).map((fornecedor, ordem) => {
+                      const marcada = ordem in desclassificados;
+                      return (
+                        <div key={`${fornecedor.documento}-${ordem}`} className="rounded-xl border border-line px-3 py-2">
+                          <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                            <input
+                              type="checkbox"
+                              checked={marcada}
+                              onChange={(evento) => {
+                                setDesclassificados((atual) => {
+                                  const proximo = { ...atual };
+                                  if (evento.target.checked) proximo[ordem] = atual[ordem] ?? "";
+                                  else delete proximo[ordem];
+                                  return proximo;
+                                });
+                                setPrecoErro("");
+                              }}
+                              className="size-4 accent-pine"
+                            />
+                            {fornecedor.fornecedor} · {formatarReais(fornecedor.valorCentavos)}
+                          </label>
+                          {marcada ? (
+                            <input
+                              value={desclassificados[ordem] ?? ""}
+                              onChange={(evento) => setDesclassificados((atual) => ({ ...atual, [ordem]: evento.target.value }))}
+                              className={inputCls + " mt-2"}
+                              placeholder="Motivo da desclassificação"
+                            />
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 <label className="flex flex-col gap-1 text-sm font-medium text-ink">
                   Fundamento legal
                   <select value={parecerFundamento} onChange={(evento) => setParecerFundamento(evento.target.value)} className={inputCls + " font-normal"}>
@@ -3296,8 +3344,23 @@ function PainelDocumentos({
                 disabled={!processo || !termoTimbre || !parecerFundamento.trim() || !termoAssinante || !termoFuncao.trim() || !(processo?.cotacoes ?? []).some((cotacao) => cotacao.fornecedores.length > 0)}
                 onClick={() => {
                   if (!processo || !termoTimbre) return;
+                  const marcadas = Object.entries(desclassificados).map(([indice, motivo]) => ({ indice: Number(indice), motivo: motivo.trim() }));
+                  if (houveDesclassificacao && marcadas.length === 0) {
+                    setPrecoErro("Selecione quem foi desclassificada.");
+                    return;
+                  }
+                  if (houveDesclassificacao && marcadas.some((item) => !item.motivo)) {
+                    setPrecoErro("Informe o motivo da desclassificação.");
+                    return;
+                  }
+                  const total = processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores).length;
+                  if (houveDesclassificacao && marcadas.length >= total) {
+                    setPrecoErro("É preciso permanecer ao menos um fornecedor apto.");
+                    return;
+                  }
+                  setPrecoErro("");
                   const rotulo = fundamentosDoTipo(processo.tipo).find((opcao) => opcao.valor === parecerFundamento)?.rotulo ?? parecerFundamento;
-                  void baixarJustificativa(processo, termoTimbre, parecerFundamento.trim(), rotulo, termoAssinante, termoFuncao.trim())
+                  void baixarJustificativa(processo, termoTimbre, parecerFundamento.trim(), rotulo, termoAssinante, termoFuncao.trim(), houveDesclassificacao ? marcadas : [])
                     .then(() => setPrecoAberto(false))
                     .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar a justificativa."));
                 }}
@@ -3306,6 +3369,7 @@ function PainelDocumentos({
                 Baixar Word
               </button>
             </div>
+            {precoErro ? <p className="mt-3 text-sm text-seal">{precoErro}</p> : null}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
@@ -5863,12 +5927,34 @@ function reaisDocumento(centavos: number) {
   return formatarReais(centavos).replace(/\u00a0/g, " ");
 }
 
-async function baixarJustificativa(processo: ProcessoAdmin, timbre: TimbradoEquipe, fundamento: string, rotuloFundamento: string, assinante: string, funcao: string) {
-  const fornecedores = processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores).filter((item) => item.fornecedor.trim() && item.valorCentavos > 0);
+function colocada(ordem: number) {
+  const nomes = ["primeira", "segunda", "terceira", "quarta", "quinta", "sexta", "sétima", "oitava", "nona", "décima"];
+  return nomes[ordem - 1] ?? `${ordem}ª`;
+}
+
+async function baixarJustificativa(
+  processo: ProcessoAdmin,
+  timbre: TimbradoEquipe,
+  fundamento: string,
+  rotuloFundamento: string,
+  assinante: string,
+  funcao: string,
+  desclassificados: { indice: number; motivo: string }[],
+) {
+  const todos = processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores);
+  const fornecedores = todos.filter((item) => item.fornecedor.trim() && item.valorCentavos > 0);
   if (!fornecedores.length) throw new Error("Este processo ainda não tem cotação.");
-  const escolhido = fornecedores.reduce((menor, item) => (item.valorCentavos < menor.valorCentavos ? item : menor));
+  const motivos = new Map(desclassificados.map((item) => [item.indice, item.motivo.trim()]));
+  const ordem = todos
+    .map((item, indice) => ({ ...item, indice }))
+    .filter((item) => item.fornecedor.trim() && item.valorCentavos > 0)
+    .sort((a, b) => a.valorCentavos - b.valorCentavos || a.indice - b.indice);
+  const escolhido = ordem.find((item) => !motivos.has(item.indice));
+  if (!escolhido) throw new Error("É preciso permanecer ao menos um fornecedor apto.");
   const soma = fornecedores.reduce((total, item) => total + item.valorCentavos, 0);
   const media = Math.round(soma / fornecedores.length);
+  const posicao = (item: (typeof ordem)[number]) => ordem.findIndex((atual) => atual.indice === item.indice);
+  const comparacao = (centavos: number) => (centavos < media ? "abaixo do preço médio de mercado" : "compatível com o preço médio de mercado");
   const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
   const peca =
     processo.tipo !== "Outros" && processo.tipoNumero != null && processo.tipoAno != null
@@ -5883,12 +5969,40 @@ async function baixarJustificativa(processo: ProcessoAdmin, timbre: TimbradoEqui
   const baseCurta = rotuloFundamento.split("—")[0].trim() || fundamento;
   const baseFrase = fundamento.replace(/\s+da lei 14\.133 de 2021$/i, "");
   const direta = processo.tipo === "Dispensa de Licitação" || processo.tipo === "Inexigibilidade de Licitação";
-  const complemento = /inciso II do artigo 75/i.test(fundamento) ? ", que se aplica a contratações de serviços e compras de valor inferior a R$ 50.000,00" : "";
-  const abaixo = escolhido.valorCentavos < media;
+  const complemento = /inciso II do artigo 75/i.test(fundamento) ? ", que se aplica a contratações de serviços e compras de valor inferior a R$ 65.492,11" : "";
   const data = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
   const cidade = timbre.linha2.trim() || (timbre.arquivo ? await cidadeDoTimbrado(timbre.arquivo) : "") || timbre.linha1.trim();
   const dataCompleta = cidade ? `${cidade}, ${data}.` : `${data}.`;
   const funcaoFinal = funcao.startsWith("Presidente da Câmara Municipal") && cidade ? `Presidente da Câmara Municipal de ${cidade}` : funcao;
+  const anteriores = ordem.filter((item) => motivos.has(item.indice) && posicao(item) < posicao(escolhido));
+  const posteriores = ordem.filter((item) => motivos.has(item.indice) && posicao(item) > posicao(escolhido));
+  const trechos: string[] = [];
+  for (const item of anteriores) {
+    const lugar = posicao(item) + 1;
+    const valorItem = reaisDocumento(item.valorCentavos);
+    const motivo = motivos.get(item.indice) ?? "";
+    if (lugar === 1) {
+      trechos.push(`Considerando que a proposta apresentada pela empresa ${item.fornecedor}, no valor de ${valorItem}, encontra-se ${comparacao(item.valorCentavos)} e demonstra compatibilidade de custos, porém, apesar de apresentar menor valor, ${motivo}, sendo assim, inapta para o prosseguimento do processo`);
+    } else {
+      trechos.push(`passamos para a ${colocada(lugar)} colocada ${item.fornecedor}, no valor de ${valorItem}, porém, ${motivo}, sendo assim, inapta para o prosseguimento do processo`);
+    }
+  }
+  if (trechos.length > 0) {
+    const lugar = posicao(escolhido) + 1;
+    trechos.push(`passamos para a ${colocada(lugar)} colocada ${escolhido.fornecedor}, no valor de ${valor} que ainda se encontra ${comparacao(escolhido.valorCentavos)} e demonstra compatibilidade de custos, sendo o valor global uma estimativa de gastos para atendimento das demandas durante o exercício`);
+  }
+  let escolha = trechos.length > 0
+    ? `${trechos.join(", ")}.`
+    : `Dessa forma, a proposta apresentada pela empresa ${escolhido.fornecedor}, no valor de ${valor}, encontra-se ${comparacao(escolhido.valorCentavos)} e demonstra compatibilidade de custos, sendo o valor global uma estimativa de gastos para atendimento das demandas durante o exercício.`;
+  if (posteriores.length > 0) {
+    const extra = posteriores.map((item) => `${item.fornecedor}, ${motivos.get(item.indice)}`).join("; ");
+    escolha += ` Registra-se, ainda, a desclassificação de ${extra}.`;
+  }
+  const fecho = anteriores.length === 0
+    ? "conforme demonstrado pelo balizador de preço."
+    : anteriores.length === 1
+      ? "após a inabilitação da primeira colocada, conforme demonstrado pelo balizador de preço."
+      : "após a inabilitação das primeiras colocadas, conforme demonstrado pelo balizador de preço.";
   const bloco = (item: BlocoTermo): BlocoTermo => ({ ...item, tamanho: item.tamanho ?? 22 });
   const blocos: BlocoTermo[] = [
     bloco({ titulo: true, junto: true, partes: [{ texto: "JUSTIFICATIVA DO PREÇO E ESCOLHA DO FORNECEDOR" }] }),
@@ -5903,19 +6017,16 @@ async function baixarJustificativa(processo: ProcessoAdmin, timbre: TimbradoEqui
     }),
     bloco({
       recuo: true,
-      partes: [{ texto: `Para balizar o preço, foi realizada uma pesquisa de mercado que incluiu a coleta de ${quantidade} ${orcamentos} com fornecedores do ramo (anexados a este processo), resultando na seguinte referência de preço:` }],
+      partes: [{ texto: `Para balizar o preço, foi realizada uma pesquisa de mercado que incluiu a coleta de ${quantidade} ${orcamentos} com empresas do ramo (anexados a este processo), resultando na seguinte referência de preço:` }],
     }),
     bloco({ partes: [], tabela: [fornecedores.map((item) => item.fornecedor.toLocaleUpperCase("pt-BR")), fornecedores.map((item) => reaisDocumento(item.valorCentavos))] }),
     bloco({ partes: [{ texto: `• Preço Médio de Mercado Apurado: ${mediaTexto}`, negrito: true }] }),
-    bloco({
-      recuo: true,
-      partes: [{ texto: `Dessa forma, a proposta apresentada pela empresa ${escolhido.fornecedor}, no valor de ${valor}, ${abaixo ? "encontra-se abaixo do preço médio de mercado" : "encontra-se compatível com o preço médio de mercado"} e demonstra compatibilidade de custos, sendo o valor global uma estimativa de gastos para atendimento das demandas durante o exercício.` }],
-    }),
+    bloco({ recuo: true, partes: [{ texto: escolha }] }),
     bloco({ recuo: true, partes: [{ texto: "Cabe ressaltar que também foi realizada consulta no site oficial do governo federal Portal Nacional de Compras Públicas PNCP, a fim de comprovação de compatibilidade de preço com demais órgãos públicos." }] }),
     bloco({ partes: [{ texto: "2. FUNDAMENTAÇÃO LEGAL", negrito: true }] }),
     bloco({ recuo: true, partes: [{ texto: `A presente Justificativa de Preço instrui o processo de ${processo.tipo}, fundamentado no ${baseFrase}, da Lei nº 14.133/2021${complemento}.` }] }),
     bloco({ partes: [{ texto: "3. CONCLUSÃO", negrito: true }] }),
-    bloco({ recuo: true, partes: [{ texto: `Fica comprovado que o preço global proposto de ${valor} está de acordo com os preços praticados no mercado e é o mais vantajoso para a Administração, conforme demonstrado pelo balizador de preço.` }] }),
+    bloco({ recuo: true, partes: [{ texto: `Fica comprovado que o preço global proposto de ${valor} está de acordo com os preços praticados no mercado e é o mais vantajoso para a Administração, ${fecho}` }] }),
     bloco({ direita: true, partes: [{ texto: dataCompleta }] }),
     bloco({ centro: true, junto: true, antes: true, partes: [{ texto: assinante, negrito: true }] }),
     bloco({ centro: true, junto: true, partes: [{ texto: funcaoFinal }] }),
