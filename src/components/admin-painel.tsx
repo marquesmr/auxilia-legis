@@ -2587,7 +2587,7 @@ function CardAdmin({
   const [detalhes, setDetalhes] = useState(false);
   const [historicoAberto, setHistoricoAberto] = useState(false);
   const [extratoAberto, setExtratoAberto] = useState(false);
-  const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string }[]>([]);
+  const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string; contrato: boolean }[]>([]);
   const [extratoEscolha, setExtratoEscolha] = useState("");
   const [capaAberta, setCapaAberta] = useState(false);
   const [idsCapa, setIdsCapa] = useState<{ id: string; volume: boolean; numero: string }[]>([]);
@@ -2724,7 +2724,7 @@ function CardAdmin({
                       <button
                         type="button"
                         onClick={() => {
-                          setItensExtrato([{ id: processo.id, fundamento: fundamentoInicial(processo.tipo), assinatura: processo.vigenciaInicio ?? "" }]);
+                          setItensExtrato([{ id: processo.id, fundamento: fundamentoInicial(processo.tipo), assinatura: processo.vigenciaInicio ?? "", contrato: extratoPadraoContrato(processo) }]);
                           setExtratoEscolha("");
                           setExtratoAberto(true);
                         }}
@@ -3067,7 +3067,7 @@ function CardAdmin({
           <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 flex max-h-[85vh] -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
             <Dialog.Title className="font-display text-2xl text-ink">Extrato</Dialog.Title>
             <Dialog.Description className="mt-1 text-sm text-muted">
-              Cada processo usa o modelo dele. Todos saem na mesma página.
+              Marque se é contrato. Se não for, sai o extrato de aquisição. Todos saem na mesma página.
             </Dialog.Description>
             <div className="mt-4 flex flex-col gap-3 overflow-y-auto">
               {itensExtrato.map((item) => {
@@ -3077,7 +3077,7 @@ function CardAdmin({
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-sm font-medium text-ink">{rotuloLista(atual)}</p>
-                        <p className="text-xs text-muted">{atual.possuiContrato ? "Extrato de contrato" : "Extrato de aquisição"}</p>
+                        <p className="text-xs text-muted">{item.contrato ? "Extrato de contrato" : "Extrato de aquisição"}</p>
                       </div>
                       {item.id !== processo.id && (
                         <button
@@ -3108,7 +3108,20 @@ function CardAdmin({
                         ))}
                       </select>
                     </label>
-                    {atual.possuiContrato && (
+                    <label className="mt-3 flex items-center gap-2 text-sm font-medium text-ink">
+                      <input
+                        type="checkbox"
+                        checked={item.contrato}
+                        onChange={(evento) =>
+                          setItensExtrato((listaAtual) =>
+                            listaAtual.map((valor) => (valor.id === item.id ? { ...valor, contrato: evento.target.checked } : valor)),
+                          )
+                        }
+                        className="size-4 accent-pine"
+                      />
+                      É contrato
+                    </label>
+                    {item.contrato && (
                       <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
                         Assinatura do contrato
                         <input
@@ -3146,7 +3159,7 @@ function CardAdmin({
                   if (!escolhido) return;
                   setItensExtrato((listaAtual) => [
                     ...listaAtual,
-                    { id: escolhido.id, fundamento: fundamentoInicial(escolhido.tipo), assinatura: escolhido.vigenciaInicio ?? "" },
+                    { id: escolhido.id, fundamento: fundamentoInicial(escolhido.tipo), assinatura: escolhido.vigenciaInicio ?? "", contrato: extratoPadraoContrato(escolhido) },
                   ]);
                   setExtratoEscolha("");
                 }}
@@ -3161,18 +3174,16 @@ function CardAdmin({
               </Dialog.Close>
               <button
                 type="button"
-                disabled={itensExtrato.some((item) => {
-                  const atual = processos.find((candidato) => candidato.id === item.id) ?? processo;
-                  return !item.fundamento.trim() || (atual.possuiContrato && !item.assinatura);
-                })}
+                disabled={itensExtrato.some((item) => !item.fundamento.trim() || (item.contrato && !item.assinatura))}
                 onClick={() => {
                   const prontos = itensExtrato
                     .map((item) => ({
                       processo: processos.find((candidato) => candidato.id === item.id) ?? (item.id === processo.id ? processo : null),
                       fundamento: item.fundamento,
                       assinatura: item.assinatura,
+                      contrato: item.contrato,
                     }))
-                    .filter((item): item is { processo: ProcessoAdmin; fundamento: string; assinatura: string } => Boolean(item.processo));
+                    .filter((item): item is { processo: ProcessoAdmin; fundamento: string; assinatura: string; contrato: boolean } => Boolean(item.processo));
                   baixarExtratos(prontos);
                   setExtratoAberto(false);
                 }}
@@ -5104,7 +5115,13 @@ function rotuloLista(processo: ProcessoAdmin) {
   return referencia ? `${numero} · ${referencia}` : `${numero} · ${processo.tipo}`;
 }
 
-function textoExtrato(processo: ProcessoAdmin, fundamento: string, assinatura: string) {
+function extratoPadraoContrato(processo: ProcessoAdmin) {
+  const perfil = perfilContratacao(processo.status);
+  if (perfil.contratado && !perfil.fim) return false;
+  return processo.possuiContrato;
+}
+
+function textoExtrato(processo: ProcessoAdmin, fundamento: string, assinatura: string, contrato: boolean) {
   const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
   const tipo = processo.tipo.toLocaleLowerCase("pt-BR");
   const nome = processo.contratado.trim().toLocaleUpperCase("pt-BR");
@@ -5114,22 +5131,22 @@ function textoExtrato(processo: ProcessoAdmin, fundamento: string, assinatura: s
   const objeto = pontoFinal(processo.objeto);
   const base = pontoFinal(fundamento);
   const valor = formatarReais(processo.valorTotalCentavos).replace(/\u00a0/g, " ");
-  if (processo.possuiContrato) {
+  if (contrato) {
     return `<strong>EXTRATO DE CONTRATO:</strong> Processo nº: ${escaparHtml(numero)} <strong>Tipo do processo:</strong> ${escaparHtml(tipo)}. <strong>Contratado:</strong> ${escaparHtml(nome)}, ${docRotulo} ${escaparHtml(doc)}. <strong>Objeto:</strong> ${escaparHtml(objeto)} <strong>Fundamento Legal:</strong> ${escaparHtml(base)} <strong>Assinatura do contrato:</strong> ${escaparHtml(dataBr(assinatura))} <strong>Valor GLOBAL da contratação:</strong> ${escaparHtml(valor)}.`;
   }
   return `<strong>EXTRATO DE AQUISIÇÃO:</strong> Processo nº: ${escaparHtml(numero)} <strong>Tipo do processo:</strong> ${escaparHtml(tipo)}. <strong>Contratado:</strong> ${escaparHtml(nome)}, ${docRotulo} ${escaparHtml(doc)}. <strong>Objeto:</strong> ${escaparHtml(objeto)} <strong>Fundamento Legal:</strong> ${escaparHtml(base)} <strong>Valor da aquisição:</strong> ${escaparHtml(valor)}`;
 }
 
-function baixarExtratos(itens: { processo: ProcessoAdmin; fundamento: string; assinatura: string }[]) {
+function baixarExtratos(itens: { processo: ProcessoAdmin; fundamento: string; assinatura: string; contrato: boolean }[]) {
   if (!itens.length) return;
-  const blocos = itens.map((item) => `<p>${textoExtrato(item.processo, item.fundamento, item.assinatura)}</p>`).join("<p>&nbsp;</p>");
+  const blocos = itens.map((item) => `<p>${textoExtrato(item.processo, item.fundamento, item.assinatura, item.contrato)}</p>`).join("<p>&nbsp;</p>");
   const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'><style>body{font-family:'Times New Roman',Times,serif;font-size:12pt;}p{text-align:justify;line-height:1.15;margin:0;}</style></head><body>${blocos}</body></html>`;
   const blob = new Blob(["\ufeff", html], { type: "application/msword" });
   const primeiro = itens[0].processo;
   const numero = primeiro.numero ? rotuloNumero(primeiro.numero, primeiro.numeroAno) : "processo";
   const nome =
     itens.length === 1
-      ? `${primeiro.possuiContrato ? "Extrato de contrato" : "Extrato de aquisição"} ${numero.replaceAll("/", "-")}.doc`
+      ? `${itens[0].contrato ? "Extrato de contrato" : "Extrato de aquisição"} ${numero.replaceAll("/", "-")}.doc`
       : "Extratos.doc";
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
