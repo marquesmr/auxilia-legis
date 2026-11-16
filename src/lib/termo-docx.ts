@@ -12,6 +12,7 @@ export type BlocoTermo = {
   direita?: boolean;
   italico?: boolean;
   tamanho?: number;
+  tabela?: string[][];
 };
 
 function escaparXml(texto: string) {
@@ -19,6 +20,7 @@ function escaparXml(texto: string) {
 }
 
 function blocoXml(bloco: BlocoTermo) {
+  if (bloco.tabela && bloco.tabela.length > 0 && bloco.tabela[0].length > 0) return tabelaXml(bloco.tabela, bloco.tamanho ?? 22);
   const tamanho = bloco.tamanho ?? 24;
   const alinhamento = bloco.direita ? "right" : bloco.centro || bloco.titulo ? "center" : bloco.recuo || bloco.cita ? "both" : "left";
   const recuo = bloco.cita ? `<w:ind w:left="709"/>` : bloco.recuo ? `<w:ind w:firstLine="709"/>` : "";
@@ -32,6 +34,26 @@ function blocoXml(bloco: BlocoTermo) {
     })
     .join("");
   return `<w:p><w:pPr><w:jc w:val="${alinhamento}"/>${recuo}<w:spacing w:before="${antes}" w:beforeAutospacing="0" w:after="${depois}" w:afterAutospacing="0" w:line="240" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${italico}<w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr></w:pPr>${runs}</w:p>`;
+}
+
+function tabelaXml(linhas: string[][], tamanho: number) {
+  const colunas = linhas[0].length;
+  const largura = Math.floor(9026 / colunas);
+  const borda = `<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>`;
+  const grade = Array.from({ length: colunas }, () => `<w:gridCol w:w="${largura}"/>`).join("");
+  const corpo = linhas
+    .map((linha, indice) => {
+      const celulas = linha
+        .map((texto) => {
+          const negrito = indice === 0 ? "<w:b/>" : "";
+          const fundo = indice === 0 ? `<w:shd w:val="clear" w:color="auto" w:fill="F3F3F3"/>` : "";
+          return `<w:tc><w:tcPr><w:tcW w:w="${largura}" w:type="dxa"/>${fundo}<w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="60" w:after="60" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${negrito}<w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr><w:t xml:space="preserve">${escaparXml(texto)}</w:t></w:r></w:p></w:tc>`;
+        })
+        .join("");
+      return `<w:tr>${celulas}</w:tr>`;
+    })
+    .join("");
+  return `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:jc w:val="center"/><w:tblBorders>${borda}</w:tblBorders></w:tblPr><w:tblGrid>${grade}</w:tblGrid>${corpo}</w:tbl>`;
 }
 
 function textoDoParagrafo(xml: string) {

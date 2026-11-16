@@ -3178,7 +3178,17 @@ function PainelDocumentos({
       return;
     }
     if (tipoDoc === "preco") {
-      setPrecoAberto(true);
+      const temCotacao = (escolhido.cotacoes ?? []).some((cotacao) => cotacao.fornecedores.length > 0);
+      setParecerFundamento(fundamentoInicial(escolhido.tipo));
+      if (!temCotacao) {
+        setTermoAssinante("");
+        setTermoFuncao("");
+        setTermoTimbre(null);
+        setTermoAviso("Este processo ainda não tem cotação. Lance em Cotações.");
+        setPrecoAberto(true);
+        return;
+      }
+      prepararTimbre(escolhido, () => setPrecoAberto(true));
       return;
     }
     setParecerFundamento(fundamentoInicial(escolhido.tipo));
@@ -3236,28 +3246,66 @@ function PainelDocumentos({
           <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 max-h-[85vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-lg md:-translate-x-1/2">
             <Dialog.Title className="font-display text-2xl text-ink">Justificativa de preço</Dialog.Title>
             <Dialog.Description className="mt-1 text-sm text-muted">
-              {processo ? `As cotações de ${rotuloLista(processo)} entram neste documento.` : "Escolha o processo para vincular as cotações."}
+              {processo ? `As cotações de ${rotuloLista(processo)} entram na tabela do documento.` : "Escolha o processo para vincular as cotações."}
             </Dialog.Description>
-            {processo && (processo.cotacoes?.length ?? 0) > 0 ? (
-              <ul className="mt-4 flex flex-col gap-2 text-sm">
-                {processo.cotacoes.map((cotacao) => (
-                  <li key={cotacao.id} className="rounded-xl border border-line bg-paper px-3 py-2 text-ink">
-                    {cotacao.descricao ? <p className="font-medium">{cotacao.descricao}</p> : null}
-                    <ul className="mt-1 flex flex-col gap-0.5 text-muted">
-                      {cotacao.fornecedores.map((fornecedor, ordem) => (
-                        <li key={`${cotacao.id}-${ordem}`}>
-                          {formatDate(fornecedor.data)} · {fornecedor.fornecedor} · {formatarReais(fornecedor.valorCentavos)}
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-4 text-sm text-muted">Este processo ainda não tem cotação. Lance em Cotações para ela aparecer aqui.</p>
-            )}
-            <p className="mt-4 text-sm text-muted">O texto do documento entra assim que for definido. A vinculação das cotações já fica pronta.</p>
-            <Dialog.Close type="button" className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">Fechar</Dialog.Close>
+            {termoAviso ? (
+              <p className="mt-4 text-sm text-seal">{termoAviso}</p>
+            ) : processo ? (
+              <div className="mt-4 flex flex-col gap-3">
+                <ul className="flex max-h-36 flex-col gap-2 overflow-y-auto text-sm">
+                  {processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores).map((fornecedor, ordem) => (
+                    <li key={`${fornecedor.documento}-${ordem}`} className="rounded-xl border border-line bg-paper px-3 py-2 text-ink">
+                      {formatDate(fornecedor.data)} · {fornecedor.fornecedor} · {formatarReais(fornecedor.valorCentavos)}
+                    </li>
+                  ))}
+                </ul>
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Fundamento legal
+                  <select value={parecerFundamento} onChange={(evento) => setParecerFundamento(evento.target.value)} className={inputCls + " font-normal"}>
+                    {fundamentosDoTipo(processo.tipo).length > 1 && <option value="">Selecione o fundamento legal</option>}
+                    {fundamentosDoTipo(processo.tipo).map((opcao) => (
+                      <option key={opcao.valor} value={opcao.valor}>{opcao.rotulo}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Quem assina
+                  <select value={termoAssinante} onChange={(evento) => setTermoAssinante(evento.target.value)} className={inputCls + " font-normal"}>
+                    <option value="">Selecione alguém da equipe</option>
+                    {(equipes.find((equipe) => equipe.id === processo.equipeId)?.membros ?? []).map((membro) => (
+                      <option key={membro.nome} value={membro.nome}>{membro.nome}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Função
+                  <select value={termoFuncao} onChange={(evento) => setTermoFuncao(evento.target.value)} className={inputCls + " font-normal"}>
+                    <option value="">Selecione a função</option>
+                    <option>Agente de Contratações</option>
+                    <option>Gerente Administrativo</option>
+                    <option>Controladoria Geral</option>
+                    <option>{termoTimbre?.linha2.trim() ? `Presidente da Câmara Municipal de ${termoTimbre.linha2.trim()}` : "Presidente da Câmara Municipal"}</option>
+                  </select>
+                </label>
+              </div>
+            ) : null}
+            <div className="mt-4 flex gap-2">
+              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">Cancelar</Dialog.Close>
+              <button
+                type="button"
+                disabled={!processo || !termoTimbre || !parecerFundamento.trim() || !termoAssinante || !termoFuncao.trim() || !(processo?.cotacoes ?? []).some((cotacao) => cotacao.fornecedores.length > 0)}
+                onClick={() => {
+                  if (!processo || !termoTimbre) return;
+                  const rotulo = fundamentosDoTipo(processo.tipo).find((opcao) => opcao.valor === parecerFundamento)?.rotulo ?? parecerFundamento;
+                  void baixarJustificativa(processo, termoTimbre, parecerFundamento.trim(), rotulo, termoAssinante, termoFuncao.trim())
+                    .then(() => setPrecoAberto(false))
+                    .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar a justificativa."));
+                }}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
+              >
+                Baixar Word
+              </button>
+            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
@@ -5745,6 +5793,176 @@ p { margin: 0 0 12pt; line-height: 1.15; text-align: justify; font-size: 11pt; }
 .linha { border: 0; border-top: 1.5pt solid #1F3864; margin: 8pt 0 14pt; }
 </style>
 </head><body>
+${marca}
+${timbre.linha1.trim() ? `<p class="timbre">${escaparHtml(timbre.linha1.trim())}</p>` : ""}
+${timbre.linha2.trim() ? `<p class="timbre">${escaparHtml(timbre.linha2.trim())}</p>` : ""}
+<hr class="linha">
+${corpo}
+<hr class="linha">
+${timbre.rodape1.trim() ? `<p class="rodape"><b>${escaparHtml(timbre.rodape1.trim())}</b></p>` : ""}
+${timbre.rodape2.trim() ? `<p class="rodape">${escaparHtml(timbre.rodape2.trim())}</p>` : ""}
+</body></html>`;
+  const arquivo = new Blob(["\ufeff", html], { type: "application/msword" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(arquivo);
+  link.download = `${numeroArquivo}.doc`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+}
+
+function grupoExtenso(valor: number): string {
+  const unidades = ["", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez", "onze", "doze", "treze", "quatorze", "quinze", "dezesseis", "dezessete", "dezoito", "dezenove"];
+  const dezenas = ["", "", "vinte", "trinta", "quarenta", "cinquenta", "sessenta", "setenta", "oitenta", "noventa"];
+  const centenas = ["", "cento", "duzentos", "trezentos", "quatrocentos", "quinhentos", "seiscentos", "setecentos", "oitocentos", "novecentos"];
+  if (valor === 0) return "";
+  if (valor === 100) return "cem";
+  const partes: string[] = [];
+  const centena = Math.floor(valor / 100);
+  const resto = valor % 100;
+  if (centena) partes.push(centenas[centena]);
+  if (resto > 0 && resto < 20) partes.push(unidades[resto]);
+  else if (resto >= 20) {
+    const dezena = Math.floor(resto / 10);
+    const unidade = resto % 10;
+    partes.push(unidade ? `${dezenas[dezena]} e ${unidades[unidade]}` : dezenas[dezena]);
+  }
+  return partes.join(" e ");
+}
+
+function numeroPorExtenso(valor: number): string {
+  if (valor === 0) return "zero";
+  const blocos = [
+    { n: Math.floor(valor / 1_000_000), um: "milhão", varios: "milhões" },
+    { n: Math.floor(valor / 1000) % 1000, um: "mil", varios: "mil" },
+    { n: valor % 1000, um: "", varios: "" },
+  ];
+  const textos = blocos.flatMap((bloco) => {
+    if (!bloco.n) return [];
+    if (!bloco.um) return [grupoExtenso(bloco.n)];
+    if (bloco.um === "mil") return [bloco.n === 1 ? "mil" : `${grupoExtenso(bloco.n)} mil`];
+    return [`${bloco.n === 1 ? "um" : grupoExtenso(bloco.n)} ${bloco.n === 1 ? bloco.um : bloco.varios}`];
+  });
+  if (textos.length === 1) return textos[0];
+  const resto = valor % 1000;
+  const liga = resto > 0 && (resto < 100 || resto % 100 === 0) ? " e " : " ";
+  return `${textos.slice(0, -1).join(" ")}${liga}${textos.at(-1)}`;
+}
+
+function reaisPorExtenso(centavos: number): string {
+  const reais = Math.floor(centavos / 100);
+  const cents = centavos % 100;
+  const moeda = reais === 1 ? "real" : "reais";
+  if (cents === 0) return `${numeroPorExtenso(reais)} ${moeda}`;
+  const fracao = cents === 1 ? "centavo" : "centavos";
+  return `${numeroPorExtenso(reais)} ${moeda} e ${numeroPorExtenso(cents)} ${fracao}`;
+}
+
+function reaisDocumento(centavos: number) {
+  return formatarReais(centavos).replace(/\u00a0/g, " ");
+}
+
+async function baixarJustificativa(processo: ProcessoAdmin, timbre: TimbradoEquipe, fundamento: string, rotuloFundamento: string, assinante: string, funcao: string) {
+  const fornecedores = processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores).filter((item) => item.fornecedor.trim() && item.valorCentavos > 0);
+  if (!fornecedores.length) throw new Error("Este processo ainda não tem cotação.");
+  const escolhido = fornecedores.reduce((menor, item) => (item.valorCentavos < menor.valorCentavos ? item : menor));
+  const soma = fornecedores.reduce((total, item) => total + item.valorCentavos, 0);
+  const media = Math.round(soma / fornecedores.length);
+  const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
+  const peca =
+    processo.tipo !== "Outros" && processo.tipoNumero != null && processo.tipoAno != null
+      ? `${String(processo.tipoNumero).padStart(2, "0")}/${processo.tipoAno}`
+      : "";
+  const objeto = pontoFinal(processo.objeto.trim() || "da contratação descrita nos autos");
+  const quantidade = numeroPorExtenso(fornecedores.length);
+  const orcamentos = fornecedores.length === 1 ? "orçamento formal" : "orçamentos formais";
+  const valor = reaisDocumento(escolhido.valorCentavos);
+  const extenso = reaisPorExtenso(escolhido.valorCentavos);
+  const mediaTexto = reaisDocumento(media);
+  const baseCurta = rotuloFundamento.split("—")[0].trim() || fundamento;
+  const baseFrase = fundamento.replace(/\s+da lei 14\.133 de 2021$/i, "");
+  const direta = processo.tipo === "Dispensa de Licitação" || processo.tipo === "Inexigibilidade de Licitação";
+  const complemento = /inciso II do artigo 75/i.test(fundamento) ? ", que se aplica a contratações de serviços e compras de valor inferior a R$ 50.000,00" : "";
+  const abaixo = escolhido.valorCentavos < media;
+  const data = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
+  const cidade = timbre.linha2.trim() || (timbre.arquivo ? await cidadeDoTimbrado(timbre.arquivo) : "") || timbre.linha1.trim();
+  const dataCompleta = cidade ? `${cidade}, ${data}.` : `${data}.`;
+  const funcaoFinal = funcao.startsWith("Presidente da Câmara Municipal") && cidade ? `Presidente da Câmara Municipal de ${cidade}` : funcao;
+  const bloco = (item: BlocoTermo): BlocoTermo => ({ ...item, tamanho: item.tamanho ?? 22 });
+  const blocos: BlocoTermo[] = [
+    bloco({ titulo: true, junto: true, partes: [{ texto: "JUSTIFICATIVA DO PREÇO E ESCOLHA DO FORNECEDOR" }] }),
+    bloco({ centro: true, italico: true, tamanho: 18, partes: [{ texto: "(Lei 14.133 de 01 de abril de 2021)" }] }),
+    bloco({ junto: true, partes: [{ texto: `Ref.: ${objeto}`, negrito: true }] }),
+    bloco({ junto: true, partes: [{ texto: `Processo Administrativo: ${numero}`, negrito: true }] }),
+    bloco({ partes: [{ texto: peca ? `${processo.tipo}: ${peca} (${baseCurta})` : `${processo.tipo} (${baseCurta})`, negrito: true }] }),
+    bloco({ partes: [{ texto: "1. JUSTIFICATIVA DO PREÇO PROPOSTO E BALIZADOR DE MERCADO", negrito: true }] }),
+    bloco({
+      recuo: true,
+      partes: [{ texto: `O preço global estimado de ${valor} (${extenso}) para a aquisição é justificado e demonstrado como vantajoso para a Administração, em cumprimento ao ${direta ? "Art. 72, inciso VII, da Lei 14.133/2021" : "disposto na Lei nº 14.133/2021"}.` }],
+    }),
+    bloco({
+      recuo: true,
+      partes: [{ texto: `Para balizar o preço, foi realizada uma pesquisa de mercado que incluiu a coleta de ${quantidade} ${orcamentos} com fornecedores do ramo (anexados a este processo), resultando na seguinte referência de preço:` }],
+    }),
+    bloco({ partes: [], tabela: [fornecedores.map((item) => item.fornecedor.toLocaleUpperCase("pt-BR")), fornecedores.map((item) => reaisDocumento(item.valorCentavos))] }),
+    bloco({ partes: [{ texto: `• Preço Médio de Mercado Apurado: ${mediaTexto}`, negrito: true }] }),
+    bloco({
+      recuo: true,
+      partes: [{ texto: `Dessa forma, a proposta apresentada pela empresa ${escolhido.fornecedor}, no valor de ${valor}, ${abaixo ? "encontra-se abaixo do preço médio de mercado" : "encontra-se compatível com o preço médio de mercado"} e demonstra compatibilidade de custos, sendo o valor global uma estimativa de gastos para atendimento das demandas durante o exercício.` }],
+    }),
+    bloco({ recuo: true, partes: [{ texto: "Cabe ressaltar que também foi realizada consulta no site oficial do governo federal Portal Nacional de Compras Públicas PNCP, a fim de comprovação de compatibilidade de preço com demais órgãos públicos." }] }),
+    bloco({ partes: [{ texto: "2. FUNDAMENTAÇÃO LEGAL", negrito: true }] }),
+    bloco({ recuo: true, partes: [{ texto: `A presente Justificativa de Preço instrui o processo de ${processo.tipo}, fundamentado no ${baseFrase}, da Lei nº 14.133/2021${complemento}.` }] }),
+    bloco({ partes: [{ texto: "3. CONCLUSÃO", negrito: true }] }),
+    bloco({ recuo: true, partes: [{ texto: `Fica comprovado que o preço global proposto de ${valor} está de acordo com os preços praticados no mercado e é o mais vantajoso para a Administração, conforme demonstrado pelo balizador de preço.` }] }),
+    bloco({ direita: true, partes: [{ texto: dataCompleta }] }),
+    bloco({ centro: true, junto: true, antes: true, partes: [{ texto: assinante, negrito: true }] }),
+    bloco({ centro: true, junto: true, partes: [{ texto: funcaoFinal }] }),
+  ];
+  const numeroArquivo = `Justificativa de preço ${numero.replaceAll("/", "-")}`;
+  if (timbre.arquivo) {
+    const arquivo = await termoNoTimbrado(timbre.arquivo, blocos);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(arquivo);
+    link.download = `${numeroArquivo}.docx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+    return;
+  }
+  const marca = timbre.imagem.startsWith("data:image/") ? `<p style="text-align:center;margin:0;"><img src="${timbre.imagem}" width="78" height="103" alt=""></p>` : "";
+  const corpo = blocos
+    .map((item) => {
+      if (item.tabela) {
+        const linhas = item.tabela
+          .map((linha, indice) => `<tr>${linha.map((celula) => `<${indice === 0 ? "th" : "td"}>${escaparHtml(celula)}</${indice === 0 ? "th" : "td"}>`).join("")}</tr>`)
+          .join("");
+        return `<table>${linhas}</table>`;
+      }
+      const classe = item.direita ? "direita" : item.italico ? "nota" : item.titulo ? "titulo" : item.centro ? "centro" : item.recuo ? "recuo" : "ident";
+      const texto = item.partes.map((parte) => (parte.negrito || item.titulo ? `<b>${escaparHtml(parte.texto)}</b>` : escaparHtml(parte.texto))).join("");
+      return `<p class="${classe}">${texto}</p>`;
+    })
+    .join("");
+  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'>
+<style>
+body, p, td, th { font-family: Arial, sans-serif; font-size: 11pt; color: #111; }
+p { margin: 0 0 12pt; line-height: 1.15; text-align: justify; }
+.titulo { text-align: center; font-weight: bold; margin: 0; }
+.nota { text-align: center; font-style: italic; font-size: 9pt; margin: 0 0 12pt; }
+.ident { text-align: left; margin: 0; }
+.recuo { text-indent: 1.25cm; }
+.centro { text-align: center; text-indent: 0; margin: 0; }
+.direita { text-align: right; text-indent: 0; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 12pt; }
+th, td { border: 1px solid #111; text-align: center; padding: 4pt; }
+th { background: #f3f3f3; }
+.timbre { text-align: center; color: #1F3864; font-weight: bold; font-size: 14pt; line-height: 1.1; margin: 0; }
+.rodape { text-align: center; color: #1F3864; font-size: 10pt; line-height: 1.3; margin: 0; }
+.linha { border: 0; border-top: 1.5pt solid #1F3864; margin: 8pt 0 14pt; }
+</style></head><body>
 ${marca}
 ${timbre.linha1.trim() ? `<p class="timbre">${escaparHtml(timbre.linha1.trim())}</p>` : ""}
 ${timbre.linha2.trim() ? `<p class="timbre">${escaparHtml(timbre.linha2.trim())}</p>` : ""}
