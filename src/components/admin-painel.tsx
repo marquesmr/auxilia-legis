@@ -559,6 +559,10 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
   };
 }
 
+function linhasFornecedorCotacao() {
+  return [0, 1, 2].map(() => ({ id: crypto.randomUUID(), fornecedor: "", documento: "", valor: "" }));
+}
+
 export function AdminPainel({
   equipeAtual,
   equipes,
@@ -599,11 +603,9 @@ export function AdminPainel({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [cotacaoAberta, setCotacaoAberta] = useState(false);
   const [cotacaoProcesso, setCotacaoProcesso] = useState("");
-  const [cotacaoFornecedor, setCotacaoFornecedor] = useState("");
-  const [cotacaoDocumento, setCotacaoDocumento] = useState("");
-  const [cotacaoValor, setCotacaoValor] = useState("");
   const [cotacaoData, setCotacaoData] = useState("");
   const [cotacaoDescricao, setCotacaoDescricao] = useState("");
+  const [cotacaoFornecedores, setCotacaoFornecedores] = useState<{ id: string; fornecedor: string; documento: string; valor: string }[]>(() => linhasFornecedorCotacao());
   const [andamentoId, setAndamentoId] = useState<string | null>(null);
   const [notaAndamento, setNotaAndamento] = useState("");
   const [statusAndamento, setStatusAndamento] = useState<StatusAdmin>("proposta");
@@ -907,24 +909,25 @@ export function AdminPainel({
       onToast("Selecione o processo.");
       return;
     }
-    const fornecedor = cotacaoFornecedor.trim();
-    const digitos = cotacaoDocumento.replace(/\D/g, "");
-    const valor = reaisParaCentavos(cotacaoValor);
-    if (!fornecedor) {
-      onToast("Informe o fornecedor.");
-      return;
-    }
-    if (digitos.length !== 11 && digitos.length !== 14) {
-      onToast("Informe o CPF ou o CNPJ.");
-      return;
-    }
     if (!cotacaoData) {
       onToast("Informe a data da cotação.");
       return;
     }
-    if (valor == null || valor <= 0) {
-      onToast("Informe o valor da cotação.");
+    const preenchidas = cotacaoFornecedores.filter((linha) => linha.fornecedor.trim() || linha.documento.trim() || linha.valor.trim());
+    if (!preenchidas.length) {
+      onToast("Informe ao menos um fornecedor.");
       return;
+    }
+    const fornecedores = [];
+    for (const linha of preenchidas) {
+      const fornecedor = linha.fornecedor.trim();
+      const digitos = linha.documento.replace(/\D/g, "");
+      const valor = reaisParaCentavos(linha.valor);
+      if (!fornecedor || (digitos.length !== 11 && digitos.length !== 14) || valor == null || valor <= 0) {
+        onToast("Complete nome, CPF ou CNPJ e valor de cada fornecedor.");
+        return;
+      }
+      fornecedores.push({ fornecedor, documento: mascaraDocumento(digitos), valorCentavos: valor });
     }
     const atualizado: ProcessoAdmin = {
       ...atual,
@@ -932,11 +935,9 @@ export function AdminPainel({
         ...(atual.cotacoes ?? []),
         {
           id: crypto.randomUUID(),
-          fornecedor,
-          documento: mascaraDocumento(digitos),
-          valorCentavos: valor,
           data: cotacaoData,
           descricao: cotacaoDescricao.trim(),
+          fornecedores,
         },
       ],
     };
@@ -946,9 +947,7 @@ export function AdminPainel({
       null,
       "Cotação vinculada",
     );
-    setCotacaoFornecedor("");
-    setCotacaoDocumento("");
-    setCotacaoValor("");
+    setCotacaoFornecedores(linhasFornecedorCotacao());
     setCotacaoDescricao("");
     setCotacaoData(todayIso());
   }
@@ -1522,9 +1521,7 @@ export function AdminPainel({
               onClick={() => {
                 const primeiro = lista[0];
                 setCotacaoProcesso(primeiro?.id ?? "");
-                setCotacaoFornecedor("");
-                setCotacaoDocumento("");
-                setCotacaoValor("");
+                setCotacaoFornecedores(linhasFornecedorCotacao());
                 setCotacaoData(todayIso());
                 setCotacaoDescricao("");
                 setCotacaoAberta(true);
@@ -2621,7 +2618,7 @@ export function AdminPainel({
       <Dialog.Root open={cotacaoAberta} onOpenChange={setCotacaoAberta}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-20 flex max-h-[85vh] -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-20 flex max-h-[90vh] -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-3xl md:-translate-x-1/2">
             <Dialog.Title className="font-display text-2xl text-ink">Adicionar cotação</Dialog.Title>
             <Dialog.Description className="mt-1 text-sm text-muted">A cotação fica vinculada ao processo escolhido.</Dialog.Description>
             <div className="mt-4 flex flex-col gap-3 overflow-y-auto">
@@ -2638,30 +2635,84 @@ export function AdminPainel({
                     ))}
                 </select>
               </label>
-              <Campo label="Fornecedor">
-                <input value={cotacaoFornecedor} onChange={(evento) => setCotacaoFornecedor(evento.target.value)} className={inputCls} placeholder="Nome ou razão social" />
-              </Campo>
-              <Campo label="CPF ou CNPJ">
-                <input value={cotacaoDocumento} onChange={(evento) => setCotacaoDocumento(mascaraDocumento(evento.target.value))} className={inputCls} inputMode="numeric" placeholder="000.000.000-00" />
-              </Campo>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Campo label="Data">
                   <input type="date" value={cotacaoData} onChange={(evento) => setCotacaoData(evento.target.value)} className={inputCls} />
                 </Campo>
-                <Campo label="Valor">
-                  <input value={cotacaoValor} onChange={(evento) => setCotacaoValor(mascaraReais(evento.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" />
+                <Campo label="Descrição">
+                  <input value={cotacaoDescricao} onChange={(evento) => setCotacaoDescricao(evento.target.value)} className={inputCls} placeholder="Opcional" />
                 </Campo>
               </div>
-              <Campo label="Descrição">
-                <input value={cotacaoDescricao} onChange={(evento) => setCotacaoDescricao(evento.target.value)} className={inputCls} placeholder="Opcional" />
-              </Campo>
+              <div className="flex flex-col gap-3">
+                {cotacaoFornecedores.map((linha, indice) => (
+                  <div key={linha.id} className="rounded-xl border border-line p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-sm font-medium text-ink">Fornecedor {indice + 1}</p>
+                      {cotacaoFornecedores.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setCotacaoFornecedores((atual) => atual.filter((item) => item.id !== linha.id))}
+                          className="text-sm font-medium text-seal"
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <Campo label="Nome">
+                        <input
+                          value={linha.fornecedor}
+                          onChange={(evento) =>
+                            setCotacaoFornecedores((atual) => atual.map((item) => (item.id === linha.id ? { ...item, fornecedor: evento.target.value } : item)))
+                          }
+                          className={inputCls}
+                          placeholder="Nome ou razão social"
+                        />
+                      </Campo>
+                      <Campo label="CPF ou CNPJ">
+                        <input
+                          value={linha.documento}
+                          onChange={(evento) =>
+                            setCotacaoFornecedores((atual) => atual.map((item) => (item.id === linha.id ? { ...item, documento: mascaraDocumento(evento.target.value) } : item)))
+                          }
+                          className={inputCls}
+                          inputMode="numeric"
+                          placeholder="000.000.000-00"
+                        />
+                      </Campo>
+                      <Campo label="Valor">
+                        <input
+                          value={linha.valor}
+                          onChange={(evento) =>
+                            setCotacaoFornecedores((atual) => atual.map((item) => (item.id === linha.id ? { ...item, valor: mascaraReais(evento.target.value) } : item)))
+                          }
+                          className={inputCls}
+                          inputMode="decimal"
+                          placeholder="0,00"
+                        />
+                      </Campo>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setCotacaoFornecedores((atual) => [...atual, { id: crypto.randomUUID(), fornecedor: "", documento: "", valor: "" }])}
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink"
+                >
+                  Outro fornecedor
+                </button>
+              </div>
               {(lista.find((item) => item.id === cotacaoProcesso)?.cotacoes.length ?? 0) > 0 && (
-                <ul className="flex max-h-28 flex-col gap-1 overflow-y-auto text-sm">
+                <ul className="flex max-h-36 flex-col gap-2 overflow-y-auto text-sm">
                   {lista
                     .find((item) => item.id === cotacaoProcesso)
                     ?.cotacoes.map((item) => (
                       <li key={item.id} className="text-ink">
-                        {formatDate(item.data)} · {item.fornecedor} · {formatarReais(item.valorCentavos)}
+                        <span className="font-medium">{formatDate(item.data)}</span>
+                        {item.descricao ? ` · ${item.descricao}` : ""}
+                        <span className="mt-0.5 block text-muted">
+                          {item.fornecedores.map((fornecedor) => `${fornecedor.fornecedor} (${formatarReais(fornecedor.valorCentavos)})`).join(" · ")}
+                        </span>
                       </li>
                     ))}
                 </ul>
@@ -2895,12 +2946,14 @@ function CardAdmin({
               {(processo.cotacoes?.length ?? 0) > 0 && (
                 <div className="mt-4">
                   <h3 className="font-display text-xl text-ink">Cotações</h3>
-                  <ul className="mt-2 flex max-h-28 flex-col gap-1 overflow-y-auto text-sm">
+                  <ul className="mt-2 flex max-h-40 flex-col gap-2 overflow-y-auto text-sm">
                     {processo.cotacoes.map((item) => (
                       <li key={item.id} className="text-ink">
-                        {formatDate(item.data)} · {item.fornecedor}
+                        <span className="font-medium">{formatDate(item.data)}</span>
                         {item.descricao ? ` · ${item.descricao}` : ""}
-                        <span className="ml-2 font-medium">{formatarReais(item.valorCentavos)}</span>
+                        <span className="mt-0.5 block text-muted">
+                          {item.fornecedores.map((fornecedor) => `${fornecedor.fornecedor} (${formatarReais(fornecedor.valorCentavos)})`).join(" · ")}
+                        </span>
                       </li>
                     ))}
                   </ul>
