@@ -5926,6 +5926,14 @@ function reaisDocumento(centavos: number) {
   return formatarReais(centavos).replace(/\u00a0/g, " ");
 }
 
+function nomeTabelaCotacao(nome: string, colunas: number) {
+  const limpo = nome.trim().replace(/\s+/g, " ").toLocaleUpperCase("pt-BR");
+  const largura = Math.floor(9026 / Math.max(colunas, 1));
+  const cabe = Math.max(6, Math.floor((largura - 220) / 130));
+  if (limpo.length <= cabe) return limpo;
+  return limpo.split(" ")[0] || limpo;
+}
+
 function artigoDaJustificativa(fundamento: string) {
   const limpo = fundamento.replace(/\s+da lei 14\.133 de 2021$/i, "").trim();
   const artigo = limpo.match(/artigo\s+(\d+)/i)?.[1];
@@ -6063,7 +6071,7 @@ async function baixarJustificativa(
       recuo: true,
       partes: [{ texto: `Para balizar o preço, foi realizada uma pesquisa de mercado que incluiu a coleta de ${quantidade} ${orcamentos} com empresas do ramo (anexados a este processo), resultando na seguinte referência de preço:` }],
     }),
-    bloco({ partes: [], tabela: [fornecedores.map((item) => item.fornecedor.toLocaleUpperCase("pt-BR")), fornecedores.map((item) => reaisDocumento(item.valorCentavos))] }),
+    bloco({ partes: [], tabela: [fornecedores.map((item) => nomeTabelaCotacao(item.fornecedor, fornecedores.length)), fornecedores.map((item) => reaisDocumento(item.valorCentavos))] }),
     bloco({ partes: [{ texto: `• Preço Médio de Mercado Apurado: ${mediaTexto}`, negrito: true }] }),
     bloco({ recuo: true, partes: escolha }),
     bloco({
@@ -6143,7 +6151,7 @@ p { margin: 0 0 12pt; line-height: 1.15; text-align: justify; }
 .centro { text-align: center; text-indent: 0; margin: 0; }
 .direita { text-align: right; text-indent: 0; }
 table { width: 100%; border-collapse: collapse; margin: 0 0 12pt; }
-th, td { border: 1px solid #111; text-align: center; padding: 4pt; }
+th, td { border: 1px solid #111; text-align: center; padding: 4pt; white-space: nowrap; }
 th { background: #f3f3f3; }
 .timbre { text-align: center; color: #1F3864; font-weight: bold; font-size: 14pt; line-height: 1.1; margin: 0; }
 .rodape { text-align: center; color: #1F3864; font-size: 10pt; line-height: 1.3; margin: 0; }

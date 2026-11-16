@@ -47,7 +47,7 @@ function tabelaXml(linhas: string[][], tamanho: number) {
         .map((texto) => {
           const negrito = indice === 0 ? "<w:b/>" : "";
           const fundo = indice === 0 ? `<w:shd w:val="clear" w:color="auto" w:fill="F3F3F3"/>` : "";
-          return `<w:tc><w:tcPr><w:tcW w:w="${largura}" w:type="dxa"/>${fundo}<w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="60" w:after="60" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${negrito}<w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr><w:t xml:space="preserve">${escaparXml(texto)}</w:t></w:r></w:p></w:tc>`;
+          return `<w:tc><w:tcPr><w:tcW w:w="${largura}" w:type="dxa"/><w:noWrap/>${fundo}<w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="60" w:after="60" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${negrito}<w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr><w:t xml:space="preserve">${escaparXml(texto)}</w:t></w:r></w:p></w:tc>`;
         })
         .join("");
       return `<w:tr>${celulas}</w:tr>`;
