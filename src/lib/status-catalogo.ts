@@ -10,6 +10,8 @@ export type StatusItem = {
   fixo: boolean;
   tramiteDias: number | null;
   tramiteCodigo: string | null;
+  pedeContratado: boolean;
+  pedeFim: boolean;
 };
 
 const PADRAO: StatusItem[] = [
@@ -18,19 +20,25 @@ const PADRAO: StatusItem[] = [
   item("adm-proposta", "administrativo", "proposta", "Recebendo proposta", 1, false),
   item("adm-pareceres", "administrativo", "pareceres", "Pareceres", 2, false),
   item("adm-assinatura", "administrativo", "assinatura", "Assinatura de contrato", 3, false),
-  item("adm-execucao", "administrativo", "execucao", "Execução", 4, false),
+  item("adm-execucao", "administrativo", "execucao", "Execução", 4, false, true, true),
   item("adm-encerrado", "administrativo", "encerrado", "Encerrado", 5, true),
   item("adm-cancelado", "administrativo", "cancelado", "Cancelado", 6, true),
 ];
 
-function item(id: string, area: AreaStatus, codigo: string, nome: string, ordem: number, encerra: boolean): StatusItem {
-  return { id, area, codigo, nome, ordem, encerra, fixo: true, tramiteDias: null, tramiteCodigo: null };
+function item(id: string, area: AreaStatus, codigo: string, nome: string, ordem: number, encerra: boolean, pedeContratado = false, pedeFim = false): StatusItem {
+  return { id, area, codigo, nome, ordem, encerra, fixo: true, tramiteDias: null, tramiteCodigo: null, pedeContratado, pedeFim };
 }
 
 let catalogo: StatusItem[] = PADRAO;
 
 export function definirStatus(lista: StatusItem[]) {
-  if (lista.length) catalogo = lista;
+  if (lista.length) {
+    catalogo = lista.map((item) => ({
+      ...item,
+      pedeContratado: Boolean(item.pedeContratado),
+      pedeFim: Boolean(item.pedeFim),
+    }));
+  }
 }
 
 export function statusDaArea(area: AreaStatus): StatusItem[] {

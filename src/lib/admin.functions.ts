@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, permiteDoisContratados, RETENCOES, somaPagamentos, tipoSimples, type PagamentoDemanda, type ProcessoAdmin } from "@/lib/admin";
+import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, perfilContratacao, permiteDoisContratados, RETENCOES, somaPagamentos, tipoSimples, type PagamentoDemanda, type ProcessoAdmin } from "@/lib/admin";
 import { todayIso, type Andamento } from "@/lib/prazos";
 
 function nascimentoDe(documento: string, valor: unknown, erro: string): string | null {
@@ -127,7 +127,8 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
   const encerramentoInformado = dataOpcional(bruto.encerramento);
   const alerta = Number(bruto.alertaDias);
   if (!Number.isInteger(alerta) || alerta < 0 || alerta > 365) throw new Error("Antecedência inválida");
-  const possuiContrato = status === "execucao";
+  const perfil = perfilContratacao(status);
+  const possuiContrato = perfil.contratado;
   const vigenciaInicio = dataOpcional(bruto.vigenciaInicio);
   const vigenciaFim = dataOpcional(bruto.vigenciaFim);
   const contratado = typeof bruto.contratado === "string" ? bruto.contratado.trim() : "";
@@ -172,10 +173,12 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
   if (retencaoImpostos && retencaoCentavos != null && !pagamentoDemanda && valorMensalCentavos != null && retencaoCentavos > valorMensalCentavos) {
     throw new Error("A retenção não pode ser maior que o valor mensal.");
   }
-  if (modo === "contrato") {
+  if (modo === "contrato" || modo === "contratado") {
     if (!contratado) throw new Error("Informe os dados do contratado.");
-    if (!vigenciaInicio || !vigenciaFim) throw new Error("Informe a vigência do contrato.");
-    if (vigenciaFim < vigenciaInicio) throw new Error("A vigência termina antes de começar.");
+    if (modo === "contrato") {
+      if (!vigenciaInicio || !vigenciaFim) throw new Error("Informe a vigência do contrato.");
+      if (vigenciaFim < vigenciaInicio) throw new Error("A vigência termina antes de começar.");
+    }
     if (valorTotalCentavos == null) throw new Error("Informe o valor anual do contrato.");
     if (!pagamentoDemanda && valorMensalCentavos == null) throw new Error("Informe o valor mensal do contrato.");
   } else if (modo === "total") {
@@ -202,7 +205,7 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
       ? hoje
       : status === "encerrado" && encerramentoInformado
       ? encerramentoInformado
-      : status === "execucao" && vigenciaFim
+      : perfil.fim && vigenciaFim
         ? vigenciaFim
         : previsaoEtapa || bruto.dataInicio || hoje;
   const equipeId = typeof bruto.equipeId === "string" && bruto.equipeId.trim() ? bruto.equipeId.trim().slice(0, 80) : null;
@@ -220,16 +223,16 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     encerramento,
     alertaDias: alerta,
     possuiContrato: !simples && possuiContrato,
-    vigenciaInicio: !simples && possuiContrato ? vigenciaInicio : null,
-    vigenciaFim: !simples && possuiContrato ? vigenciaFim : null,
+    vigenciaInicio: !simples && perfil.fim ? vigenciaInicio : null,
+    vigenciaFim: !simples && perfil.fim ? vigenciaFim : null,
     contratado: guardaContratado ? contratado.slice(0, 160) : "",
     documento: guardaContratado ? documento.slice(0, 24) : "",
     nascimento: guardaContratado ? nascimentoDe(documento, bruto.nascimento, "Informe a data de nascimento.") : null,
     contratado2,
     documento2,
     nascimento2: documento2 ? nascimentoDe(documento2, bruto.nascimento2, "Informe a data de nascimento do segundo contratado.") : null,
-    valorTotalCentavos: modo === "contrato" || modo === "total" ? valorTotalCentavos : null,
-    valorMensalCentavos: pagamentoDemanda ? somaPagamentos(pagamentos) : modo === "contrato" ? valorMensalCentavos : null,
+    valorTotalCentavos: modo === "contrato" || modo === "contratado" || modo === "total" ? valorTotalCentavos : null,
+    valorMensalCentavos: pagamentoDemanda ? somaPagamentos(pagamentos) : modo === "contrato" || modo === "contratado" ? valorMensalCentavos : null,
     valorEstimadoCentavos: pagamentoDemanda || modo !== "estimado" ? null : valorEstimadoCentavos,
     pagamentoDemanda,
     retencaoImpostos,
@@ -358,9 +361,9 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
     previsaoEtapa: previsao,
     encerramento,
     alertaDias: Number(linha.alerta_dias),
-    possuiContrato: status === "execucao" && possui,
-    vigenciaInicio: possui ? dia(linha.vigencia_inicio) : null,
-    vigenciaFim: possui ? dia(linha.vigencia_fim) : null,
+    possuiContrato: perfilContratacao(status).contratado && possui,
+    vigenciaInicio: perfilContratacao(status).fim && possui ? dia(linha.vigencia_inicio) : null,
+    vigenciaFim: perfilContratacao(status).fim && possui ? dia(linha.vigencia_fim) : null,
     contratado: linha.contratado ?? "",
     documento: linha.documento ?? "",
     nascimento: dia(linha.nascimento),

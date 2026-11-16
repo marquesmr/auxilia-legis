@@ -1207,11 +1207,13 @@ export function SecaoStatus({
   const [area, setArea] = useState<"legislativo" | "administrativo">("legislativo");
   const [nome, setNome] = useState("");
   const [encerra, setEncerra] = useState(false);
+  const [pedeContratado, setPedeContratado] = useState(false);
+  const [pedeFim, setPedeFim] = useState(false);
   const [auto, setAuto] = useState(false);
   const [dias, setDias] = useState("30");
   const [destino, setDestino] = useState("");
   const [editando, setEditando] = useState<string | null>(null);
-  const [rascunho, setRascunho] = useState({ nome: "", encerra: false, auto: false, dias: "30", destino: "" });
+  const [rascunho, setRascunho] = useState({ nome: "", encerra: false, auto: false, dias: "30", destino: "", pedeContratado: false, pedeFim: false });
   const [sobre, setSobre] = useState<string | null>(null);
   const daArea = status.filter((item) => item.area === area);
 
@@ -1231,12 +1233,16 @@ export function SecaoStatus({
           area,
           nome,
           encerra,
+          pedeContratado: area === "administrativo" && pedeContratado,
+          pedeFim: area === "administrativo" && pedeFim,
           tramiteDias: area === "administrativo" && auto ? Number(dias) : null,
           tramiteCodigo: area === "administrativo" && auto ? destino : null,
         },
       });
       setNome("");
       setEncerra(false);
+      setPedeContratado(false);
+      setPedeFim(false);
       setAuto(false);
       onAviso("Status criado.");
       onMudou();
@@ -1250,6 +1256,8 @@ export function SecaoStatus({
     setRascunho({
       nome: item.nome,
       encerra: item.encerra,
+      pedeContratado: item.pedeContratado,
+      pedeFim: item.pedeFim,
       auto: item.tramiteDias != null && Boolean(item.tramiteCodigo),
       dias: String(item.tramiteDias ?? 30),
       destino: item.tramiteCodigo ?? "",
@@ -1265,6 +1273,8 @@ export function SecaoStatus({
           id: item.id,
           nome: rascunho.nome,
           encerra: rascunho.encerra,
+          pedeContratado: item.area === "administrativo" && rascunho.pedeContratado,
+          pedeFim: item.area === "administrativo" && rascunho.pedeFim,
           tramiteDias: item.area === "administrativo" && rascunho.auto ? Number(rascunho.dias) : null,
           tramiteCodigo: item.area === "administrativo" && rascunho.auto ? rascunho.destino : null,
         },
@@ -1281,7 +1291,7 @@ export function SecaoStatus({
     <section className="mt-5 rounded-2xl border border-line bg-sheet p-4">
       <h2 className="text-sm font-medium text-ink">Status</h2>
       <p className="mt-1 text-sm text-muted">
-        Crie status novos e edite o nome dos que já existem. Arraste para mudar a hierarquia. No administrativo, um status pode passar sozinho para outro depois de alguns dias corridos.
+        Crie status novos e edite o nome dos que já existem. Arraste para mudar a hierarquia. No administrativo, escolha se o status pede a contratada e se tem data de finalização. Um status também pode passar sozinho para outro depois de alguns dias corridos.
       </p>
       <div className="mt-3 flex gap-2">
         {(["legislativo", "administrativo"] as const).map((opcao) => (
@@ -1304,6 +1314,32 @@ export function SecaoStatus({
           <input type="checkbox" checked={encerra} onChange={(evento) => setEncerra(evento.target.checked)} />
           Este status encerra o processo
         </label>
+        {area === "administrativo" && (
+          <>
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={pedeContratado}
+                onChange={(evento) => {
+                  setPedeContratado(evento.target.checked);
+                  if (!evento.target.checked) setPedeFim(false);
+                }}
+              />
+              Pedir dados da contratada
+            </label>
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={pedeFim}
+                onChange={(evento) => {
+                  setPedeFim(evento.target.checked);
+                  if (evento.target.checked) setPedeContratado(true);
+                }}
+              />
+              Pedir data de finalização
+            </label>
+          </>
+        )}
         {area === "administrativo" && (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label className="flex items-center gap-2 text-sm text-ink">
@@ -1351,6 +1387,26 @@ export function SecaoStatus({
                   </label>
                 )}
                 {item.area === "administrativo" && (
+                  <>
+                    <label className="flex items-center gap-2 text-ink">
+                      <input
+                        type="checkbox"
+                        checked={rascunho.pedeContratado}
+                        onChange={(evento) => setRascunho({ ...rascunho, pedeContratado: evento.target.checked, pedeFim: evento.target.checked ? rascunho.pedeFim : false })}
+                      />
+                      Pedir dados da contratada
+                    </label>
+                    <label className="flex items-center gap-2 text-ink">
+                      <input
+                        type="checkbox"
+                        checked={rascunho.pedeFim}
+                        onChange={(evento) => setRascunho({ ...rascunho, pedeFim: evento.target.checked, pedeContratado: evento.target.checked ? true : rascunho.pedeContratado })}
+                      />
+                      Pedir data de finalização
+                    </label>
+                  </>
+                )}
+                {item.area === "administrativo" && (
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <label className="flex items-center gap-2 text-ink">
                       <input type="checkbox" checked={rascunho.auto} onChange={(evento) => setRascunho({ ...rascunho, auto: evento.target.checked })} />
@@ -1381,6 +1437,8 @@ export function SecaoStatus({
                   <span className="block text-ink">{item.nome}</span>
                   <span className="text-muted">
                     {item.encerra ? "Encerra o processo" : "Em aberto"}
+                    {item.area === "administrativo" && item.pedeContratado ? " · pede contratada" : ""}
+                    {item.area === "administrativo" && item.pedeFim ? " · com data de finalização" : ""}
                     {item.area === "administrativo" && item.tramiteDias && item.tramiteCodigo
                       ? ` · em ${item.tramiteDias} dias vai para ${daArea.find((outro) => outro.codigo === item.tramiteCodigo)?.nome ?? item.tramiteCodigo}`
                       : ""}

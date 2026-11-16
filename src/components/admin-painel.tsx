@@ -27,6 +27,7 @@ import {
   numeroPeca,
   prazoAdminLabel,
   pedePrevisao,
+  perfilContratacao,
   precisaAvisoAdmin,
   reaisParaCentavos,
   RETENCOES,
@@ -251,7 +252,7 @@ function doProcesso(p: ProcessoAdmin): FormAdmin {
     previsao: p.previsaoEtapa ?? p.encerramento,
     encerramento: p.encerramento,
     alertaDias: p.alertaDias,
-    possuiContrato: p.status === "execucao" || p.possuiContrato,
+    possuiContrato: perfilContratacao(p.status).contratado || p.possuiContrato,
     vigenciaInicio: p.vigenciaInicio ?? todayIso(),
     vigenciaFim: p.vigenciaFim ?? p.encerramento,
     contratado: p.contratado,
@@ -349,6 +350,7 @@ function validar(form: FormAdmin): string[] {
     if (form.status !== "cancelado" && !form.parecerNa && numeroPeca(form.parecerNumero) == null) erros.push("Informe o número do parecer do agente de contratações.");
   }
   if (pedePrevisao(form.status) && !form.previsao) erros.push("Informe a data do prazo.");
+  const perfilForm = perfilContratacao(form.status);
   if (form.status === "encerrado") {
     if (!form.encerramento) erros.push("Informe a data de encerramento.");
     else if (form.dataInicio && form.encerramento < form.dataInicio) erros.push("O encerramento não pode ser antes do início.");
@@ -357,10 +359,12 @@ function validar(form: FormAdmin): string[] {
     if (digitos.length !== 11 && digitos.length !== 14) erros.push("Informe o CPF ou o CNPJ.");
     if (digitos.length === 11 && !form.nascimento) erros.push("Informe a data de nascimento.");
     if (reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor da contratação ou aquisição.");
-  } else if (form.status === "execucao") {
+  } else if (perfilForm.contratado) {
     if (!form.contratado.trim()) erros.push("Informe os dados do contratado.");
-    if (!form.vigenciaInicio || !form.vigenciaFim) erros.push("Informe a vigência do contrato.");
-    else if (form.vigenciaFim < form.vigenciaInicio) erros.push("A vigência termina antes de começar.");
+    if (perfilForm.fim) {
+      if (!form.vigenciaInicio || !form.vigenciaFim) erros.push("Informe a vigência do contrato.");
+      else if (form.vigenciaFim < form.vigenciaInicio) erros.push("A vigência termina antes de começar.");
+    }
     if (reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor anual do contrato.");
     if (!form.pagamentoDemanda && reaisParaCentavos(form.valorMensal) == null) erros.push("Informe o valor mensal do contrato.");
     if (form.documento.replace(/\D/g, "").length === 11 && !form.nascimento) erros.push("Informe a data de nascimento.");
@@ -374,7 +378,7 @@ function validar(form: FormAdmin): string[] {
     else if (!RETENCOES.some((item) => item.id === form.retencaoTipo)) erros.push("Informe o tipo da retenção.");
     else if (!form.pagamentoDemanda && mensal != null && retencao > mensal) erros.push("A retenção não pode ser maior que o valor mensal.");
   }
-  if (permiteDoisContratados(form.tipo) && (form.status === "encerrado" || form.status === "execucao")) {
+  if (permiteDoisContratados(form.tipo) && (form.status === "encerrado" || perfilForm.contratado)) {
     const nome2 = form.contratado2.trim();
     const doc2 = form.documento2.replace(/\D/g, "");
     if (nome2 || form.documento2.trim()) {
@@ -400,7 +404,7 @@ function mudancas(antes: ProcessoAdmin, form: FormAdmin): string | null {
   if (antes.status !== form.status) partes.push(`o status para ${statusAdminLabel(form.status)}`);
   if (pedePrevisao(form.status) && (antes.previsaoEtapa ?? "") !== form.previsao) partes.push(`o prazo para ${formatDate(form.previsao)}`);
   if (form.status === "encerrado" && antes.encerramento !== form.encerramento) partes.push(`o encerramento para ${formatDate(form.encerramento)}`);
-  if (form.status === "execucao" && !antes.possuiContrato) partes.push("o contrato");
+  if (perfilContratacao(form.status).contratado && !antes.possuiContrato) partes.push("a contratada");
   if (antes.alertaDias !== form.alertaDias) partes.push("a antecedência do aviso");
   const ciNova = formatarPeca(numeroPeca(form.ciNumero), form.ciAno);
   const parecerNovo = form.parecerNa ? "N/A" : formatarPeca(numeroPeca(form.parecerNumero), form.parecerAno);
@@ -480,7 +484,7 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
       autorNome: base.autorNome,
     };
   }
-  const execucao = form.status === "execucao";
+  const perfil = perfilContratacao(form.status);
   const encerrado = form.status === "encerrado";
   const cancelado = form.status === "cancelado";
   const comValor = encerrado;
@@ -488,7 +492,7 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
   const encerramento =
     form.status === "encerrado"
       ? form.encerramento
-      : execucao
+      : perfil.fim
         ? form.vigenciaFim || form.dataInicio
         : previsao || form.dataInicio;
   const demanda = form.pagamentoDemanda && !cancelado;
@@ -513,18 +517,18 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     previsaoEtapa: previsao,
     encerramento,
     alertaDias: form.alertaDias,
-    possuiContrato: execucao,
-    vigenciaInicio: execucao ? form.vigenciaInicio : null,
-    vigenciaFim: execucao ? form.vigenciaFim : null,
-    contratado: execucao || encerrado ? form.contratado.trim() : "",
-    documento: execucao || encerrado ? form.documento.trim() : "",
-    nascimento: (execucao || encerrado) && form.documento.replace(/\D/g, "").length === 11 ? form.nascimento || null : null,
-    contratado2: (execucao || encerrado) && permiteDoisContratados(form.tipo) ? form.contratado2.trim() : "",
-    documento2: (execucao || encerrado) && permiteDoisContratados(form.tipo) ? form.documento2.trim() : "",
-    nascimento2: (execucao || encerrado) && permiteDoisContratados(form.tipo) && form.documento2.replace(/\D/g, "").length === 11 ? form.nascimento2 || null : null,
-    valorTotalCentavos: comValor || execucao ? reaisParaCentavos(form.valorTotal) : null,
-    valorMensalCentavos: demanda ? somaPagamentos(pagamentos) : execucao ? reaisParaCentavos(form.valorMensal) : null,
-    valorEstimadoCentavos: demanda || execucao || encerrado ? null : reaisParaCentavos(form.valorEstimado),
+    possuiContrato: perfil.contratado,
+    vigenciaInicio: perfil.fim ? form.vigenciaInicio : null,
+    vigenciaFim: perfil.fim ? form.vigenciaFim : null,
+    contratado: perfil.contratado || encerrado ? form.contratado.trim() : "",
+    documento: perfil.contratado || encerrado ? form.documento.trim() : "",
+    nascimento: (perfil.contratado || encerrado) && form.documento.replace(/\D/g, "").length === 11 ? form.nascimento || null : null,
+    contratado2: (perfil.contratado || encerrado) && permiteDoisContratados(form.tipo) ? form.contratado2.trim() : "",
+    documento2: (perfil.contratado || encerrado) && permiteDoisContratados(form.tipo) ? form.documento2.trim() : "",
+    nascimento2: (perfil.contratado || encerrado) && permiteDoisContratados(form.tipo) && form.documento2.replace(/\D/g, "").length === 11 ? form.nascimento2 || null : null,
+    valorTotalCentavos: comValor || perfil.contratado ? reaisParaCentavos(form.valorTotal) : null,
+    valorMensalCentavos: demanda ? somaPagamentos(pagamentos) : perfil.contratado ? reaisParaCentavos(form.valorMensal) : null,
+    valorEstimadoCentavos: demanda || perfil.contratado || encerrado ? null : reaisParaCentavos(form.valorEstimado),
     pagamentoDemanda: demanda,
     retencaoImpostos: form.retencaoImpostos && !cancelado && !tipoSimples(form.tipo),
     retencaoTipo: form.retencaoImpostos && !cancelado && !tipoSimples(form.tipo) ? form.retencaoTipo : "",
@@ -982,22 +986,25 @@ export function AdminPainel({
         atualizado.possuiContrato = false;
       }
     }
-    if (statusMudou && !simples && statusAndamento === "execucao") {
-      if (!vigenciaInicioAnd || !vigenciaFimAnd) {
-        onToast("Informe a vigência do contrato.");
-        return;
+    if (statusMudou && !simples && perfilContratacao(statusAndamento).contratado) {
+      const perfil = perfilContratacao(statusAndamento);
+      if (perfil.fim) {
+        if (!vigenciaInicioAnd || !vigenciaFimAnd) {
+          onToast("Informe a vigência do contrato.");
+          return;
+        }
       }
       const valoresProntos = atual.pagamentoDemanda
         ? atual.valorTotalCentavos != null
         : atual.valorTotalCentavos != null && atual.valorMensalCentavos != null;
       if (!atual.contratado || !valoresProntos) {
-        onToast("Complete contratado e valores em Editar antes de mudar para execução.");
+        onToast(perfil.fim ? "Complete contratado e valores em Editar antes de mudar para execução." : "Complete os dados da contratada em Editar antes de mudar para este status.");
         return;
       }
       atualizado.possuiContrato = true;
-      atualizado.vigenciaInicio = vigenciaInicioAnd;
-      atualizado.vigenciaFim = vigenciaFimAnd;
-      atualizado.encerramento = vigenciaFimAnd;
+      atualizado.vigenciaInicio = perfil.fim ? vigenciaInicioAnd : null;
+      atualizado.vigenciaFim = perfil.fim ? vigenciaFimAnd : null;
+      if (perfil.fim) atualizado.encerramento = vigenciaFimAnd;
     }
     const fraseLink =
       aplicados.length === 0
@@ -1948,7 +1955,7 @@ export function AdminPainel({
                   </Campo>
                 )}
                 {form.status !== "encerrado" && form.status !== "cancelado" && (
-                <Campo label={form.status === "execucao" ? "Avisar dias antes do fim da vigência" : pedePrevisao(form.status) ? "Avisar dias antes do prazo" : "Avisar dias antes da previsão"}>
+                <Campo label={perfilContratacao(form.status).fim ? "Avisar dias antes do fim da vigência" : pedePrevisao(form.status) ? "Avisar dias antes do prazo" : "Avisar dias antes da previsão"}>
                   <select
                     value={form.alertaDias}
                     onChange={(e) => setForm({ ...form, alertaDias: Number(e.target.value) })}
@@ -2019,9 +2026,10 @@ export function AdminPainel({
                     </Campo>
                   </div>
                 )}
-                {form.status === "execucao" && (
+                {perfilContratacao(form.status).contratado && (
                   <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3">
-                    <p className="text-sm text-muted">A execução inclui o contrato. O aviso conta do fim da vigência.</p>
+                    <p className="text-sm text-muted">{perfilContratacao(form.status).fim ? "A execução inclui o contrato. O aviso conta do fim da vigência." : "Informe a contratada. Este status não tem data de finalização."}</p>
+                    {perfilContratacao(form.status).fim && (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Campo label="Vigência — início">
                         <input type="date" value={form.vigenciaInicio} onChange={(e) => setForm({ ...form, vigenciaInicio: e.target.value })} className={inputCls} required />
@@ -2030,6 +2038,7 @@ export function AdminPainel({
                         <input type="date" value={form.vigenciaFim} onChange={(e) => setForm({ ...form, vigenciaFim: e.target.value })} className={inputCls} required />
                       </Campo>
                     </div>
+                    )}
                     <Campo label="Contratado ou fornecedor">
                       <input
                         value={form.contratado}
@@ -2322,7 +2331,7 @@ export function AdminPainel({
                 const simples = atual ? tipoSimples(atual.tipo) : false;
                 const mudou = statusAndamento !== atual?.status;
                 if (simples) return null;
-                if (mudou && statusAndamento === "execucao") {
+                if (mudou && perfilContratacao(statusAndamento).fim) {
                   return (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Campo label="Vigência — início">
@@ -4383,14 +4392,16 @@ function mensalNoRelatorio(item: ProcessoAdmin, inicio: string, fim: string): nu
 
 function semDiaPrazo(p: ProcessoAdmin): boolean {
   if (tipoSimples(p.tipo)) return true;
-  if (p.status === "execucao") return !p.vigenciaFim;
+  const perfil = perfilContratacao(p.status);
+  if (perfil.fim) return !p.vigenciaFim;
+  if (perfil.contratado) return true;
   return !p.previsaoEtapa;
 }
 
 function faixaPrazo(status: string): number {
   if (status === "cancelado") return 3;
   if (encerraStatus("administrativo", status)) return 2;
-  if (status === "execucao") return 1;
+  if (perfilContratacao(status).contratado) return 1;
   return 0;
 }
 

@@ -58,13 +58,15 @@ export const salvarAbaGestao = createServerFn({ method: "POST" })
     return criarAba(data.area, data.nome);
   });
 
-function statusEntrada(bruto: { nome?: unknown; encerra?: unknown; tramiteDias?: unknown; tramiteCodigo?: unknown }) {
+function statusEntrada(bruto: { nome?: unknown; encerra?: unknown; tramiteDias?: unknown; tramiteCodigo?: unknown; pedeContratado?: unknown; pedeFim?: unknown }) {
   const dias = bruto.tramiteDias == null || bruto.tramiteDias === "" ? null : Number(bruto.tramiteDias);
   return {
     nome: typeof bruto.nome === "string" ? bruto.nome : "",
     encerra: Boolean(bruto.encerra),
     tramiteDias: dias != null && Number.isFinite(dias) ? Math.floor(dias) : null,
     tramiteCodigo: typeof bruto.tramiteCodigo === "string" && bruto.tramiteCodigo.trim() ? bruto.tramiteCodigo.trim().slice(0, 40) : null,
+    pedeContratado: bruto.pedeContratado === true,
+    pedeFim: bruto.pedeFim === true,
   };
 }
 

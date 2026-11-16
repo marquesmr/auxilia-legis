@@ -89,10 +89,18 @@ export function tipoSimples(tipo: string): boolean {
   return tipo === "Outros" || tipo === "Doação" || !(MODALIDADES as readonly string[]).includes(tipo);
 }
 
-export function modoValor(tipo: string, status: string): "nenhum" | "total" | "contrato" | "estimado" {
-  if (status === "execucao" && !tipoSimples(tipo)) return "contrato";
+export function perfilContratacao(status: string): { contratado: boolean; fim: boolean } {
+  const item = statusDaArea("administrativo").find((atual) => atual.codigo === status);
+  if (item && (item.pedeContratado || item.pedeFim)) return { contratado: true, fim: item.pedeFim };
+  if (status === "execucao") return { contratado: true, fim: true };
+  return { contratado: false, fim: false };
+}
+
+export function modoValor(tipo: string, status: string): "nenhum" | "total" | "contrato" | "contratado" | "estimado" {
+  const perfil = perfilContratacao(status);
+  if (perfil.contratado && !tipoSimples(tipo)) return perfil.fim ? "contrato" : "contratado";
   if (status === "encerrado" && !tipoSimples(tipo)) return "total";
-  if (status === "execucao" || status === "encerrado") return "nenhum";
+  if (perfil.contratado || status === "encerrado") return "nenhum";
   return "estimado";
 }
 
@@ -216,7 +224,9 @@ const MESES = [
 ];
 
 export function dataAlvo(p: ProcessoAdmin): string {
-  if (p.status === "execucao" && p.vigenciaFim) return p.vigenciaFim;
+  const perfil = perfilContratacao(p.status);
+  if (perfil.fim && p.vigenciaFim) return p.vigenciaFim;
+  if (perfil.contratado) return "9999-12-31";
   if (p.status === "encerrado" && p.encerramento) return p.encerramento;
   if (pedePrevisao(p.status) && p.previsaoEtapa) return p.previsaoEtapa;
   return p.encerramento || p.dataInicio;
@@ -226,7 +236,9 @@ export function marcoAdmin(p: ProcessoAdmin): { rotulo: string; data: string | n
   if (tipoSimples(p.tipo)) return { rotulo: "Status", data: null };
   if (p.status === "cancelado") return { rotulo: "Cancelado", data: null };
   if (encerraStatus("administrativo", p.status)) return { rotulo: statusAdminLabel(p.status), data: p.status === "encerrado" ? p.encerramento : null };
-  if (p.status === "execucao") return { rotulo: "Fim da vigência", data: p.vigenciaFim };
+  const perfil = perfilContratacao(p.status);
+  if (perfil.fim) return { rotulo: "Fim da vigência", data: p.vigenciaFim };
+  if (perfil.contratado) return { rotulo: "Sem data de finalização", data: null };
   return { rotulo: "Prazo", data: p.previsaoEtapa ?? p.encerramento };
 }
 
@@ -234,7 +246,10 @@ export function urgenciaAdmin(p: ProcessoAdmin, now = new Date()): UrgenciaAdmin
   if (p.status === "cancelado") return "cancelado";
   if (encerraStatus("administrativo", p.status)) return "encerrado";
   if (tipoSimples(p.tipo)) return "ok";
-  const dias = daysUntil(dataAlvo(p), now);
+  if (perfilContratacao(p.status).contratado && !perfilContratacao(p.status).fim) return "ok";
+  const alvo = dataAlvo(p);
+  if (!alvo || alvo === "9999-12-31") return "ok";
+  const dias = daysUntil(alvo, now);
   if (dias < 0) return "vencido";
   if (dias === 0) return "hoje";
   if (dias <= p.alertaDias) return "proximo";
@@ -245,8 +260,9 @@ export function prazoAdminLabel(p: ProcessoAdmin, now = new Date()): string {
   if (tipoSimples(p.tipo)) return statusAdminLabel(p.status);
   if (p.status === "cancelado") return "Cancelado";
   if (encerraStatus("administrativo", p.status)) return statusAdminLabel(p.status);
+  if (perfilContratacao(p.status).contratado && !perfilContratacao(p.status).fim) return statusAdminLabel(p.status);
   const dias = daysUntil(dataAlvo(p), now);
-  const qual = p.status === "execucao" ? "Vigência" : "Prazo";
+  const qual = perfilContratacao(p.status).fim ? "Vigência" : "Prazo";
   if (dias < 0) {
     const n = Math.abs(dias);
     return n === 1 ? `${qual} vencida há 1 dia` : `${qual} vencida há ${n} dias`;

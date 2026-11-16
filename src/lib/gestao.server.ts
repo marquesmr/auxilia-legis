@@ -647,6 +647,7 @@ export function marcado(valor: unknown) {
 
 export async function listarStatusCatalogo() {
   const sql = await getSql();
+  await garantirFlagsStatus(sql);
   const linhas = await sql<{
     id: string;
     area: string;
@@ -657,8 +658,10 @@ export async function listarStatusCatalogo() {
     fixo: boolean;
     tramite_dias: number | null;
     tramite_codigo: string | null;
+    pede_contratado: boolean;
+    pede_fim: boolean;
   }>`
-    select id, area, codigo, nome, ordem, encerra, fixo, tramite_dias, tramite_codigo
+    select id, area, codigo, nome, ordem, encerra, fixo, tramite_dias, tramite_codigo, pede_contratado, pede_fim
     from status_catalogo
     order by area asc, ordem asc, nome asc
   `;
@@ -672,7 +675,27 @@ export async function listarStatusCatalogo() {
     fixo: marcado(linha.fixo),
     tramiteDias: linha.tramite_dias == null ? null : Number(linha.tramite_dias),
     tramiteCodigo: linha.tramite_codigo,
+    pedeContratado: marcado(linha.pede_contratado),
+    pedeFim: marcado(linha.pede_fim),
   }));
+}
+
+async function garantirFlagsStatus(sql: Awaited<ReturnType<typeof getSql>>) {
+  await sql`alter table status_catalogo add column if not exists pede_contratado boolean not null default false`;
+  await sql`alter table status_catalogo add column if not exists pede_fim boolean not null default false`;
+  await sql`
+    update status_catalogo
+    set pede_contratado = true, pede_fim = true
+    where area = 'administrativo' and codigo = 'execucao' and pede_contratado = false and pede_fim = false
+  `;
+  await sql`
+    update status_catalogo
+    set pede_contratado = true, pede_fim = false
+    where area = 'administrativo'
+      and pede_contratado = false
+      and pede_fim = false
+      and (codigo = 'homologado' or lower(translate(nome, 'ÁÀÂÃÉÊÍÓÔÕÚÇáàâãéêíóôõúç', 'AAAAEEIOOOUCaaaaeeiooouc')) = 'homologado')
+  `;
 }
 
 export async function criarStatus(entrada: {
@@ -681,21 +704,26 @@ export async function criarStatus(entrada: {
   encerra: boolean;
   tramiteDias: number | null;
   tramiteCodigo: string | null;
+  pedeContratado: boolean;
+  pedeFim: boolean;
 }) {
   const nome = entrada.nome.trim().replace(/\s+/g, " ").slice(0, 60);
   if (nome.length < 2) throw new Error("Dê um nome ao status.");
   const codigo = codigoDoNome(nome);
   if (!codigo) throw new Error("Use um nome com letras ou números.");
   const sql = await getSql();
+  await garantirFlagsStatus(sql);
   const existe = await sql<{ id: string }>`select id from status_catalogo where area = ${entrada.area} and codigo = ${codigo}`;
   if (existe.length) throw new Error("Já existe um status com esse nome.");
   const ordem = await sql<{ n: number }>`select coalesce(max(ordem), 0)::int as n from status_catalogo where area = ${entrada.area}`;
   const tramite = await tramiteOk(sql, entrada.area, codigo, entrada.tramiteDias, entrada.tramiteCodigo);
+  const pedeContratado = entrada.area === "administrativo" && (entrada.pedeContratado || entrada.pedeFim);
+  const pedeFim = entrada.area === "administrativo" && entrada.pedeFim && pedeContratado;
   await sql`
-    insert into status_catalogo (id, area, codigo, nome, ordem, encerra, fixo, tramite_dias, tramite_codigo)
+    insert into status_catalogo (id, area, codigo, nome, ordem, encerra, fixo, tramite_dias, tramite_codigo, pede_contratado, pede_fim)
     values (
       ${crypto.randomUUID()}, ${entrada.area}, ${codigo}, ${nome}, ${Number(ordem[0]?.n ?? 0) + 1},
-      ${entrada.encerra}, false, ${tramite.dias}, ${tramite.codigo}
+      ${entrada.encerra}, false, ${tramite.dias}, ${tramite.codigo}, ${pedeContratado}, ${pedeFim}
     )
   `;
   return { codigo };
@@ -707,10 +735,13 @@ export async function editarStatus(entrada: {
   encerra: boolean;
   tramiteDias: number | null;
   tramiteCodigo: string | null;
+  pedeContratado: boolean;
+  pedeFim: boolean;
 }) {
   const nome = entrada.nome.trim().replace(/\s+/g, " ").slice(0, 60);
   if (nome.length < 2) throw new Error("Dê um nome ao status.");
   const sql = await getSql();
+  await garantirFlagsStatus(sql);
   const atual = await sql<{ area: string; codigo: string; fixo: boolean }>`
     select area, codigo, fixo from status_catalogo where id = ${entrada.id}
   `;
@@ -718,12 +749,16 @@ export async function editarStatus(entrada: {
   const area = atual[0].area === "administrativo" ? "administrativo" : "legislativo";
   const encerraFixo = atual[0].codigo === "concluido" || atual[0].codigo === "encerrado" || atual[0].codigo === "cancelado";
   const tramite = await tramiteOk(sql, area, atual[0].codigo, entrada.tramiteDias, entrada.tramiteCodigo);
+  const pedeContratado = area === "administrativo" && (entrada.pedeContratado || entrada.pedeFim);
+  const pedeFim = area === "administrativo" && entrada.pedeFim && pedeContratado;
   await sql`
     update status_catalogo
     set nome = ${nome},
         encerra = ${encerraFixo ? true : entrada.encerra},
         tramite_dias = ${tramite.dias},
-        tramite_codigo = ${tramite.codigo}
+        tramite_codigo = ${tramite.codigo},
+        pede_contratado = ${pedeContratado},
+        pede_fim = ${pedeFim}
     where id = ${entrada.id}
   `;
   return { ok: true };
