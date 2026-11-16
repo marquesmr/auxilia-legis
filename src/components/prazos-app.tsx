@@ -68,6 +68,7 @@ import { definirStatus, encerraStatus, nomeStatus, statusDaArea } from "@/lib/st
 import { carregarInicio } from "@/lib/inicio.functions";
 import { AvisoContaExcluida } from "@/components/aviso-exclusao";
 import { CalendarioExpediente } from "@/components/calendario-expediente";
+import { RelogioRede } from "@/components/relogio-rede";
 import { MOTIVOS_SAIDA } from "@/lib/motivos-saida";
 import { signOut } from "@/lib/auth/client";
 import { BotaoConfiguracoes } from "@/components/configuracoes";
@@ -1059,6 +1060,7 @@ export function PrazosApp() {
         <h1 className="font-display text-2xl leading-tight text-ink sm:text-3xl">
           {area === "administrativo" ? "Processos Administrativo" : "Processos Legislativos"}
         </h1>
+        <RelogioRede />
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <UserButton />
           <div className="flex items-center gap-2">

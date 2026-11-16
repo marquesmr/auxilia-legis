@@ -21,6 +21,7 @@ import {
 import { SecaoContas, SecaoSistema, SecaoStatus, SecaoUsuarios, novaOrdem } from "@/components/gestao-extra";
 import { CampoSenha } from "@/components/campo-senha";
 import { useConfirmarExclusao } from "@/components/confirmar-exclusao";
+import { RelogioRede } from "@/components/relogio-rede";
 
 export const Route = createFileRoute("/gestao")({ component: Gestao });
 
@@ -488,7 +489,8 @@ function PainelVivo({
               : ""}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <RelogioRede />
           <button
             type="button"
             onClick={() => {
