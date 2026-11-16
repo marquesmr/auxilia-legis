@@ -560,7 +560,7 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
 }
 
 function linhasFornecedorCotacao() {
-  return [0, 1, 2].map(() => ({ id: crypto.randomUUID(), fornecedor: "", documento: "", valor: "" }));
+  return [0, 1, 2].map(() => ({ id: crypto.randomUUID(), fornecedor: "", documento: "", valor: "", data: todayIso() }));
 }
 
 export function AdminPainel({
@@ -603,9 +603,8 @@ export function AdminPainel({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [cotacaoAberta, setCotacaoAberta] = useState(false);
   const [cotacaoProcesso, setCotacaoProcesso] = useState("");
-  const [cotacaoData, setCotacaoData] = useState("");
   const [cotacaoDescricao, setCotacaoDescricao] = useState("");
-  const [cotacaoFornecedores, setCotacaoFornecedores] = useState<{ id: string; fornecedor: string; documento: string; valor: string }[]>(() => linhasFornecedorCotacao());
+  const [cotacaoFornecedores, setCotacaoFornecedores] = useState<{ id: string; fornecedor: string; documento: string; valor: string; data: string }[]>(() => linhasFornecedorCotacao());
   const [andamentoId, setAndamentoId] = useState<string | null>(null);
   const [notaAndamento, setNotaAndamento] = useState("");
   const [statusAndamento, setStatusAndamento] = useState<StatusAdmin>("proposta");
@@ -909,10 +908,6 @@ export function AdminPainel({
       onToast("Selecione o processo.");
       return;
     }
-    if (!cotacaoData) {
-      onToast("Informe a data da cotação.");
-      return;
-    }
     const preenchidas = cotacaoFornecedores.filter((linha) => linha.fornecedor.trim() || linha.documento.trim() || linha.valor.trim());
     if (!preenchidas.length) {
       onToast("Informe ao menos um fornecedor.");
@@ -923,11 +918,11 @@ export function AdminPainel({
       const fornecedor = linha.fornecedor.trim();
       const digitos = linha.documento.replace(/\D/g, "");
       const valor = reaisParaCentavos(linha.valor);
-      if (!fornecedor || (digitos.length !== 11 && digitos.length !== 14) || valor == null || valor <= 0) {
-        onToast("Complete nome, CPF ou CNPJ e valor de cada fornecedor.");
+      if (!fornecedor || (digitos.length !== 11 && digitos.length !== 14) || valor == null || valor <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(linha.data)) {
+        onToast("Complete nome, CPF ou CNPJ, data e valor de cada fornecedor.");
         return;
       }
-      fornecedores.push({ fornecedor, documento: mascaraDocumento(digitos), valorCentavos: valor });
+      fornecedores.push({ fornecedor, documento: mascaraDocumento(digitos), valorCentavos: valor, data: linha.data });
     }
     const atualizado: ProcessoAdmin = {
       ...atual,
@@ -935,7 +930,6 @@ export function AdminPainel({
         ...(atual.cotacoes ?? []),
         {
           id: crypto.randomUUID(),
-          data: cotacaoData,
           descricao: cotacaoDescricao.trim(),
           fornecedores,
         },
@@ -949,7 +943,6 @@ export function AdminPainel({
     );
     setCotacaoFornecedores(linhasFornecedorCotacao());
     setCotacaoDescricao("");
-    setCotacaoData(todayIso());
   }
 
   async function registrarAndamento() {
@@ -1522,7 +1515,6 @@ export function AdminPainel({
                 const primeiro = lista[0];
                 setCotacaoProcesso(primeiro?.id ?? "");
                 setCotacaoFornecedores(linhasFornecedorCotacao());
-                setCotacaoData(todayIso());
                 setCotacaoDescricao("");
                 setCotacaoAberta(true);
               }}
@@ -2635,14 +2627,9 @@ export function AdminPainel({
                     ))}
                 </select>
               </label>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Campo label="Data">
-                  <input type="date" value={cotacaoData} onChange={(evento) => setCotacaoData(evento.target.value)} className={inputCls} />
-                </Campo>
-                <Campo label="Descrição">
-                  <input value={cotacaoDescricao} onChange={(evento) => setCotacaoDescricao(evento.target.value)} className={inputCls} placeholder="Opcional" />
-                </Campo>
-              </div>
+              <Campo label="Descrição">
+                <input value={cotacaoDescricao} onChange={(evento) => setCotacaoDescricao(evento.target.value)} className={inputCls} placeholder="Opcional" />
+              </Campo>
               <div className="flex flex-col gap-3">
                 {cotacaoFornecedores.map((linha, indice) => (
                   <div key={linha.id} className="rounded-xl border border-line p-3">
@@ -2658,7 +2645,7 @@ export function AdminPainel({
                         </button>
                       )}
                     </div>
-                    <div className="grid gap-3 md:grid-cols-3">
+                    <div className="grid gap-3 md:grid-cols-4">
                       <Campo label="Nome">
                         <input
                           value={linha.fornecedor}
@@ -2680,6 +2667,16 @@ export function AdminPainel({
                           placeholder="000.000.000-00"
                         />
                       </Campo>
+                      <Campo label="Data">
+                        <input
+                          type="date"
+                          value={linha.data}
+                          onChange={(evento) =>
+                            setCotacaoFornecedores((atual) => atual.map((item) => (item.id === linha.id ? { ...item, data: evento.target.value } : item)))
+                          }
+                          className={inputCls}
+                        />
+                      </Campo>
                       <Campo label="Valor">
                         <input
                           value={linha.valor}
@@ -2696,7 +2693,7 @@ export function AdminPainel({
                 ))}
                 <button
                   type="button"
-                  onClick={() => setCotacaoFornecedores((atual) => [...atual, { id: crypto.randomUUID(), fornecedor: "", documento: "", valor: "" }])}
+                  onClick={() => setCotacaoFornecedores((atual) => [...atual, { id: crypto.randomUUID(), fornecedor: "", documento: "", valor: "", data: todayIso() }])}
                   className="inline-flex h-11 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink"
                 >
                   Outro fornecedor
@@ -2708,10 +2705,9 @@ export function AdminPainel({
                     .find((item) => item.id === cotacaoProcesso)
                     ?.cotacoes.map((item) => (
                       <li key={item.id} className="text-ink">
-                        <span className="font-medium">{formatDate(item.data)}</span>
-                        {item.descricao ? ` · ${item.descricao}` : ""}
-                        <span className="mt-0.5 block text-muted">
-                          {item.fornecedores.map((fornecedor) => `${fornecedor.fornecedor} (${formatarReais(fornecedor.valorCentavos)})`).join(" · ")}
+                        {item.descricao ? <span className="font-medium">{item.descricao}</span> : null}
+                        <span className={"block text-muted" + (item.descricao ? " mt-0.5" : "")}>
+                          {item.fornecedores.map((fornecedor) => `${formatDate(fornecedor.data)} · ${fornecedor.fornecedor} (${formatarReais(fornecedor.valorCentavos)})`).join(" · ")}
                         </span>
                       </li>
                     ))}
@@ -2949,10 +2945,9 @@ function CardAdmin({
                   <ul className="mt-2 flex max-h-40 flex-col gap-2 overflow-y-auto text-sm">
                     {processo.cotacoes.map((item) => (
                       <li key={item.id} className="text-ink">
-                        <span className="font-medium">{formatDate(item.data)}</span>
-                        {item.descricao ? ` · ${item.descricao}` : ""}
-                        <span className="mt-0.5 block text-muted">
-                          {item.fornecedores.map((fornecedor) => `${fornecedor.fornecedor} (${formatarReais(fornecedor.valorCentavos)})`).join(" · ")}
+                        {item.descricao ? <span className="font-medium">{item.descricao}</span> : null}
+                        <span className={"block text-muted" + (item.descricao ? " mt-0.5" : "")}>
+                          {item.fornecedores.map((fornecedor) => `${formatDate(fornecedor.data)} · ${fornecedor.fornecedor} (${formatarReais(fornecedor.valorCentavos)})`).join(" · ")}
                         </span>
                       </li>
                     ))}

@@ -61,36 +61,36 @@ function centavosOk(value: unknown): number | null {
   return n;
 }
 
-function fornecedorCotacaoOk(item: unknown): { fornecedor: string; documento: string; valorCentavos: number } | null {
+function fornecedorCotacaoOk(item: unknown, dataPadrao: string): { fornecedor: string; documento: string; valorCentavos: number; data: string } | null {
   if (!item || typeof item !== "object") return null;
-  const bruto = item as { fornecedor?: unknown; documento?: unknown; valorCentavos?: unknown };
+  const bruto = item as { fornecedor?: unknown; documento?: unknown; valorCentavos?: unknown; data?: unknown };
   const valor = centavosOk(bruto.valorCentavos);
   const fornecedor = typeof bruto.fornecedor === "string" ? bruto.fornecedor.trim().slice(0, 160) : "";
   const documento = typeof bruto.documento === "string" ? bruto.documento.trim().slice(0, 24) : "";
+  const data = typeof bruto.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(bruto.data) ? bruto.data : dataPadrao;
   const digitos = documento.replace(/\D/g, "");
-  if (valor == null || valor <= 0 || !fornecedor) return null;
+  if (valor == null || valor <= 0 || !fornecedor || !data) return null;
   if (digitos.length !== 11 && digitos.length !== 14) return null;
-  return { fornecedor, documento, valorCentavos: valor };
+  return { fornecedor, documento, valorCentavos: valor, data };
 }
 
 function cotacoesOk(value: unknown): Cotacao[] {
   const lista = Array.isArray(value) ? value : [];
   return lista.slice(0, 100).flatMap((item) => {
     if (!item || typeof item !== "object") return [];
-    const bruto = item as Partial<Cotacao> & { fornecedor?: unknown; documento?: unknown; valorCentavos?: unknown };
-    const data = typeof bruto.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(bruto.data) ? bruto.data : "";
-    if (!data) return [];
+    const bruto = item as Partial<Cotacao> & { data?: unknown; fornecedor?: unknown; documento?: unknown; valorCentavos?: unknown };
+    const dataGeral = typeof bruto.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(bruto.data) ? bruto.data : "";
     const id = typeof bruto.id === "string" && bruto.id.trim() ? bruto.id.trim().slice(0, 80) : crypto.randomUUID();
     const descricao = typeof bruto.descricao === "string" ? bruto.descricao.trim().slice(0, 200) : "";
     const origem = Array.isArray(bruto.fornecedores)
       ? bruto.fornecedores
-      : [{ fornecedor: bruto.fornecedor, documento: bruto.documento, valorCentavos: bruto.valorCentavos }];
+      : [{ fornecedor: bruto.fornecedor, documento: bruto.documento, valorCentavos: bruto.valorCentavos, data: dataGeral }];
     const fornecedores = origem.slice(0, 30).flatMap((linha) => {
-      const ok = fornecedorCotacaoOk(linha);
+      const ok = fornecedorCotacaoOk(linha, dataGeral);
       return ok ? [ok] : [];
     });
     if (!fornecedores.length) return [];
-    return [{ id, data, descricao, fornecedores }];
+    return [{ id, descricao, fornecedores }];
   });
 }
 

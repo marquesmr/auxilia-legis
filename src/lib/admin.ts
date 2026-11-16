@@ -147,11 +147,11 @@ export type FornecedorCotacao = {
   fornecedor: string;
   documento: string;
   valorCentavos: number;
+  data: string;
 };
 
 export type Cotacao = {
   id: string;
-  data: string;
   descricao: string;
   fornecedores: FornecedorCotacao[];
 };
