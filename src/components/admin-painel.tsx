@@ -3108,7 +3108,7 @@ function PainelDocumentos({
 }) {
   const [processoId, setProcessoId] = useState("");
   const [escolhaAberta, setEscolhaAberta] = useState(false);
-  const [tipoDoc, setTipoDoc] = useState<"capa" | "extrato" | "termo" | "parecer" | null>(null);
+  const [tipoDoc, setTipoDoc] = useState<"capa" | "extrato" | "termo" | "parecer" | "preco" | null>(null);
   const [precoAberto, setPrecoAberto] = useState(false);
   const [extratoAberto, setExtratoAberto] = useState(false);
   const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string; contrato: boolean }[]>([]);
@@ -3147,7 +3147,7 @@ function PainelDocumentos({
       .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível carregar o timbrado."));
   }
 
-  function abrirTipo(tipo: "capa" | "extrato" | "termo" | "parecer") {
+  function abrirTipo(tipo: "capa" | "extrato" | "termo" | "parecer" | "preco") {
     if (ordenados.length === 0) return;
     setTipoDoc(tipo);
     setProcessoId((atual) => (ordenados.some((item) => item.id === atual) ? atual : ordenados[0].id));
@@ -3177,6 +3177,10 @@ function PainelDocumentos({
       prepararTimbre(escolhido, () => setTermoAberto(true));
       return;
     }
+    if (tipoDoc === "preco") {
+      setPrecoAberto(true);
+      return;
+    }
     setParecerFundamento(fundamentoInicial(escolhido.tipo));
     prepararTimbre(escolhido, () => setParecerAberto(true));
   }
@@ -3198,8 +3202,8 @@ function PainelDocumentos({
           <button
             key={botao.tipo}
             type="button"
-            disabled={botao.tipo !== "preco" && ordenados.length === 0}
-            onClick={() => (botao.tipo === "preco" ? setPrecoAberto(true) : abrirTipo(botao.tipo))}
+            disabled={ordenados.length === 0}
+            onClick={() => abrirTipo(botao.tipo)}
             className="flex aspect-square flex-col items-center justify-center gap-3 rounded-2xl bg-pine px-3 text-center text-sm font-medium text-sheet disabled:opacity-50"
           >
             {botao.icone}
@@ -3229,9 +3233,30 @@ function PainelDocumentos({
       <Dialog.Root open={precoAberto} onOpenChange={setPrecoAberto}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 max-h-[85vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-lg md:-translate-x-1/2">
             <Dialog.Title className="font-display text-2xl text-ink">Justificativa de preço</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted">O texto deste documento ainda não foi definido. Assim que chegar, a justificativa sai por aqui.</Dialog.Description>
+            <Dialog.Description className="mt-1 text-sm text-muted">
+              {processo ? `As cotações de ${rotuloLista(processo)} entram neste documento.` : "Escolha o processo para vincular as cotações."}
+            </Dialog.Description>
+            {processo && (processo.cotacoes?.length ?? 0) > 0 ? (
+              <ul className="mt-4 flex flex-col gap-2 text-sm">
+                {processo.cotacoes.map((cotacao) => (
+                  <li key={cotacao.id} className="rounded-xl border border-line bg-paper px-3 py-2 text-ink">
+                    {cotacao.descricao ? <p className="font-medium">{cotacao.descricao}</p> : null}
+                    <ul className="mt-1 flex flex-col gap-0.5 text-muted">
+                      {cotacao.fornecedores.map((fornecedor, ordem) => (
+                        <li key={`${cotacao.id}-${ordem}`}>
+                          {formatDate(fornecedor.data)} · {fornecedor.fornecedor} · {formatarReais(fornecedor.valorCentavos)}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 text-sm text-muted">Este processo ainda não tem cotação. Lance em Cotações para ela aparecer aqui.</p>
+            )}
+            <p className="mt-4 text-sm text-muted">O texto do documento entra assim que for definido. A vinculação das cotações já fica pronta.</p>
             <Dialog.Close type="button" className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">Fechar</Dialog.Close>
           </Dialog.Content>
         </Dialog.Portal>
