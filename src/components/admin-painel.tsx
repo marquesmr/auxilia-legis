@@ -902,6 +902,21 @@ export function AdminPainel({
     persistir([criado, ...base], criado, null, "Processo administrativo lançado");
   }
 
+  function aoDocumentoCotacao(id: string, texto: string) {
+    const documento = mascaraDocumento(texto);
+    const digitos = documento.replace(/\D/g, "");
+    setCotacaoFornecedores((atual) => atual.map((item) => (item.id === id ? { ...item, documento } : item)));
+    if (digitos.length !== 14) return;
+    void consultarDocumento({ data: { documento: digitos, nascimento: "" } })
+      .then((consulta) => {
+        if (consulta.tipo !== "cnpj" || !consulta.razaoSocial) return;
+        setCotacaoFornecedores((atual) =>
+          atual.map((item) => (item.id === id && item.documento.replace(/\D/g, "") === digitos ? { ...item, fornecedor: consulta.razaoSocial } : item)),
+        );
+      })
+      .catch(() => undefined);
+  }
+
   function lancarCotacao() {
     const atual = listaViva.current.find((item) => item.id === cotacaoProcesso);
     if (!atual) {
@@ -2659,9 +2674,7 @@ export function AdminPainel({
                       <Campo label="CPF ou CNPJ">
                         <input
                           value={linha.documento}
-                          onChange={(evento) =>
-                            setCotacaoFornecedores((atual) => atual.map((item) => (item.id === linha.id ? { ...item, documento: mascaraDocumento(evento.target.value) } : item)))
-                          }
+                          onChange={(evento) => aoDocumentoCotacao(linha.id, evento.target.value)}
                           className={inputCls}
                           inputMode="numeric"
                           placeholder="000.000.000-00"
