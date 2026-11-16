@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, Check, Copy, FilePen, FileText, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, Check, CircleDollarSign, Copy, FilePen, FileText, Files, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -60,7 +60,7 @@ import { encerraStatus, listaCodigos } from "@/lib/status-catalogo";
 
 type FiltroAdmin = string;
 type OrdemAdmin = "numero" | "tipo" | "encerramento";
-type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres" | "links" | "cnpj" | "lei";
+type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres" | "links" | "cnpj" | "lei" | "documentos";
 type StatusRelatorio = "todos" | StatusAdmin;
 type ModoRelatorio = "processos" | "pecas" | "pagamentos";
 
@@ -1417,6 +1417,10 @@ export function AdminPainel({
                 <FileText className="size-4" />
                 Relatório
               </GuiaBotao>
+              <GuiaBotao ativo={guia === "documentos"} onClick={() => setGuia("documentos")} className="min-w-fit flex-1 xl:flex-none">
+                <Files className="size-4" />
+                Documentos
+              </GuiaBotao>
               <GuiaBotao ativo={guia === "comunicacoes"} onClick={() => setGuia("comunicacoes")} className="min-w-fit flex-1 xl:flex-none">
                 Comunicações Internas
               </GuiaBotao>
@@ -1452,12 +1456,14 @@ export function AdminPainel({
           </button>
         </div>
 
-        {!pronto && guia !== "cnpj" && guia !== "lei" ? (
+        {!pronto && guia !== "cnpj" && guia !== "lei" && guia !== "documentos" ? (
           <p className="text-sm text-muted">Carregando processos administrativos…</p>
         ) : guia === "lei" ? (
           <LeiLicitacoes />
         ) : guia === "cnpj" ? (
           <PainelConsulta mostrarNascimento />
+        ) : guia === "documentos" ? (
+          <PainelDocumentos processos={lista} equipes={equipes} />
         ) : guia === "estatisticas" ? (
           <GraficoAdmin processos={lista} />
         ) : guia === "comunicacoes" ? (
@@ -2586,42 +2592,8 @@ function CardAdmin({
 }) {
   const [detalhes, setDetalhes] = useState(false);
   const [historicoAberto, setHistoricoAberto] = useState(false);
-  const [extratoAberto, setExtratoAberto] = useState(false);
-  const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string; contrato: boolean }[]>([]);
-  const [extratoEscolha, setExtratoEscolha] = useState("");
-  const [capaAberta, setCapaAberta] = useState(false);
-  const [idsCapa, setIdsCapa] = useState<{ id: string; volume: boolean; numero: string }[]>([]);
-  const [capaEscolha, setCapaEscolha] = useState("");
-  const [volumeCapa, setVolumeCapa] = useState(false);
-  const [numeroVolume, setNumeroVolume] = useState("");
-  const [erroVolume, setErroVolume] = useState("");
-  const [termoAberto, setTermoAberto] = useState(false);
-  const [termoAssinante, setTermoAssinante] = useState("");
-  const [termoFuncao, setTermoFuncao] = useState("");
-  const [termoTimbre, setTermoTimbre] = useState<TimbradoEquipe | null>(null);
-  const [termoAviso, setTermoAviso] = useState("");
-  const [parecerAberto, setParecerAberto] = useState(false);
-  const [parecerFundamento, setParecerFundamento] = useState("");
   const [moverAberto, setMoverAberto] = useState(false);
   const u = urgenciaAdmin(processo);
-  function prepararTimbre(abrir: () => void) {
-    const equipeId = processo.equipeId;
-    setTermoAssinante("");
-    setTermoFuncao("");
-    setTermoTimbre(null);
-    abrir();
-    if (!equipeId) {
-      setTermoAviso("Mova o processo para uma equipe. O timbrado é o da equipe.");
-      return;
-    }
-    setTermoAviso("");
-    void lerTimbradoEquipe({ data: equipeId })
-      .then((timbre) => {
-        setTermoTimbre(timbre);
-        if (!timbre) setTermoAviso("Esta equipe ainda não tem timbrado na área restrita.");
-      })
-      .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível carregar o timbrado."));
-  }
   const tom = TOM[u];
   return (
     <li
@@ -2684,16 +2656,16 @@ function CardAdmin({
           </div>
         )}
       </div>
-      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) { setHistoricoAberto(false); setExtratoAberto(false); setCapaAberta(false); setTermoAberto(false); setParecerAberto(false); } }}>
+      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) setHistoricoAberto(false); }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
           <Dialog.Content
             className="fixed inset-x-3 top-4 bottom-4 z-20 flex flex-col overflow-hidden rounded-2xl border border-line bg-sheet md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[90vh] md:w-full md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2"
             onInteractOutside={(evento) => {
-              if (historicoAberto || extratoAberto || capaAberta || termoAberto || parecerAberto) evento.preventDefault();
+              if (historicoAberto) evento.preventDefault();
             }}
             onPointerDownOutside={(evento) => {
-              if (historicoAberto || extratoAberto || capaAberta || termoAberto || parecerAberto) evento.preventDefault();
+              if (historicoAberto) evento.preventDefault();
             }}
           >
             <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
@@ -2724,48 +2696,6 @@ function CardAdmin({
                   largo
                   justificar
                   copiar
-                  extra={
-                    <span className="ml-auto flex flex-wrap justify-end gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIdsCapa([]);
-                          setCapaEscolha("");
-                          setVolumeCapa(false);
-                          setNumeroVolume("");
-                          setErroVolume("");
-                          setCapaAberta(true);
-                        }}
-                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-xs font-medium text-ink"
-                      >
-                        <Printer className="size-3.5" />
-                        Imprimir Capa
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setItensExtrato([{ id: processo.id, fundamento: fundamentoInicial(processo.tipo), assinatura: processo.vigenciaInicio ?? "", contrato: extratoPadraoContrato(processo) }]);
-                          setExtratoEscolha("");
-                          setExtratoAberto(true);
-                        }}
-                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-xs font-medium text-ink"
-                      >
-                        <FileText className="size-3.5" />
-                        Extrato
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setParecerFundamento(fundamentoInicial(processo.tipo));
-                          prepararTimbre(() => setParecerAberto(true));
-                        }}
-                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-xs font-medium text-ink"
-                      >
-                        <Scale className="size-3.5" />
-                        Solicitação de Parecer
-                      </button>
-                    </span>
-                  }
                 />
                 <Info rotulo="Comunicação interna" valor={processo.ciNumero != null ? formatarPeca(processo.ciNumero, processo.ciAno) : "—"} />
                 <Info rotulo="Origem da CI" valor={processo.ciOrigem || "—"} />
@@ -2890,13 +2820,6 @@ function CardAdmin({
                   )}
                 </ol>
               )}
-              <button
-                type="button"
-                onClick={() => prepararTimbre(() => setTermoAberto(true))}
-                className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl border border-line text-sm font-medium text-ink"
-              >
-                Termo de Encerramento
-              </button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>
@@ -2937,6 +2860,149 @@ function CardAdmin({
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+    </li>
+  );
+}
+
+function PainelDocumentos({
+  processos,
+  equipes,
+}: {
+  processos: ProcessoAdmin[];
+  equipes: { id: string; nome: string; membros?: { nome: string }[] }[];
+}) {
+  const [processoId, setProcessoId] = useState("");
+  const [escolhaAberta, setEscolhaAberta] = useState(false);
+  const [tipoDoc, setTipoDoc] = useState<"capa" | "extrato" | "termo" | "parecer" | null>(null);
+  const [precoAberto, setPrecoAberto] = useState(false);
+  const [extratoAberto, setExtratoAberto] = useState(false);
+  const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string; contrato: boolean }[]>([]);
+  const [extratoEscolha, setExtratoEscolha] = useState("");
+  const [capaAberta, setCapaAberta] = useState(false);
+  const [idsCapa, setIdsCapa] = useState<{ id: string; volume: boolean; numero: string }[]>([]);
+  const [capaEscolha, setCapaEscolha] = useState("");
+  const [volumeCapa, setVolumeCapa] = useState(false);
+  const [numeroVolume, setNumeroVolume] = useState("");
+  const [erroVolume, setErroVolume] = useState("");
+  const [termoAberto, setTermoAberto] = useState(false);
+  const [termoAssinante, setTermoAssinante] = useState("");
+  const [termoFuncao, setTermoFuncao] = useState("");
+  const [termoTimbre, setTermoTimbre] = useState<TimbradoEquipe | null>(null);
+  const [termoAviso, setTermoAviso] = useState("");
+  const [parecerAberto, setParecerAberto] = useState(false);
+  const [parecerFundamento, setParecerFundamento] = useState("");
+  const processo = processos.find((item) => item.id === processoId) ?? null;
+  const ordenados = [...processos].sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
+
+  function prepararTimbre(alvo: ProcessoAdmin, abrir: () => void) {
+    setTermoAssinante("");
+    setTermoFuncao("");
+    setTermoTimbre(null);
+    abrir();
+    if (!alvo.equipeId) {
+      setTermoAviso("Mova o processo para uma equipe. O timbrado é o da equipe.");
+      return;
+    }
+    setTermoAviso("");
+    void lerTimbradoEquipe({ data: alvo.equipeId })
+      .then((timbre) => {
+        setTermoTimbre(timbre);
+        if (!timbre) setTermoAviso("Esta equipe ainda não tem timbrado na área restrita.");
+      })
+      .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível carregar o timbrado."));
+  }
+
+  function abrirTipo(tipo: "capa" | "extrato" | "termo" | "parecer") {
+    if (ordenados.length === 0) return;
+    setTipoDoc(tipo);
+    setProcessoId((atual) => (ordenados.some((item) => item.id === atual) ? atual : ordenados[0].id));
+    setEscolhaAberta(true);
+  }
+
+  function confirmarProcesso() {
+    const escolhido = ordenados.find((item) => item.id === processoId);
+    if (!escolhido || !tipoDoc) return;
+    setEscolhaAberta(false);
+    if (tipoDoc === "capa") {
+      setIdsCapa([]);
+      setCapaEscolha("");
+      setVolumeCapa(false);
+      setNumeroVolume("");
+      setErroVolume("");
+      setCapaAberta(true);
+      return;
+    }
+    if (tipoDoc === "extrato") {
+      setItensExtrato([{ id: escolhido.id, fundamento: fundamentoInicial(escolhido.tipo), assinatura: escolhido.vigenciaInicio ?? "", contrato: extratoPadraoContrato(escolhido) }]);
+      setExtratoEscolha("");
+      setExtratoAberto(true);
+      return;
+    }
+    if (tipoDoc === "termo") {
+      prepararTimbre(escolhido, () => setTermoAberto(true));
+      return;
+    }
+    setParecerFundamento(fundamentoInicial(escolhido.tipo));
+    prepararTimbre(escolhido, () => setParecerAberto(true));
+  }
+
+  const botoes: { tipo: "capa" | "extrato" | "termo" | "parecer" | "preco"; rotulo: string; icone: ReactNode }[] = [
+    { tipo: "capa", rotulo: "Imprimir capa", icone: <Printer className="size-7" /> },
+    { tipo: "extrato", rotulo: "Extrato", icone: <FileText className="size-7" /> },
+    { tipo: "termo", rotulo: "Termo de encerramento", icone: <FilePen className="size-7" /> },
+    { tipo: "parecer", rotulo: "Solicitação de parecer", icone: <Scale className="size-7" /> },
+    { tipo: "preco", rotulo: "Justificativa de preço", icone: <CircleDollarSign className="size-7" /> },
+  ];
+
+  return (
+    <div>
+      <h2 className="font-display text-2xl text-ink">Documentos</h2>
+      <p className="mt-1 text-sm text-muted">Escolha o documento. Em seguida, o processo.</p>
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        {botoes.map((botao) => (
+          <button
+            key={botao.tipo}
+            type="button"
+            disabled={botao.tipo !== "preco" && ordenados.length === 0}
+            onClick={() => (botao.tipo === "preco" ? setPrecoAberto(true) : abrirTipo(botao.tipo))}
+            className="flex aspect-square flex-col items-center justify-center gap-3 rounded-2xl bg-pine px-3 text-center text-sm font-medium text-sheet disabled:opacity-50"
+          >
+            {botao.icone}
+            <span>{botao.rotulo}</span>
+          </button>
+        ))}
+      </div>
+      {ordenados.length === 0 ? <p className="mt-4 text-sm text-muted">Não há processo para gerar documento.</p> : null}
+      <Dialog.Root open={escolhaAberta} onOpenChange={setEscolhaAberta}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Qual processo?</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted">O documento sai com os dados deste processo.</Dialog.Description>
+            <select value={processoId} onChange={(evento) => setProcessoId(evento.target.value)} className={inputCls + " mt-4 font-normal"}>
+              {ordenados.map((item) => (
+                <option key={item.id} value={item.id}>{rotuloLista(item)}</option>
+              ))}
+            </select>
+            <div className="mt-4 flex gap-2">
+              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">Cancelar</Dialog.Close>
+              <button type="button" onClick={confirmarProcesso} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">Continuar</button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      <Dialog.Root open={precoAberto} onOpenChange={setPrecoAberto}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Justificativa de preço</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted">O texto deste documento ainda não foi definido. Assim que chegar, a justificativa sai por aqui.</Dialog.Description>
+            <Dialog.Close type="button" className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">Fechar</Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      {processo ? (
+        <>
       <Dialog.Root open={capaAberta} onOpenChange={setCapaAberta}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
@@ -3332,7 +3398,9 @@ function CardAdmin({
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-    </li>
+        </>
+      ) : null}
+    </div>
   );
 }
 
