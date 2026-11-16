@@ -2947,28 +2947,28 @@ function PainelDocumentos({
   }
 
   const botoes: { tipo: "capa" | "extrato" | "termo" | "parecer" | "preco"; rotulo: string; icone: ReactNode }[] = [
-    { tipo: "capa", rotulo: "Imprimir capa", icone: <Printer className="size-7" /> },
-    { tipo: "extrato", rotulo: "Extrato", icone: <FileText className="size-7" /> },
-    { tipo: "termo", rotulo: "Termo de encerramento", icone: <FilePen className="size-7" /> },
-    { tipo: "parecer", rotulo: "Solicitação de parecer", icone: <Scale className="size-7" /> },
-    { tipo: "preco", rotulo: "Justificativa de preço", icone: <CircleDollarSign className="size-7" /> },
+    { tipo: "capa", rotulo: "Imprimir capa", icone: <Printer className="size-4" /> },
+    { tipo: "extrato", rotulo: "Extrato", icone: <FileText className="size-4" /> },
+    { tipo: "termo", rotulo: "Termo de encerramento", icone: <FilePen className="size-4" /> },
+    { tipo: "parecer", rotulo: "Solicitação de parecer", icone: <Scale className="size-4" /> },
+    { tipo: "preco", rotulo: "Justificativa de preço", icone: <CircleDollarSign className="size-4" /> },
   ];
 
   return (
     <div>
       <h2 className="font-display text-2xl text-ink">Documentos</h2>
       <p className="mt-1 text-sm text-muted">Escolha o documento. Em seguida, o processo.</p>
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      <div className="mt-4 flex flex-wrap gap-3">
         {botoes.map((botao) => (
           <button
             key={botao.tipo}
             type="button"
             disabled={botao.tipo !== "preco" && ordenados.length === 0}
             onClick={() => (botao.tipo === "preco" ? setPrecoAberto(true) : abrirTipo(botao.tipo))}
-            className="flex aspect-square flex-col items-center justify-center gap-3 rounded-2xl bg-pine px-3 text-center text-sm font-medium text-sheet disabled:opacity-50"
+            className="inline-flex h-11 min-w-40 items-center justify-center gap-2 rounded-xl bg-pine px-4 text-sm font-medium text-sheet disabled:opacity-50"
           >
             {botao.icone}
-            <span>{botao.rotulo}</span>
+            {botao.rotulo}
           </button>
         ))}
       </div>
