@@ -60,7 +60,7 @@ import { encerraStatus, listaCodigos } from "@/lib/status-catalogo";
 
 type FiltroAdmin = string;
 type OrdemAdmin = "numero" | "tipo" | "encerramento";
-type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres" | "links" | "cnpj" | "lei" | "documentos";
+type GuiaAdmin = "lista" | "estatisticas" | "relatorio" | "comunicacoes" | "setores" | "pareceres" | "links" | "cnpj" | "lei" | "documentos" | "cotacoes";
 type StatusRelatorio = "todos" | StatusAdmin;
 type ModoRelatorio = "processos" | "pecas" | "pagamentos";
 
@@ -563,6 +563,133 @@ function linhasFornecedorCotacao() {
   return [0, 1, 2].map(() => ({ id: crypto.randomUUID(), fornecedor: "", documento: "", valor: "", data: todayIso() }));
 }
 
+type LinhaFornecedorCotacao = ReturnType<typeof linhasFornecedorCotacao>[number];
+
+function TelaCotacoes({
+  processos,
+  processoId,
+  onProcesso,
+  descricao,
+  onDescricao,
+  fornecedores,
+  onFornecedores,
+  onDocumento,
+  onLancar,
+}: {
+  processos: ProcessoAdmin[];
+  processoId: string;
+  onProcesso: (id: string) => void;
+  descricao: string;
+  onDescricao: (valor: string) => void;
+  fornecedores: LinhaFornecedorCotacao[];
+  onFornecedores: (valor: LinhaFornecedorCotacao[] | ((atual: LinhaFornecedorCotacao[]) => LinhaFornecedorCotacao[])) => void;
+  onDocumento: (id: string, texto: string) => void;
+  onLancar: () => void;
+}) {
+  const ordenados = [...processos].sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
+  const lancadas = ordenados.flatMap((processo) => (processo.cotacoes ?? []).map((cotacao) => ({ processo, cotacao })));
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h2 className="font-display text-2xl text-ink">Cotações</h2>
+        <p className="mt-1 text-sm text-muted">Lance a cotação e veja em qual processo cada uma está vinculada.</p>
+      </div>
+      <div className="flex flex-col gap-3 rounded-2xl border border-line bg-sheet p-4">
+        <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+          Processo
+          <select value={processoId} onChange={(evento) => onProcesso(evento.target.value)} className={inputCls + " font-normal"}>
+            {ordenados.length === 0 && <option value="">Nenhum processo</option>}
+            {ordenados.map((item) => (
+              <option key={item.id} value={item.id}>
+                {rotuloLista(item)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Campo label="Descrição">
+          <input value={descricao} onChange={(evento) => onDescricao(evento.target.value)} className={inputCls} placeholder="Opcional" />
+        </Campo>
+        {fornecedores.map((linha, indice) => (
+          <div key={linha.id} className="rounded-xl border border-line p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-medium text-ink">Fornecedor {indice + 1}</p>
+              {fornecedores.length > 1 && (
+                <button type="button" onClick={() => onFornecedores((atual) => atual.filter((item) => item.id !== linha.id))} className="text-sm font-medium text-seal">
+                  Remover
+                </button>
+              )}
+            </div>
+            <div className="grid gap-3 md:grid-cols-4">
+              <Campo label="Nome">
+                <input
+                  value={linha.fornecedor}
+                  onChange={(evento) => onFornecedores((atual) => atual.map((item) => (item.id === linha.id ? { ...item, fornecedor: evento.target.value } : item)))}
+                  className={inputCls}
+                  placeholder="Nome ou razão social"
+                />
+              </Campo>
+              <Campo label="CPF ou CNPJ">
+                <input value={linha.documento} onChange={(evento) => onDocumento(linha.id, evento.target.value)} className={inputCls} inputMode="numeric" placeholder="000.000.000-00" />
+              </Campo>
+              <Campo label="Data">
+                <input
+                  type="date"
+                  value={linha.data}
+                  onChange={(evento) => onFornecedores((atual) => atual.map((item) => (item.id === linha.id ? { ...item, data: evento.target.value } : item)))}
+                  className={inputCls}
+                />
+              </Campo>
+              <Campo label="Valor">
+                <input
+                  value={linha.valor}
+                  onChange={(evento) => onFornecedores((atual) => atual.map((item) => (item.id === linha.id ? { ...item, valor: mascaraReais(evento.target.value) } : item)))}
+                  className={inputCls}
+                  inputMode="decimal"
+                  placeholder="0,00"
+                />
+              </Campo>
+            </div>
+          </div>
+        ))}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onFornecedores((atual) => [...atual, { id: crypto.randomUUID(), fornecedor: "", documento: "", valor: "", data: todayIso() }])}
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-line px-4 text-sm font-medium text-ink"
+          >
+            Outro fornecedor
+          </button>
+          <button type="button" onClick={onLancar} className="inline-flex h-11 items-center justify-center rounded-xl bg-pine px-4 text-sm font-medium text-sheet">
+            Vincular
+          </button>
+        </div>
+      </div>
+      <div>
+        <h3 className="font-display text-xl text-ink">Já lançadas</h3>
+        {lancadas.length === 0 ? (
+          <p className="mt-2 text-sm text-muted">Nenhuma cotação lançada.</p>
+        ) : (
+          <ul className="mt-3 flex flex-col gap-2">
+            {lancadas.map(({ processo, cotacao }, indice) => (
+              <li key={cotacao.id} className={"rounded-xl border border-line px-4 py-3 text-sm " + (indice % 2 === 0 ? "bg-paper" : "bg-sheet")}>
+                <p className="font-medium text-ink">{rotuloLista(processo)}</p>
+                {cotacao.descricao ? <p className="mt-1 text-ink">{cotacao.descricao}</p> : null}
+                <ul className="mt-1 flex flex-col gap-0.5 text-muted">
+                  {cotacao.fornecedores.map((fornecedor, ordem) => (
+                    <li key={`${cotacao.id}-${ordem}`}>
+                      {formatDate(fornecedor.data)} · {fornecedor.fornecedor} · {formatarReais(fornecedor.valorCentavos)}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AdminPainel({
   equipeAtual,
   equipes,
@@ -601,7 +728,6 @@ export function AdminPainel({
   const [form, setForm] = useState<FormAdmin>(vazio);
   const [erros, setErros] = useState<string[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [cotacaoAberta, setCotacaoAberta] = useState(false);
   const [cotacaoProcesso, setCotacaoProcesso] = useState("");
   const [cotacaoDescricao, setCotacaoDescricao] = useState("");
   const [cotacaoFornecedores, setCotacaoFornecedores] = useState<{ id: string; fornecedor: string; documento: string; valor: string; data: string }[]>(() => linhasFornecedorCotacao());
@@ -1527,16 +1653,13 @@ export function AdminPainel({
             <button
               type="button"
               onClick={() => {
-                const primeiro = lista[0];
-                setCotacaoProcesso(primeiro?.id ?? "");
-                setCotacaoFornecedores(linhasFornecedorCotacao());
-                setCotacaoDescricao("");
-                setCotacaoAberta(true);
+                setCotacaoProcesso((atual) => atual || lista[0]?.id || "");
+                setGuia("cotacoes");
               }}
               className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-pine px-3 text-center text-sm font-medium text-sheet xl:h-auto"
             >
               <CircleDollarSign className="size-4 shrink-0" />
-              Adicionar cotação
+              Cotações
             </button>
           </div>
         </div>
@@ -1549,6 +1672,18 @@ export function AdminPainel({
           <PainelConsulta mostrarNascimento />
         ) : guia === "documentos" ? (
           <PainelDocumentos processos={lista} equipes={equipes} />
+        ) : guia === "cotacoes" ? (
+          <TelaCotacoes
+            processos={lista}
+            processoId={cotacaoProcesso}
+            onProcesso={setCotacaoProcesso}
+            descricao={cotacaoDescricao}
+            onDescricao={setCotacaoDescricao}
+            fornecedores={cotacaoFornecedores}
+            onFornecedores={setCotacaoFornecedores}
+            onDocumento={aoDocumentoCotacao}
+            onLancar={lancarCotacao}
+          />
         ) : guia === "estatisticas" ? (
           <GraficoAdmin processos={lista} />
         ) : guia === "comunicacoes" ? (
@@ -2617,123 +2752,6 @@ export function AdminPainel({
                   {item.rotulo}
                 </button>
               ))}
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-
-      <Dialog.Root open={cotacaoAberta} onOpenChange={setCotacaoAberta}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-20 flex max-h-[90vh] -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-3xl md:-translate-x-1/2">
-            <Dialog.Title className="font-display text-2xl text-ink">Adicionar cotação</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted">A cotação fica vinculada ao processo escolhido.</Dialog.Description>
-            <div className="mt-4 flex flex-col gap-3 overflow-y-auto">
-              <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                Processo
-                <select value={cotacaoProcesso} onChange={(evento) => setCotacaoProcesso(evento.target.value)} className={inputCls + " font-normal"}>
-                  {lista.length === 0 && <option value="">Nenhum processo</option>}
-                  {[...lista]
-                    .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }))
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {rotuloLista(item)}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <Campo label="Descrição">
-                <input value={cotacaoDescricao} onChange={(evento) => setCotacaoDescricao(evento.target.value)} className={inputCls} placeholder="Opcional" />
-              </Campo>
-              <div className="flex flex-col gap-3">
-                {cotacaoFornecedores.map((linha, indice) => (
-                  <div key={linha.id} className="rounded-xl border border-line p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm font-medium text-ink">Fornecedor {indice + 1}</p>
-                      {cotacaoFornecedores.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => setCotacaoFornecedores((atual) => atual.filter((item) => item.id !== linha.id))}
-                          className="text-sm font-medium text-seal"
-                        >
-                          Remover
-                        </button>
-                      )}
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-4">
-                      <Campo label="Nome">
-                        <input
-                          value={linha.fornecedor}
-                          onChange={(evento) =>
-                            setCotacaoFornecedores((atual) => atual.map((item) => (item.id === linha.id ? { ...item, fornecedor: evento.target.value } : item)))
-                          }
-                          className={inputCls}
-                          placeholder="Nome ou razão social"
-                        />
-                      </Campo>
-                      <Campo label="CPF ou CNPJ">
-                        <input
-                          value={linha.documento}
-                          onChange={(evento) => aoDocumentoCotacao(linha.id, evento.target.value)}
-                          className={inputCls}
-                          inputMode="numeric"
-                          placeholder="000.000.000-00"
-                        />
-                      </Campo>
-                      <Campo label="Data">
-                        <input
-                          type="date"
-                          value={linha.data}
-                          onChange={(evento) =>
-                            setCotacaoFornecedores((atual) => atual.map((item) => (item.id === linha.id ? { ...item, data: evento.target.value } : item)))
-                          }
-                          className={inputCls}
-                        />
-                      </Campo>
-                      <Campo label="Valor">
-                        <input
-                          value={linha.valor}
-                          onChange={(evento) =>
-                            setCotacaoFornecedores((atual) => atual.map((item) => (item.id === linha.id ? { ...item, valor: mascaraReais(evento.target.value) } : item)))
-                          }
-                          className={inputCls}
-                          inputMode="decimal"
-                          placeholder="0,00"
-                        />
-                      </Campo>
-                    </div>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setCotacaoFornecedores((atual) => [...atual, { id: crypto.randomUUID(), fornecedor: "", documento: "", valor: "", data: todayIso() }])}
-                  className="inline-flex h-11 items-center justify-center rounded-xl border border-line text-sm font-medium text-ink"
-                >
-                  Outro fornecedor
-                </button>
-              </div>
-              {(lista.find((item) => item.id === cotacaoProcesso)?.cotacoes.length ?? 0) > 0 && (
-                <ul className="flex max-h-36 flex-col gap-2 overflow-y-auto text-sm">
-                  {lista
-                    .find((item) => item.id === cotacaoProcesso)
-                    ?.cotacoes.map((item) => (
-                      <li key={item.id} className="text-ink">
-                        {item.descricao ? <span className="font-medium">{item.descricao}</span> : null}
-                        <span className={"block text-muted" + (item.descricao ? " mt-0.5" : "")}>
-                          {item.fornecedores.map((fornecedor) => `${formatDate(fornecedor.data)} · ${fornecedor.fornecedor} (${formatarReais(fornecedor.valorCentavos)})`).join(" · ")}
-                        </span>
-                      </li>
-                    ))}
-                </ul>
-              )}
-            </div>
-            <div className="mt-4 flex gap-2">
-              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
-                Fechar
-              </Dialog.Close>
-              <button type="button" onClick={lancarCotacao} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">
-                Vincular
-              </button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>
