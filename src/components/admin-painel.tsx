@@ -2600,8 +2600,28 @@ function CardAdmin({
   const [termoFuncao, setTermoFuncao] = useState("");
   const [termoTimbre, setTermoTimbre] = useState<TimbradoEquipe | null>(null);
   const [termoAviso, setTermoAviso] = useState("");
+  const [parecerAberto, setParecerAberto] = useState(false);
+  const [parecerFundamento, setParecerFundamento] = useState("");
   const [moverAberto, setMoverAberto] = useState(false);
   const u = urgenciaAdmin(processo);
+  function prepararTimbre(abrir: () => void) {
+    const equipeId = processo.equipeId;
+    setTermoAssinante("");
+    setTermoFuncao("");
+    setTermoTimbre(null);
+    abrir();
+    if (!equipeId) {
+      setTermoAviso("Mova o processo para uma equipe. O timbrado é o da equipe.");
+      return;
+    }
+    setTermoAviso("");
+    void lerTimbradoEquipe({ data: equipeId })
+      .then((timbre) => {
+        setTermoTimbre(timbre);
+        if (!timbre) setTermoAviso("Esta equipe ainda não tem timbrado na área restrita.");
+      })
+      .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível carregar o timbrado."));
+  }
   const tom = TOM[u];
   return (
     <li
@@ -2664,16 +2684,16 @@ function CardAdmin({
           </div>
         )}
       </div>
-      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) { setHistoricoAberto(false); setExtratoAberto(false); setCapaAberta(false); setTermoAberto(false); } }}>
+      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) { setHistoricoAberto(false); setExtratoAberto(false); setCapaAberta(false); setTermoAberto(false); setParecerAberto(false); } }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
           <Dialog.Content
             className="fixed inset-x-3 top-4 bottom-4 z-20 flex flex-col overflow-hidden rounded-2xl border border-line bg-sheet md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[90vh] md:w-full md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2"
             onInteractOutside={(evento) => {
-              if (historicoAberto || extratoAberto || capaAberta || termoAberto) evento.preventDefault();
+              if (historicoAberto || extratoAberto || capaAberta || termoAberto || parecerAberto) evento.preventDefault();
             }}
             onPointerDownOutside={(evento) => {
-              if (historicoAberto || extratoAberto || capaAberta || termoAberto) evento.preventDefault();
+              if (historicoAberto || extratoAberto || capaAberta || termoAberto || parecerAberto) evento.preventDefault();
             }}
           >
             <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
@@ -2705,7 +2725,7 @@ function CardAdmin({
                   justificar
                   copiar
                   extra={
-                    <span className="ml-auto flex gap-1">
+                    <span className="ml-auto flex flex-wrap justify-end gap-1">
                       <button
                         type="button"
                         onClick={() => {
@@ -2732,6 +2752,17 @@ function CardAdmin({
                       >
                         <FileText className="size-3.5" />
                         Extrato
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setParecerFundamento(fundamentoInicial(processo.tipo));
+                          prepararTimbre(() => setParecerAberto(true));
+                        }}
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-xs font-medium text-ink"
+                      >
+                        <Scale className="size-3.5" />
+                        Solicitação de Parecer
                       </button>
                     </span>
                   }
@@ -2861,24 +2892,7 @@ function CardAdmin({
               )}
               <button
                 type="button"
-                onClick={() => {
-                  const equipeId = processo.equipeId;
-                  setTermoAssinante("");
-                  setTermoFuncao("");
-                  setTermoTimbre(null);
-                  setTermoAberto(true);
-                  if (!equipeId) {
-                    setTermoAviso("Mova o processo para uma equipe. O timbrado é o da equipe.");
-                    return;
-                  }
-                  setTermoAviso("");
-                  void lerTimbradoEquipe({ data: equipeId })
-                    .then((timbre) => {
-                      setTermoTimbre(timbre);
-                      if (!timbre) setTermoAviso("Esta equipe ainda não tem timbrado na área restrita.");
-                    })
-                    .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível carregar o timbrado."));
-                }}
+                onClick={() => prepararTimbre(() => setTermoAberto(true))}
                 className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl border border-line text-sm font-medium text-ink"
               >
                 Termo de Encerramento
@@ -3242,6 +3256,73 @@ function CardAdmin({
                   void baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim())
                     .then(() => setTermoAberto(false))
                     .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar o termo."));
+                }}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
+              >
+                Baixar Word
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      <Dialog.Root open={parecerAberto} onOpenChange={setParecerAberto}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Solicitação de parecer</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted">
+              O documento usa o timbrado da equipe. Escolha o fundamento, quem assina e a função.
+            </Dialog.Description>
+            {termoAviso ? (
+              <p className="mt-4 text-sm text-seal">{termoAviso}</p>
+            ) : (
+              <div className="mt-4 flex flex-col gap-3">
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Fundamento legal
+                  <select value={parecerFundamento} onChange={(evento) => setParecerFundamento(evento.target.value)} className={inputCls + " font-normal"}>
+                    {fundamentosDoTipo(processo.tipo).length > 1 && <option value="">Selecione o fundamento legal</option>}
+                    {fundamentosDoTipo(processo.tipo).map((opcao) => (
+                      <option key={opcao.valor} value={opcao.valor}>
+                        {opcao.rotulo}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Quem assina
+                  <select value={termoAssinante} onChange={(evento) => setTermoAssinante(evento.target.value)} className={inputCls + " font-normal"}>
+                    <option value="">Selecione alguém da equipe</option>
+                    {(equipes.find((equipe) => equipe.id === processo.equipeId)?.membros ?? []).map((membro) => (
+                      <option key={membro.nome} value={membro.nome}>
+                        {membro.nome}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Função
+                  <select value={termoFuncao} onChange={(evento) => setTermoFuncao(evento.target.value)} className={inputCls + " font-normal"}>
+                    <option value="">Selecione a função</option>
+                    <option>Agente de Contratações</option>
+                    <option>Gerente Administrativo</option>
+                    <option>Controladoria Geral</option>
+                    <option>{termoTimbre?.linha2.trim() ? `Presidente da Câmara Municipal de ${termoTimbre.linha2.trim()}` : "Presidente da Câmara Municipal"}</option>
+                  </select>
+                </label>
+              </div>
+            )}
+            <div className="mt-4 flex gap-2">
+              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
+                Cancelar
+              </Dialog.Close>
+              <button
+                type="button"
+                disabled={!termoTimbre || !parecerFundamento.trim() || !termoAssinante || !termoFuncao.trim()}
+                onClick={() => {
+                  if (!termoTimbre) return;
+                  void baixarParecer(processo, termoTimbre, parecerFundamento.trim(), termoAssinante, termoFuncao.trim())
+                    .then(() => setParecerAberto(false))
+                    .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar a solicitação."));
                 }}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
               >
@@ -5241,6 +5322,111 @@ ${timbre.rodape2.trim() ? `<p class="rodape">${escaparHtml(timbre.rodape2.trim()
   const link = document.createElement("a");
   link.href = URL.createObjectURL(arquivo);
   link.download = `Termo de encerramento ${numero.replaceAll("/", "-")}.doc`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+}
+
+async function baixarParecer(processo: ProcessoAdmin, timbre: TimbradoEquipe, fundamento: string, assinante: string, funcao: string) {
+  const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
+  const tipo = processo.tipo.toLocaleUpperCase("pt-BR");
+  const peca =
+    processo.tipo !== "Outros" && processo.tipoNumero != null && processo.tipoAno != null
+      ? `${String(processo.tipoNumero).padStart(2, "0")}/${processo.tipoAno}`
+      : "";
+  const objeto = processo.objeto.trim().replace(/[.;]\s*$/, "") || "da contratação descrita nos autos";
+  const fornecedor = processo.contratado.trim()
+    ? `pelo(s) fornecedor(es) ${processo.contratado.trim().toLocaleUpperCase("pt-BR")}`
+    : "pelo(s) fornecedor(es)";
+  const base = fundamento.trim();
+  const baseTitulo = base ? base.charAt(0).toLocaleUpperCase("pt-BR") + base.slice(1) : "";
+  const direta = processo.tipo === "Dispensa de Licitação" || processo.tipo === "Inexigibilidade de Licitação";
+  const data = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
+  const cidade = timbre.linha2.trim() || (timbre.arquivo ? await cidadeDoTimbrado(timbre.arquivo) : "") || timbre.linha1.trim();
+  const dataCompleta = cidade ? `${cidade}, ${data}.` : `${data}.`;
+  const funcaoFinal = funcao.startsWith("Presidente da Câmara Municipal") && cidade ? `Presidente da Câmara Municipal de ${cidade}` : funcao;
+  const blocos: BlocoTermo[] = [
+    { titulo: true, junto: true, partes: [{ texto: "SOLICITAÇÃO DE PARECERES TÉCNICOS" }] },
+    { titulo: true, junto: Boolean(baseTitulo), partes: [{ texto: `PROCEDIMENTO DE ${tipo}` }] },
+  ];
+  if (baseTitulo) blocos.push({ titulo: true, partes: [{ texto: `(${baseTitulo})` }] });
+  blocos.push(
+    { junto: true, partes: [{ texto: `Procedimento Administrativo nº: ${numero}` }] },
+    { partes: [{ texto: peca ? `${processo.tipo}: ${peca}` : processo.tipo }] },
+    { recuo: true, partes: [{ texto: `Considerando a necessidade de ${objeto}, conforme especificado no Termo de Referência – TR constante dos autos;` }] },
+    { recuo: true, partes: [{ texto: `Considerando a proposta apresentada ${fornecedor}, bem como os documentos exigidos para comprovação da sua habilitação;` }] },
+    { recuo: true, partes: [{ texto: "Considerando a justificativa e os fundamentos fático-legais apresentados pelo Agente de Contratação;" }] },
+  );
+  if (direta) {
+    blocos.push(
+      { recuo: true, partes: [{ texto: "Considerando o que dispõe o art. 72 da Lei nº 14.133, de 2021, notadamente ao que expressa seu inciso III:" }] },
+      { cita: true, partes: [{ texto: "Art. 72. O processo de contratação direta, que compreende os casos de inexigibilidade e de dispensa de licitação, deverá ser instruído com os seguintes documentos:" }] },
+      { cita: true, junto: true, partes: [{ texto: "[...]" }] },
+      { cita: true, partes: [{ texto: "III - parecer jurídico e pareceres técnicos, se for o caso, que demonstrem o atendimento dos requisitos exigidos;" }] },
+      { cita: true, junto: true, partes: [{ texto: "[...]" }] },
+    );
+  } else {
+    blocos.push({ recuo: true, partes: [{ texto: "Considerando o que dispõe a Lei nº 14.133, de 2021, notadamente quanto à necessidade de parecer jurídico e de pareceres técnicos que demonstrem o atendimento dos requisitos exigidos;" }] });
+  }
+  blocos.push(
+    { recuo: true, partes: [{ texto: "Considerando assim, e por fim, que a referida contratação deve em tudo atender a lei e a essência de todos os princípios aplicáveis que norteiam as atividades da Administração Pública," }] },
+    { recuo: true, partes: [{ texto: "SOLICITA, ", negrito: true }, { texto: "a Vossas Senhorias, que emita Parecer Jurídico e Parecer Técnico exercitando o controle de legalidade, cuja conclusão nesse sentido deve ser expressa, caso o processo assim demande. Expressa também deve ser orientação quanto à possibilidade de adjudicação, homologação e autorização para contratação." }] },
+    { fecha: dataCompleta, partes: [{ texto: "Sem mais para o momento, subscrevo." }] },
+    { centro: true, junto: true, antes: true, partes: [{ texto: assinante, negrito: true }] },
+    { centro: true, junto: true, partes: [{ texto: funcaoFinal }] },
+  );
+  const numeroArquivo = `Solicitação de parecer ${numero.replaceAll("/", "-")}`;
+  if (timbre.arquivo) {
+    const arquivo = await termoNoTimbrado(timbre.arquivo, blocos);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(arquivo);
+    link.download = `${numeroArquivo}.docx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+    return;
+  }
+  const marca = timbre.imagem.startsWith("data:image/")
+    ? `<p style="text-align:center;margin:0;"><img src="${timbre.imagem}" width="78" height="103" alt=""></p>`
+    : "";
+  const corpo = blocos
+    .map((bloco) => {
+      const classe = bloco.titulo ? "titulo" : bloco.cita ? "cita" : bloco.centro ? "centro" : bloco.recuo ? "recuo" : bloco.antes ? "assinatura" : "ident";
+      const texto = bloco.partes.map((parte) => (parte.negrito || bloco.titulo ? `<b>${escaparHtml(parte.texto)}</b>` : escaparHtml(parte.texto))).join("");
+      const lado = bloco.fecha ? `<span style="float:right">${escaparHtml(bloco.fecha)}</span>` : "";
+      return `<p class="${classe}">${texto}${lado}</p>`;
+    })
+    .join("");
+  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'>
+<style>
+body, p { font-family: Arial, sans-serif; font-size: 12pt; color: #111; }
+p { margin: 0 0 12pt; line-height: 1.15; text-align: justify; font-size: 12pt; }
+.titulo { text-align: center; font-weight: bold; margin: 0; }
+.ident { text-align: left; margin: 0; }
+.recuo { text-indent: 1.25cm; }
+.cita { margin-left: 1.25cm; text-indent: 0; }
+.centro { text-align: center; text-indent: 0; margin: 0; }
+.assinatura { text-align: center; text-indent: 0; margin: 42pt 0 0; }
+.timbre { text-align: center; color: #1F3864; font-weight: bold; font-size: 14pt; line-height: 1.1; margin: 0; }
+.rodape { text-align: center; color: #1F3864; font-size: 10pt; line-height: 1.3; margin: 0; }
+.linha { border: 0; border-top: 1.5pt solid #1F3864; margin: 8pt 0 14pt; }
+</style>
+</head><body>
+${marca}
+${timbre.linha1.trim() ? `<p class="timbre">${escaparHtml(timbre.linha1.trim())}</p>` : ""}
+${timbre.linha2.trim() ? `<p class="timbre">${escaparHtml(timbre.linha2.trim())}</p>` : ""}
+<hr class="linha">
+${corpo}
+<hr class="linha">
+${timbre.rodape1.trim() ? `<p class="rodape"><b>${escaparHtml(timbre.rodape1.trim())}</b></p>` : ""}
+${timbre.rodape2.trim() ? `<p class="rodape">${escaparHtml(timbre.rodape2.trim())}</p>` : ""}
+</body></html>`;
+  const arquivo = new Blob(["\ufeff", html], { type: "application/msword" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(arquivo);
+  link.download = `${numeroArquivo}.doc`;
   document.body.appendChild(link);
   link.click();
   link.remove();
