@@ -2658,23 +2658,25 @@ function CardAdmin({
                     <Info rotulo="CPF ou CNPJ" valor={processo.documento2 || "—"} />
                   </>
                 ) : null}
-                <Info rotulo="Vigência" valor={processo.vigenciaInicio ? `${formatDate(processo.vigenciaInicio)} a ${processo.vigenciaFim ? formatDate(processo.vigenciaFim) : "—"}` : "—"} largo />
+                {(perfilContratacao(processo.status).fim || processo.vigenciaInicio) && (
+                  <Info rotulo="Vigência" valor={processo.vigenciaInicio ? `${formatDate(processo.vigenciaInicio)} a ${processo.vigenciaFim ? formatDate(processo.vigenciaFim) : "—"}` : "—"} largo />
+                )}
                 {processo.pagamentoDemanda ? (
                   <>
-                    <Info rotulo={processo.possuiContrato ? "Valor anual" : "Valor da contratação"} valor={formatarReais(processo.valorTotalCentavos)} />
+                    <Info rotulo={perfilContratacao(processo.status).contratado || processo.possuiContrato ? "Valor anual" : "Valor da contratação"} valor={formatarReais(processo.valorTotalCentavos)} />
                     <Info rotulo="Valor mensal" valor={formatarReais(processo.pagamentos.length > 0 ? somaPagamentos(processo.pagamentos) : processo.valorMensalCentavos)} />
                   </>
-                ) : (
-                  <Info rotulo="Valor estimado" valor={formatarReais(processo.valorEstimadoCentavos)} />
-                )}
-                {!processo.pagamentoDemanda && (processo.possuiContrato ? (
+                ) : perfilContratacao(processo.status).contratado || processo.possuiContrato ? (
                   <>
                     <Info rotulo="Valor anual" valor={formatarReais(processo.valorTotalCentavos)} />
                     <Info rotulo="Valor mensal" valor={formatarReais(processo.valorMensalCentavos)} />
                   </>
                 ) : (
-                  <Info rotulo="Valor da contratação" valor={formatarReais(processo.valorTotalCentavos)} />
-                ))}
+                  <>
+                    <Info rotulo="Valor estimado" valor={formatarReais(processo.valorEstimadoCentavos)} />
+                    {processo.valorTotalCentavos != null ? <Info rotulo="Valor da contratação" valor={formatarReais(processo.valorTotalCentavos)} /> : null}
+                  </>
+                )}
                 <Info rotulo="Lançado por" valor={processo.autorNome || "sem nome"} />
                 <Info rotulo="Equipe" valor={equipes.find((equipe) => equipe.id === processo.equipeId)?.nome ?? "Só meus"} />
               </dl>

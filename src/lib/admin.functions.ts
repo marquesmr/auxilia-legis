@@ -3,6 +3,7 @@ import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, perfilContratacao, permiteDoisContratados, RETENCOES, somaPagamentos, tipoSimples, type PagamentoDemanda, type ProcessoAdmin } from "@/lib/admin";
 import { todayIso, type Andamento } from "@/lib/prazos";
+import { definirStatus } from "@/lib/status-catalogo";
 
 function nascimentoDe(documento: string, valor: unknown, erro: string): string | null {
   if (documento.replace(/\D/g, "").length !== 11) return null;
@@ -687,6 +688,8 @@ async function aplicarTramites(sql: Awaited<ReturnType<typeof getSql>>) {
 export async function adminDaConta(userId: string, equipeId: string | null) {
   const sql = await getSql();
   await garantirColunas(sql);
+  const { listarStatusCatalogo } = await import("./gestao.server");
+  definirStatus(await listarStatusCatalogo());
   await aplicarProgramados(sql);
   await aplicarTramites(sql);
   if (!equipeId) {
@@ -725,12 +728,17 @@ export const listarAdmin = createServerFn({ method: "GET" })
   .handler(async ({ context, data: equipeId }) => adminDaConta(context.userId, equipeId));
 
 export const salvarAdmin = createServerFn({ method: "POST" })
-  .validator(exigirAdmin)
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    return input;
+  })
   .middleware([authMiddleware])
-  .handler(async ({ context, data }) => {
+  .handler(async ({ context, data: bruto }) => {
+    const { conferirAba, anotarUso, exigirEscrita, listarStatusCatalogo } = await import("./gestao.server");
+    definirStatus(await listarStatusCatalogo());
+    const data = exigirAdmin(bruto);
     const sql = await getSql();
     await garantirColunas(sql);
-    const { conferirAba, anotarUso, exigirEscrita } = await import("./gestao.server");
     await exigirEscrita(context.userId);
     await conferirAba("administrativo", data.tipo);
     const eu = await sql<{ name: string | null }>`select name from "user" where id = ${context.userId}`;
