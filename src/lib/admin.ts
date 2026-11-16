@@ -1,5 +1,5 @@
 import { daysUntil, todayIso, type Andamento } from "@/lib/prazos";
-import { encerraStatus, nomeStatus } from "@/lib/status-catalogo";
+import { encerraStatus, nomeStatus, statusDaArea } from "@/lib/status-catalogo";
 
 export const MODALIDADES = [
   "Pregão",
