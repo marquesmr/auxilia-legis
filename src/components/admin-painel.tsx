@@ -5353,8 +5353,8 @@ async function baixarParecer(processo: ProcessoAdmin, timbre: TimbradoEquipe, fu
   ];
   if (baseTitulo) blocos.push(bloco({ centro: true, italico: true, tamanho: 18, partes: [{ texto: `(${baseTitulo})` }] }));
   blocos.push(
-    bloco({ junto: true, partes: [{ texto: `Procedimento Administrativo nº: ${numero}` }] }),
-    bloco({ partes: [{ texto: peca ? `${processo.tipo}: ${peca}` : processo.tipo }] }),
+    bloco({ junto: true, partes: [{ texto: `Procedimento Administrativo nº: ${numero}`, negrito: true }] }),
+    bloco({ partes: [{ texto: peca ? `${processo.tipo}: ${peca}` : processo.tipo, negrito: true }] }),
     bloco({ recuo: true, partes: [{ texto: `Considerando a necessidade de ${objeto}, conforme especificado no Termo de Referência – TR constante dos autos;` }] }),
     bloco({ recuo: true, partes: [{ texto: `Considerando a proposta apresentada ${fornecedor}, bem como os documentos exigidos para comprovação da sua habilitação;` }] }),
     bloco({ recuo: true, partes: [{ texto: "Considerando a justificativa e os fundamentos fático-legais apresentados pelo Agente de Contratação;" }] }),
