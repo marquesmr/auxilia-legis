@@ -993,20 +993,70 @@ export function AdminPainel({
           onToast("Informe a vigência do contrato.");
           return;
         }
-      }
-      const valoresProntos = perfil.fim
-        ? atual.pagamentoDemanda
+        const valoresProntos = atual.pagamentoDemanda
           ? atual.valorTotalCentavos != null
-          : atual.valorTotalCentavos != null && atual.valorMensalCentavos != null
-        : atual.valorTotalCentavos != null;
-      if (!atual.contratado || !valoresProntos) {
-        onToast(perfil.fim ? "Complete contratado e valores em Editar antes de mudar para execução." : "Complete os dados da contratada em Editar antes de mudar para este status.");
-        return;
+          : atual.valorTotalCentavos != null && atual.valorMensalCentavos != null;
+        if (!atual.contratado || !valoresProntos) {
+          onToast("Complete contratado e valores em Editar antes de mudar para execução.");
+          return;
+        }
+        atualizado.possuiContrato = true;
+        atualizado.vigenciaInicio = vigenciaInicioAnd;
+        atualizado.vigenciaFim = vigenciaFimAnd;
+        atualizado.encerramento = vigenciaFimAnd;
+      } else {
+        const digitos = documentoAnd.replace(/\D/g, "");
+        const valor = reaisParaCentavos(valorAnd);
+        if (!contratadoAnd.trim()) {
+          onToast("Informe o contratado.");
+          return;
+        }
+        if (digitos.length !== 11 && digitos.length !== 14) {
+          onToast("Informe o CPF ou o CNPJ.");
+          return;
+        }
+        if (digitos.length === 11 && !nascimentoAnd) {
+          onToast("Informe a data de nascimento.");
+          return;
+        }
+        if (valor == null) {
+          onToast("Informe o valor homologado.");
+          return;
+        }
+        atualizado.contratado = contratadoAnd.trim();
+        atualizado.documento = documentoAnd.trim();
+        atualizado.nascimento = digitos.length === 11 ? nascimentoAnd : null;
+        if (permiteDoisContratados(atual.tipo)) {
+          const nome2 = contratado2And.trim();
+          const doc2 = documento2And.replace(/\D/g, "");
+          if (nome2 || documento2And.trim()) {
+            if (!nome2) {
+              onToast("Informe o segundo contratado ou fornecedor.");
+              return;
+            }
+            if (doc2.length !== 11 && doc2.length !== 14) {
+              onToast("Informe o CPF ou o CNPJ do segundo contratado ou fornecedor.");
+              return;
+            }
+            if (doc2.length === 11 && !nascimento2And) {
+              onToast("Informe a data de nascimento do segundo contratado.");
+              return;
+            }
+          }
+          atualizado.contratado2 = nome2;
+          atualizado.documento2 = documento2And.trim();
+          atualizado.nascimento2 = doc2.length === 11 ? nascimento2And : null;
+        } else {
+          atualizado.contratado2 = "";
+          atualizado.documento2 = "";
+          atualizado.nascimento2 = null;
+        }
+        atualizado.valorTotalCentavos = valor;
+        atualizado.valorMensalCentavos = atual.pagamentoDemanda ? somaPagamentos(atualizado.pagamentos) : null;
+        atualizado.possuiContrato = true;
+        atualizado.vigenciaInicio = null;
+        atualizado.vigenciaFim = null;
       }
-      atualizado.possuiContrato = true;
-      atualizado.vigenciaInicio = perfil.fim ? vigenciaInicioAnd : null;
-      atualizado.vigenciaFim = perfil.fim ? vigenciaFimAnd : null;
-      if (perfil.fim) atualizado.encerramento = vigenciaFimAnd;
     }
     const fraseLink =
       aplicados.length === 0
@@ -2341,6 +2391,47 @@ export function AdminPainel({
                       </Campo>
                       <Campo label="Vigência — fim">
                         <input type="date" value={vigenciaFimAnd} onChange={(e) => setVigenciaFimAnd(e.target.value)} className={inputCls} required />
+                      </Campo>
+                    </div>
+                  );
+                }
+                if (mudou && perfilContratacao(statusAndamento).contratado && !perfilContratacao(statusAndamento).fim) {
+                  return (
+                    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-3">
+                      <Campo label="Contratado ou fornecedor">
+                        <input value={contratadoAnd} onChange={(e) => setContratadoAnd(e.target.value)} className={inputCls} placeholder="Nome ou razão social" required />
+                      </Campo>
+                      <Campo label="CPF ou CNPJ">
+                        <DocumentoComConsulta
+                          value={documentoAnd}
+                          nascimento={nascimentoAnd}
+                          onChange={(documento) => {
+                            setDocumentoAnd(documento);
+                            if (documento.replace(/\D/g, "").length !== 11) setNascimentoAnd("");
+                          }}
+                          placeholder="000.000.000-00"
+                          required
+                        />
+                      </Campo>
+                      {documentoAnd.replace(/\D/g, "").length === 11 && (
+                        <Campo label="Data de nascimento">
+                          <input type="date" value={nascimentoAnd} onChange={(e) => setNascimentoAnd(e.target.value)} className={inputCls} required autoComplete="off" />
+                        </Campo>
+                      )}
+                      {atual && permiteDoisContratados(atual.tipo) && (
+                        <SegundoContratado
+                          nome={contratado2And}
+                          documento={documento2And}
+                          nascimento={nascimento2And}
+                          onChange={(nome, documento, nascimento) => {
+                            setContratado2And(nome);
+                            setDocumento2And(documento);
+                            setNascimento2And(nascimento);
+                          }}
+                        />
+                      )}
+                      <Campo label="Valor Homologado">
+                        <input value={valorAnd} onChange={(e) => setValorAnd(mascaraReais(e.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" required />
                       </Campo>
                     </div>
                   );
