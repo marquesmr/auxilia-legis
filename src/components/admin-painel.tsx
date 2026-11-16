@@ -428,7 +428,7 @@ function mudancas(antes: ProcessoAdmin, form: FormAdmin): string | null {
   return `Alterou ${partes.join(", ")} e ${ultimo}.`;
 }
 
-function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | "equipeId" | "autorId" | "autorNome">): ProcessoAdmin {
+function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | "equipeId" | "autorId" | "autorNome" | "cotacoes">): ProcessoAdmin {
   if (tipoSimples(form.tipo)) {
     const hoje = todayIso();
     const doacao = form.tipo === "Doação";
@@ -462,6 +462,7 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
       retencaoTipo: "",
       retencaoCentavos: null,
       pagamentos: [],
+      cotacoes: base.cotacoes ?? [],
       ciNumero: numeroPeca(form.ciNumero),
       ciAno: form.ciAno,
       ciOrigem: form.ciOrigem.trim(),
@@ -534,6 +535,7 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     retencaoTipo: form.retencaoImpostos && !cancelado && !tipoSimples(form.tipo) ? form.retencaoTipo : "",
     retencaoCentavos: form.retencaoImpostos && !cancelado && !tipoSimples(form.tipo) ? reaisParaCentavos(form.retencao) : null,
     pagamentos,
+    cotacoes: base.cotacoes ?? [],
     ciNumero: numeroPeca(form.ciNumero),
     ciAno: form.ciAno,
     ciOrigem: form.ciOrigem.trim(),
@@ -595,6 +597,13 @@ export function AdminPainel({
   const [form, setForm] = useState<FormAdmin>(vazio);
   const [erros, setErros] = useState<string[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [cotacaoAberta, setCotacaoAberta] = useState(false);
+  const [cotacaoProcesso, setCotacaoProcesso] = useState("");
+  const [cotacaoFornecedor, setCotacaoFornecedor] = useState("");
+  const [cotacaoDocumento, setCotacaoDocumento] = useState("");
+  const [cotacaoValor, setCotacaoValor] = useState("");
+  const [cotacaoData, setCotacaoData] = useState("");
+  const [cotacaoDescricao, setCotacaoDescricao] = useState("");
   const [andamentoId, setAndamentoId] = useState<string | null>(null);
   const [notaAndamento, setNotaAndamento] = useState("");
   const [statusAndamento, setStatusAndamento] = useState<StatusAdmin>("proposta");
@@ -887,8 +896,61 @@ export function AdminPainel({
       equipeId: equipeAtual,
       autorId: user?.id ?? null,
       autorNome: meuNome,
+      cotacoes: [],
     });
     persistir([criado, ...base], criado, null, "Processo administrativo lançado");
+  }
+
+  function lancarCotacao() {
+    const atual = listaViva.current.find((item) => item.id === cotacaoProcesso);
+    if (!atual) {
+      onToast("Selecione o processo.");
+      return;
+    }
+    const fornecedor = cotacaoFornecedor.trim();
+    const digitos = cotacaoDocumento.replace(/\D/g, "");
+    const valor = reaisParaCentavos(cotacaoValor);
+    if (!fornecedor) {
+      onToast("Informe o fornecedor.");
+      return;
+    }
+    if (digitos.length !== 11 && digitos.length !== 14) {
+      onToast("Informe o CPF ou o CNPJ.");
+      return;
+    }
+    if (!cotacaoData) {
+      onToast("Informe a data da cotação.");
+      return;
+    }
+    if (valor == null || valor <= 0) {
+      onToast("Informe o valor da cotação.");
+      return;
+    }
+    const atualizado: ProcessoAdmin = {
+      ...atual,
+      cotacoes: [
+        ...(atual.cotacoes ?? []),
+        {
+          id: crypto.randomUUID(),
+          fornecedor,
+          documento: mascaraDocumento(digitos),
+          valorCentavos: valor,
+          data: cotacaoData,
+          descricao: cotacaoDescricao.trim(),
+        },
+      ],
+    };
+    persistir(
+      listaViva.current.map((item) => (item.id === atualizado.id ? atualizado : item)),
+      atualizado,
+      null,
+      "Cotação vinculada",
+    );
+    setCotacaoFornecedor("");
+    setCotacaoDocumento("");
+    setCotacaoValor("");
+    setCotacaoDescricao("");
+    setCotacaoData(todayIso());
   }
 
   async function registrarAndamento() {
@@ -1446,14 +1508,33 @@ export function AdminPainel({
               </GuiaBotao>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={abrirFormulario}
-            className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-pine px-4 text-sm font-medium text-sheet xl:h-auto xl:w-40"
-          >
-            <Plus className="size-4" />
-            Novo processo
-          </button>
+          <div className="flex w-full shrink-0 flex-col gap-2 xl:w-40">
+            <button
+              type="button"
+              onClick={abrirFormulario}
+              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-pine px-3 text-center text-sm font-medium text-sheet xl:h-auto"
+            >
+              <Plus className="size-4 shrink-0" />
+              Novo processo
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const primeiro = lista[0];
+                setCotacaoProcesso(primeiro?.id ?? "");
+                setCotacaoFornecedor("");
+                setCotacaoDocumento("");
+                setCotacaoValor("");
+                setCotacaoData(todayIso());
+                setCotacaoDescricao("");
+                setCotacaoAberta(true);
+              }}
+              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-pine px-3 text-center text-sm font-medium text-sheet xl:h-auto"
+            >
+              <CircleDollarSign className="size-4 shrink-0" />
+              Adicionar cotação
+            </button>
+          </div>
         </div>
 
         {!pronto && guia !== "cnpj" && guia !== "lei" && guia !== "documentos" ? (
@@ -2537,6 +2618,67 @@ export function AdminPainel({
         </Dialog.Portal>
       </Dialog.Root>
 
+      <Dialog.Root open={cotacaoAberta} onOpenChange={setCotacaoAberta}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-20 flex max-h-[85vh] -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Adicionar cotação</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted">A cotação fica vinculada ao processo escolhido.</Dialog.Description>
+            <div className="mt-4 flex flex-col gap-3 overflow-y-auto">
+              <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                Processo
+                <select value={cotacaoProcesso} onChange={(evento) => setCotacaoProcesso(evento.target.value)} className={inputCls + " font-normal"}>
+                  {lista.length === 0 && <option value="">Nenhum processo</option>}
+                  {[...lista]
+                    .sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }))
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {rotuloLista(item)}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <Campo label="Fornecedor">
+                <input value={cotacaoFornecedor} onChange={(evento) => setCotacaoFornecedor(evento.target.value)} className={inputCls} placeholder="Nome ou razão social" />
+              </Campo>
+              <Campo label="CPF ou CNPJ">
+                <input value={cotacaoDocumento} onChange={(evento) => setCotacaoDocumento(mascaraDocumento(evento.target.value))} className={inputCls} inputMode="numeric" placeholder="000.000.000-00" />
+              </Campo>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Campo label="Data">
+                  <input type="date" value={cotacaoData} onChange={(evento) => setCotacaoData(evento.target.value)} className={inputCls} />
+                </Campo>
+                <Campo label="Valor">
+                  <input value={cotacaoValor} onChange={(evento) => setCotacaoValor(mascaraReais(evento.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" />
+                </Campo>
+              </div>
+              <Campo label="Descrição">
+                <input value={cotacaoDescricao} onChange={(evento) => setCotacaoDescricao(evento.target.value)} className={inputCls} placeholder="Opcional" />
+              </Campo>
+              {(lista.find((item) => item.id === cotacaoProcesso)?.cotacoes.length ?? 0) > 0 && (
+                <ul className="flex max-h-28 flex-col gap-1 overflow-y-auto text-sm">
+                  {lista
+                    .find((item) => item.id === cotacaoProcesso)
+                    ?.cotacoes.map((item) => (
+                      <li key={item.id} className="text-ink">
+                        {formatDate(item.data)} · {item.fornecedor} · {formatarReais(item.valorCentavos)}
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+            <div className="mt-4 flex gap-2">
+              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
+                Fechar
+              </Dialog.Close>
+              <button type="button" onClick={lancarCotacao} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">
+                Vincular
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
       <Dialog.Root open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-10 bg-ink/40" />
@@ -2749,6 +2891,20 @@ function CardAdmin({
                     </li>
                   ))}
                 </ul>
+              )}
+              {(processo.cotacoes?.length ?? 0) > 0 && (
+                <div className="mt-4">
+                  <h3 className="font-display text-xl text-ink">Cotações</h3>
+                  <ul className="mt-2 flex max-h-28 flex-col gap-1 overflow-y-auto text-sm">
+                    {processo.cotacoes.map((item) => (
+                      <li key={item.id} className="text-ink">
+                        {formatDate(item.data)} · {item.fornecedor}
+                        {item.descricao ? ` · ${item.descricao}` : ""}
+                        <span className="ml-2 font-medium">{formatarReais(item.valorCentavos)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               <div className="mt-4 flex flex-col gap-2">
                 {processo.linkAberturaNa ? (

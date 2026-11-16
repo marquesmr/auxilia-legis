@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, perfilContratacao, permiteDoisContratados, RETENCOES, somaPagamentos, tipoSimples, type PagamentoDemanda, type ProcessoAdmin } from "@/lib/admin";
+import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, perfilContratacao, permiteDoisContratados, RETENCOES, somaPagamentos, tipoSimples, type Cotacao, type PagamentoDemanda, type ProcessoAdmin } from "@/lib/admin";
 import { todayIso, type Andamento } from "@/lib/prazos";
 import { definirStatus } from "@/lib/status-catalogo";
 
@@ -59,6 +59,24 @@ function centavosOk(value: unknown): number | null {
   const n = Number(value);
   if (!Number.isInteger(n) || n < 0 || n > 100_000_000_000) throw new Error("Valor inválido");
   return n;
+}
+
+function cotacoesOk(value: unknown): Cotacao[] {
+  const lista = Array.isArray(value) ? value : [];
+  return lista.slice(0, 100).flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const bruto = item as Partial<Cotacao>;
+    const valor = centavosOk(bruto.valorCentavos);
+    const fornecedor = typeof bruto.fornecedor === "string" ? bruto.fornecedor.trim().slice(0, 160) : "";
+    const documento = typeof bruto.documento === "string" ? bruto.documento.trim().slice(0, 24) : "";
+    const data = typeof bruto.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(bruto.data) ? bruto.data : "";
+    if (valor == null || valor <= 0 || !fornecedor || !data) return [];
+    const digitos = documento.replace(/\D/g, "");
+    if (digitos.length !== 11 && digitos.length !== 14) return [];
+    const id = typeof bruto.id === "string" && bruto.id.trim() ? bruto.id.trim().slice(0, 80) : crypto.randomUUID();
+    const descricao = typeof bruto.descricao === "string" ? bruto.descricao.trim().slice(0, 200) : "";
+    return [{ id, fornecedor, documento, valorCentavos: valor, data, descricao }];
+  });
 }
 
 function pagamentosOk(value: unknown): PagamentoDemanda[] {
@@ -240,6 +258,7 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     retencaoTipo,
     retencaoCentavos,
     pagamentos,
+    cotacoes: cotacoesOk(bruto.cotacoes),
     ciNumero: ci.numero,
     ciAno: ci.ano,
     ciOrigem: ciOrigem.slice(0, 160),
@@ -293,6 +312,7 @@ type Linha = {
   retencao_tipo: string | null;
   retencao_centavos: number | null;
   pagamentos: string | PagamentoDemanda[] | null;
+  cotacoes: string | Cotacao[] | null;
   ci_numero: number | null;
   ci_ano: number | null;
   ci_origem: string | null;
@@ -349,6 +369,12 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
   } catch {
     pagamentos = [];
   }
+  let cotacoes: Cotacao[] = [];
+  try {
+    cotacoes = cotacoesOk(typeof linha.cotacoes === "string" ? JSON.parse(linha.cotacoes || "[]") : linha.cotacoes);
+  } catch {
+    cotacoes = [];
+  }
   return {
     id: linha.id,
     numero: linha.numero,
@@ -379,6 +405,7 @@ function linhaParaAdmin(linha: Linha): ProcessoAdmin {
     retencaoTipo: typeof linha.retencao_tipo === "string" ? linha.retencao_tipo : "",
     retencaoCentavos: linha.retencao_centavos != null ? Number(linha.retencao_centavos) : null,
     pagamentos,
+    cotacoes,
     ciNumero: inteiroOuNulo(linha.ci_numero),
     ciAno: inteiroOuNulo(linha.ci_ano),
     ciOrigem: linha.ci_origem ?? "",
@@ -441,6 +468,7 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
         "alter table processos_admin add column if not exists retencao_tipo text not null default ''",
         "alter table processos_admin add column if not exists retencao_centavos integer",
         "alter table processos_admin add column if not exists pagamentos text not null default '[]'",
+        "alter table processos_admin add column if not exists cotacoes text not null default '[]'",
         "alter table processos_admin add column if not exists em_manutencao boolean not null default false",
         "alter table processos_admin add column if not exists status_em date",
         "create table if not exists ci_inutilizada (ano integer not null, numero integer not null, primary key (ano, numero))",
@@ -461,7 +489,7 @@ async function garantirColunas(sql: Awaited<ReturnType<typeof getSql>>) {
 const SELECT_ADMIN = `
   p.id, p.numero, p.numero_ano, p.referencia, p.objeto, p.tipo, p.tipo_numero, p.tipo_ano, p.data_inicio, p.previsao_etapa, p.encerramento,
   p.alerta_dias, p.possui_contrato, p.vigencia_inicio, p.vigencia_fim,
-  p.contratado, p.documento, p.nascimento, p.contratado_2, p.documento_2, p.nascimento_2, p.valor_total_centavos, p.valor_mensal_centavos, p.valor_estimado_centavos, p.pagamento_demanda, p.retencao_impostos, p.retencao_tipo, p.retencao_centavos, p.pagamentos,
+  p.contratado, p.documento, p.nascimento, p.contratado_2, p.documento_2, p.nascimento_2, p.valor_total_centavos, p.valor_mensal_centavos, p.valor_estimado_centavos, p.pagamento_demanda, p.retencao_impostos, p.retencao_tipo, p.retencao_centavos, p.pagamentos, p.cotacoes,
   p.ci_numero, p.ci_ano, p.ci_origem, p.link_abertura, p.link_abertura_na, p.link_homologacao, p.link_homologacao_na, p.link_pncp, p.link_pncp_na, p.link_retificacao, p.link_cancelamento, p.link_cancelamento_na, p.parecer_numero, p.parecer_ano, p.parecer_na,
   p.status, p.historico, p.team_id,
   coalesce(nullif(p.autor_id, ''), p.user_id) as autor_id,
@@ -809,6 +837,7 @@ export const salvarAdmin = createServerFn({ method: "POST" })
             retencao_tipo = ${data.retencaoTipo},
             retencao_centavos = ${data.retencaoCentavos},
             pagamentos = ${JSON.stringify(data.pagamentos)},
+            cotacoes = ${JSON.stringify(data.cotacoes)},
             ci_numero = ${data.ciNumero},
             ci_ano = ${data.ciAno},
             ci_origem = ${data.ciOrigem},
@@ -838,14 +867,14 @@ export const salvarAdmin = createServerFn({ method: "POST" })
           insert into processos_admin (
             id, user_id, team_id, numero, numero_ano, referencia, objeto, tipo, tipo_numero, tipo_ano, data_inicio, previsao_etapa, encerramento,
             alerta_dias, possui_contrato, vigencia_inicio, vigencia_fim, contratado, documento, nascimento, contratado_2, documento_2, nascimento_2,
-            valor_total_centavos, valor_mensal_centavos, valor_estimado_centavos, pagamento_demanda, retencao_impostos, retencao_tipo, retencao_centavos, pagamentos, ci_numero, ci_ano, ci_origem,
+            valor_total_centavos, valor_mensal_centavos, valor_estimado_centavos, pagamento_demanda, retencao_impostos, retencao_tipo, retencao_centavos, pagamentos, cotacoes, ci_numero, ci_ano, ci_origem,
             link_abertura, link_abertura_na, link_homologacao, link_homologacao_na, link_pncp, link_pncp_na, link_retificacao, link_cancelamento, link_cancelamento_na,
             parecer_numero, parecer_ano, parecer_na, status, status_em, historico, autor_id, autor_nome, em_manutencao
           ) values (
             ${data.id}, ${context.userId}, ${data.equipeId}, ${data.numero}, ${data.numeroAno}, ${data.referencia},
             ${data.objeto}, ${data.tipo}, ${data.tipoNumero}, ${data.tipoAno}, ${data.dataInicio}, ${data.previsaoEtapa}, ${data.encerramento}, ${data.alertaDias},
             ${data.possuiContrato}, ${data.vigenciaInicio}, ${data.vigenciaFim}, ${data.contratado},
-            ${data.documento}, ${data.nascimento}, ${data.contratado2}, ${data.documento2}, ${data.nascimento2}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos}, ${data.pagamentoDemanda}, ${data.retencaoImpostos}, ${data.retencaoTipo}, ${data.retencaoCentavos}, ${JSON.stringify(data.pagamentos)},
+            ${data.documento}, ${data.nascimento}, ${data.contratado2}, ${data.documento2}, ${data.nascimento2}, ${data.valorTotalCentavos}, ${data.valorMensalCentavos}, ${data.valorEstimadoCentavos}, ${data.pagamentoDemanda}, ${data.retencaoImpostos}, ${data.retencaoTipo}, ${data.retencaoCentavos}, ${JSON.stringify(data.pagamentos)}, ${JSON.stringify(data.cotacoes)},
             ${data.ciNumero}, ${data.ciAno}, ${data.ciOrigem}, ${data.linkAbertura}, ${data.linkAberturaNa}, ${data.linkHomologacao}, ${data.linkHomologacaoNa}, ${data.linkPncp}, ${data.linkPncpNa}, ${data.linkRetificacao}, ${data.linkCancelamento}, ${data.linkCancelamentoNa}, ${data.parecerNumero}, ${data.parecerAno}, ${data.parecerNa},
             ${data.status}, current_date,
             ${historicoJson}, ${context.userId}, ${autorNome}, false

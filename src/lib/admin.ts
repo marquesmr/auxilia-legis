@@ -143,6 +143,15 @@ export function rotuloRetencao(id: string | undefined): string {
   return RETENCOES.find((item) => item.id === id)?.rotulo ?? "";
 }
 
+export type Cotacao = {
+  id: string;
+  fornecedor: string;
+  documento: string;
+  valorCentavos: number;
+  data: string;
+  descricao: string;
+};
+
 export type PagamentoDemanda = {
   id: string;
   data: string;
@@ -186,6 +195,7 @@ export type ProcessoAdmin = {
   retencaoTipo: string;
   retencaoCentavos: number | null;
   pagamentos: PagamentoDemanda[];
+  cotacoes: Cotacao[];
   ciNumero: number | null;
   ciAno: number | null;
   ciOrigem: string;
