@@ -5346,35 +5346,37 @@ async function baixarParecer(processo: ProcessoAdmin, timbre: TimbradoEquipe, fu
   const cidade = timbre.linha2.trim() || (timbre.arquivo ? await cidadeDoTimbrado(timbre.arquivo) : "") || timbre.linha1.trim();
   const dataCompleta = cidade ? `${cidade}, ${data}.` : `${data}.`;
   const funcaoFinal = funcao.startsWith("Presidente da Câmara Municipal") && cidade ? `Presidente da Câmara Municipal de ${cidade}` : funcao;
+  const bloco = (item: BlocoTermo): BlocoTermo => ({ ...item, tamanho: item.tamanho ?? 22 });
   const blocos: BlocoTermo[] = [
-    { titulo: true, junto: true, partes: [{ texto: "SOLICITAÇÃO DE PARECERES TÉCNICOS" }] },
-    { titulo: true, junto: Boolean(baseTitulo), partes: [{ texto: `PROCEDIMENTO DE ${tipo}` }] },
+    bloco({ titulo: true, junto: true, partes: [{ texto: "SOLICITAÇÃO DE PARECERES TÉCNICOS" }] }),
+    bloco({ titulo: true, junto: Boolean(baseTitulo), partes: [{ texto: `PROCEDIMENTO DE ${tipo}` }] }),
   ];
-  if (baseTitulo) blocos.push({ titulo: true, partes: [{ texto: `(${baseTitulo})` }] });
+  if (baseTitulo) blocos.push(bloco({ centro: true, italico: true, tamanho: 18, partes: [{ texto: `(${baseTitulo})` }] }));
   blocos.push(
-    { junto: true, partes: [{ texto: `Procedimento Administrativo nº: ${numero}` }] },
-    { partes: [{ texto: peca ? `${processo.tipo}: ${peca}` : processo.tipo }] },
-    { recuo: true, partes: [{ texto: `Considerando a necessidade de ${objeto}, conforme especificado no Termo de Referência – TR constante dos autos;` }] },
-    { recuo: true, partes: [{ texto: `Considerando a proposta apresentada ${fornecedor}, bem como os documentos exigidos para comprovação da sua habilitação;` }] },
-    { recuo: true, partes: [{ texto: "Considerando a justificativa e os fundamentos fático-legais apresentados pelo Agente de Contratação;" }] },
+    bloco({ junto: true, partes: [{ texto: `Procedimento Administrativo nº: ${numero}` }] }),
+    bloco({ partes: [{ texto: peca ? `${processo.tipo}: ${peca}` : processo.tipo }] }),
+    bloco({ recuo: true, partes: [{ texto: `Considerando a necessidade de ${objeto}, conforme especificado no Termo de Referência – TR constante dos autos;` }] }),
+    bloco({ recuo: true, partes: [{ texto: `Considerando a proposta apresentada ${fornecedor}, bem como os documentos exigidos para comprovação da sua habilitação;` }] }),
+    bloco({ recuo: true, partes: [{ texto: "Considerando a justificativa e os fundamentos fático-legais apresentados pelo Agente de Contratação;" }] }),
   );
   if (direta) {
     blocos.push(
-      { recuo: true, partes: [{ texto: "Considerando o que dispõe o art. 72 da Lei nº 14.133, de 2021, notadamente ao que expressa seu inciso III:" }] },
-      { cita: true, partes: [{ texto: "Art. 72. O processo de contratação direta, que compreende os casos de inexigibilidade e de dispensa de licitação, deverá ser instruído com os seguintes documentos:" }] },
-      { cita: true, junto: true, partes: [{ texto: "[...]" }] },
-      { cita: true, partes: [{ texto: "III - parecer jurídico e pareceres técnicos, se for o caso, que demonstrem o atendimento dos requisitos exigidos;" }] },
-      { cita: true, junto: true, partes: [{ texto: "[...]" }] },
+      bloco({ recuo: true, partes: [{ texto: "Considerando o que dispõe o art. 72 da Lei nº 14.133, de 2021, notadamente ao que expressa seu inciso III:" }] }),
+      bloco({ cita: true, partes: [{ texto: "Art. 72. O processo de contratação direta, que compreende os casos de inexigibilidade e de dispensa de licitação, deverá ser instruído com os seguintes documentos:" }] }),
+      bloco({ cita: true, junto: true, partes: [{ texto: "[...]" }] }),
+      bloco({ cita: true, partes: [{ texto: "III - parecer jurídico e pareceres técnicos, se for o caso, que demonstrem o atendimento dos requisitos exigidos;" }] }),
+      bloco({ cita: true, junto: true, partes: [{ texto: "[...]" }] }),
     );
   } else {
-    blocos.push({ recuo: true, partes: [{ texto: "Considerando o que dispõe a Lei nº 14.133, de 2021, notadamente quanto à necessidade de parecer jurídico e de pareceres técnicos que demonstrem o atendimento dos requisitos exigidos;" }] });
+    blocos.push(bloco({ recuo: true, partes: [{ texto: "Considerando o que dispõe a Lei nº 14.133, de 2021, notadamente quanto à necessidade de parecer jurídico e de pareceres técnicos que demonstrem o atendimento dos requisitos exigidos;" }] }));
   }
   blocos.push(
-    { recuo: true, partes: [{ texto: "Considerando assim, e por fim, que a referida contratação deve em tudo atender a lei e a essência de todos os princípios aplicáveis que norteiam as atividades da Administração Pública," }] },
-    { recuo: true, partes: [{ texto: "SOLICITA, ", negrito: true }, { texto: "a Vossas Senhorias, que emita Parecer Jurídico e Parecer Técnico exercitando o controle de legalidade, cuja conclusão nesse sentido deve ser expressa, caso o processo assim demande. Expressa também deve ser orientação quanto à possibilidade de adjudicação, homologação e autorização para contratação." }] },
-    { fecha: dataCompleta, partes: [{ texto: "Sem mais para o momento, subscrevo." }] },
-    { centro: true, junto: true, antes: true, partes: [{ texto: assinante, negrito: true }] },
-    { centro: true, junto: true, partes: [{ texto: funcaoFinal }] },
+    bloco({ recuo: true, partes: [{ texto: "Considerando assim, e por fim, que a referida contratação deve em tudo atender a lei e a essência de todos os princípios aplicáveis que norteiam as atividades da Administração Pública," }] }),
+    bloco({ recuo: true, partes: [{ texto: "SOLICITA, ", negrito: true }, { texto: "a Vossas Senhorias, que emita Parecer Jurídico e Parecer Técnico exercitando o controle de legalidade, cuja conclusão nesse sentido deve ser expressa, caso o processo assim demande. Expressa também deve ser orientação quanto à possibilidade de adjudicação, homologação e autorização para contratação." }] }),
+    bloco({ recuo: true, partes: [{ texto: "Sem mais para o momento, subscrevo." }] }),
+    bloco({ direita: true, partes: [{ texto: dataCompleta }] }),
+    bloco({ centro: true, junto: true, antes: true, partes: [{ texto: assinante, negrito: true }] }),
+    bloco({ centro: true, junto: true, partes: [{ texto: funcaoFinal }] }),
   );
   const numeroArquivo = `Solicitação de parecer ${numero.replaceAll("/", "-")}`;
   if (timbre.arquivo) {
@@ -5393,21 +5395,22 @@ async function baixarParecer(processo: ProcessoAdmin, timbre: TimbradoEquipe, fu
     : "";
   const corpo = blocos
     .map((bloco) => {
-      const classe = bloco.titulo ? "titulo" : bloco.cita ? "cita" : bloco.centro ? "centro" : bloco.recuo ? "recuo" : bloco.antes ? "assinatura" : "ident";
+      const classe = bloco.direita ? "direita" : bloco.italico ? "nota" : bloco.titulo ? "titulo" : bloco.cita ? "cita" : bloco.centro ? "centro" : bloco.recuo ? "recuo" : bloco.antes ? "assinatura" : "ident";
       const texto = bloco.partes.map((parte) => (parte.negrito || bloco.titulo ? `<b>${escaparHtml(parte.texto)}</b>` : escaparHtml(parte.texto))).join("");
-      const lado = bloco.fecha ? `<span style="float:right">${escaparHtml(bloco.fecha)}</span>` : "";
-      return `<p class="${classe}">${texto}${lado}</p>`;
+      return `<p class="${classe}">${texto}</p>`;
     })
     .join("");
   const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'>
 <style>
-body, p { font-family: Arial, sans-serif; font-size: 12pt; color: #111; }
-p { margin: 0 0 12pt; line-height: 1.15; text-align: justify; font-size: 12pt; }
-.titulo { text-align: center; font-weight: bold; margin: 0; }
+body, p { font-family: Arial, sans-serif; font-size: 11pt; color: #111; }
+p { margin: 0 0 12pt; line-height: 1.15; text-align: justify; font-size: 11pt; }
+.titulo { text-align: center; font-weight: bold; font-size: 11pt; margin: 0; }
+.nota { text-align: center; font-style: italic; font-size: 9pt; font-weight: normal; margin: 0 0 12pt; }
 .ident { text-align: left; margin: 0; }
 .recuo { text-indent: 1.25cm; }
 .cita { margin-left: 1.25cm; text-indent: 0; }
 .centro { text-align: center; text-indent: 0; margin: 0; }
+.direita { text-align: right; text-indent: 0; margin: 0 0 12pt; }
 .assinatura { text-align: center; text-indent: 0; margin: 42pt 0 0; }
 .timbre { text-align: center; color: #1F3864; font-weight: bold; font-size: 14pt; line-height: 1.1; margin: 0; }
 .rodape { text-align: center; color: #1F3864; font-size: 10pt; line-height: 1.3; margin: 0; }

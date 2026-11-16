@@ -9,7 +9,9 @@ export type BlocoTermo = {
   cita?: boolean;
   junto?: boolean;
   antes?: boolean;
-  fecha?: string;
+  direita?: boolean;
+  italico?: boolean;
+  tamanho?: number;
 };
 
 function escaparXml(texto: string) {
@@ -17,22 +19,19 @@ function escaparXml(texto: string) {
 }
 
 function blocoXml(bloco: BlocoTermo) {
-  const tamanho = 24;
-  const alinhamento = bloco.centro || bloco.titulo ? "center" : bloco.recuo || bloco.cita ? "both" : "left";
+  const tamanho = bloco.tamanho ?? 24;
+  const alinhamento = bloco.direita ? "right" : bloco.centro || bloco.titulo ? "center" : bloco.recuo || bloco.cita ? "both" : "left";
   const recuo = bloco.cita ? `<w:ind w:left="709"/>` : bloco.recuo ? `<w:ind w:firstLine="709"/>` : "";
   const antes = bloco.antes ? "840" : "0";
   const depois = bloco.titulo && !bloco.junto ? "520" : bloco.junto ? "0" : "240";
-  const tab = bloco.fecha ? `<w:tabs><w:tab w:val="right" w:pos="9072"/></w:tabs>` : "";
+  const italico = bloco.italico ? "<w:i/>" : "";
   const runs = bloco.partes
     .map((parte) => {
       const negrito = parte.negrito || bloco.titulo ? "<w:b/>" : "";
-      return `<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${negrito}<w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr><w:t xml:space="preserve">${escaparXml(parte.texto)}</w:t></w:r>`;
+      return `<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${negrito}${italico}<w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr><w:t xml:space="preserve">${escaparXml(parte.texto)}</w:t></w:r>`;
     })
     .join("");
-  const data = bloco.fecha
-    ? `<w:r><w:tab/></w:r><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr><w:t xml:space="preserve">${escaparXml(bloco.fecha)}</w:t></w:r>`
-    : "";
-  return `<w:p><w:pPr><w:jc w:val="${bloco.fecha ? "left" : alinhamento}"/>${tab}${recuo}<w:spacing w:before="${antes}" w:beforeAutospacing="0" w:after="${depois}" w:afterAutospacing="0" w:line="240" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr></w:pPr>${runs}${data}</w:p>`;
+  return `<w:p><w:pPr><w:jc w:val="${alinhamento}"/>${recuo}<w:spacing w:before="${antes}" w:beforeAutospacing="0" w:after="${depois}" w:afterAutospacing="0" w:line="240" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${italico}<w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr></w:pPr>${runs}</w:p>`;
 }
 
 function textoDoParagrafo(xml: string) {
