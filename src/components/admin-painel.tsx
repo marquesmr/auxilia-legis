@@ -365,8 +365,8 @@ function validar(form: FormAdmin): string[] {
       if (!form.vigenciaInicio || !form.vigenciaFim) erros.push("Informe a vigência do contrato.");
       else if (form.vigenciaFim < form.vigenciaInicio) erros.push("A vigência termina antes de começar.");
     }
-    if (reaisParaCentavos(form.valorTotal) == null) erros.push("Informe o valor anual do contrato.");
-    if (!form.pagamentoDemanda && reaisParaCentavos(form.valorMensal) == null) erros.push("Informe o valor mensal do contrato.");
+    if (reaisParaCentavos(form.valorTotal) == null) erros.push(perfilForm.fim ? "Informe o valor anual do contrato." : "Informe o valor homologado.");
+    if (perfilForm.fim && !form.pagamentoDemanda && reaisParaCentavos(form.valorMensal) == null) erros.push("Informe o valor mensal do contrato.");
     if (form.documento.replace(/\D/g, "").length === 11 && !form.nascimento) erros.push("Informe a data de nascimento.");
   } else if (!form.pagamentoDemanda && form.valorEstimado.trim() && reaisParaCentavos(form.valorEstimado) == null) {
     erros.push("O valor estimado está inválido.");
@@ -527,7 +527,7 @@ function montar(form: FormAdmin, base: Pick<ProcessoAdmin, "id" | "historico" | 
     documento2: (perfil.contratado || encerrado) && permiteDoisContratados(form.tipo) ? form.documento2.trim() : "",
     nascimento2: (perfil.contratado || encerrado) && permiteDoisContratados(form.tipo) && form.documento2.replace(/\D/g, "").length === 11 ? form.nascimento2 || null : null,
     valorTotalCentavos: comValor || perfil.contratado ? reaisParaCentavos(form.valorTotal) : null,
-    valorMensalCentavos: demanda ? somaPagamentos(pagamentos) : perfil.contratado ? reaisParaCentavos(form.valorMensal) : null,
+    valorMensalCentavos: demanda ? somaPagamentos(pagamentos) : perfil.fim ? reaisParaCentavos(form.valorMensal) : null,
     valorEstimadoCentavos: demanda || perfil.contratado || encerrado ? null : reaisParaCentavos(form.valorEstimado),
     pagamentoDemanda: demanda,
     retencaoImpostos: form.retencaoImpostos && !cancelado && !tipoSimples(form.tipo),
@@ -994,9 +994,11 @@ export function AdminPainel({
           return;
         }
       }
-      const valoresProntos = atual.pagamentoDemanda
-        ? atual.valorTotalCentavos != null
-        : atual.valorTotalCentavos != null && atual.valorMensalCentavos != null;
+      const valoresProntos = perfil.fim
+        ? atual.pagamentoDemanda
+          ? atual.valorTotalCentavos != null
+          : atual.valorTotalCentavos != null && atual.valorMensalCentavos != null
+        : atual.valorTotalCentavos != null;
       if (!atual.contratado || !valoresProntos) {
         onToast(perfil.fim ? "Complete contratado e valores em Editar antes de mudar para execução." : "Complete os dados da contratada em Editar antes de mudar para este status.");
         return;
@@ -2069,8 +2071,8 @@ export function AdminPainel({
                         onChange={(contratado2, documento2, nascimento2) => setForm({ ...form, contratado2, documento2, nascimento2 })}
                       />
                     )}
-                    <div className={form.pagamentoDemanda ? "" : "grid gap-3 sm:grid-cols-2"}>
-                      <Campo label="Valor anual">
+                    <div className={form.pagamentoDemanda || !perfilContratacao(form.status).fim ? "" : "grid gap-3 sm:grid-cols-2"}>
+                      <Campo label={perfilContratacao(form.status).fim ? "Valor anual" : "Valor Homologado"}>
                         <input
                           value={form.valorTotal}
                           onChange={(e) => setForm({ ...form, valorTotal: mascaraReais(e.target.value) })}
@@ -2080,7 +2082,7 @@ export function AdminPainel({
                           required
                         />
                       </Campo>
-                      {!form.pagamentoDemanda && (
+                      {perfilContratacao(form.status).fim && !form.pagamentoDemanda && (
                         <Campo label="Valor mensal">
                           <input
                             value={form.valorMensal}
@@ -2093,7 +2095,7 @@ export function AdminPainel({
                         </Campo>
                       )}
                     </div>
-                    {form.pagamentoDemanda && (
+                    {form.pagamentoDemanda && perfilContratacao(form.status).fim && (
                       <p className="text-sm text-muted">O valor mensal passa a ser a soma dos pagamentos lançados no andamento.</p>
                     )}
                   </div>
@@ -2663,9 +2665,13 @@ function CardAdmin({
                 )}
                 {processo.pagamentoDemanda ? (
                   <>
-                    <Info rotulo={perfilContratacao(processo.status).contratado || processo.possuiContrato ? "Valor anual" : "Valor da contratação"} valor={formatarReais(processo.valorTotalCentavos)} />
-                    <Info rotulo="Valor mensal" valor={formatarReais(processo.pagamentos.length > 0 ? somaPagamentos(processo.pagamentos) : processo.valorMensalCentavos)} />
+                    <Info rotulo={perfilContratacao(processo.status).contratado && !perfilContratacao(processo.status).fim ? "Valor Homologado" : perfilContratacao(processo.status).contratado || processo.possuiContrato ? "Valor anual" : "Valor da contratação"} valor={formatarReais(processo.valorTotalCentavos)} />
+                    {!(perfilContratacao(processo.status).contratado && !perfilContratacao(processo.status).fim) && (
+                      <Info rotulo="Valor mensal" valor={formatarReais(processo.pagamentos.length > 0 ? somaPagamentos(processo.pagamentos) : processo.valorMensalCentavos)} />
+                    )}
                   </>
+                ) : perfilContratacao(processo.status).contratado && !perfilContratacao(processo.status).fim ? (
+                  <Info rotulo="Valor Homologado" valor={formatarReais(processo.valorTotalCentavos)} />
                 ) : perfilContratacao(processo.status).contratado || processo.possuiContrato ? (
                   <>
                     <Info rotulo="Valor anual" valor={formatarReais(processo.valorTotalCentavos)} />
@@ -3743,8 +3749,14 @@ function RelatorioPagamentos({
               </>
             ) : null}
             <Info rotulo="Vigência" valor={escolhido.vigenciaInicio ? `${formatDate(escolhido.vigenciaInicio)} a ${escolhido.vigenciaFim ? formatDate(escolhido.vigenciaFim) : "—"}` : "—"} largo />
-            <Info rotulo={escolhido.pagamentoDemanda || escolhido.possuiContrato ? "Valor anual" : "Valor da contratação"} valor={formatarReais(escolhido.valorTotalCentavos)} />
-            <Info rotulo="Valor mensal" valor={formatarReais(escolhido.pagamentoDemanda ? somaPagamentos(escolhido.pagamentos) : escolhido.valorMensalCentavos)} />
+            {perfilContratacao(escolhido.status).contratado && !perfilContratacao(escolhido.status).fim ? (
+              <Info rotulo="Valor Homologado" valor={formatarReais(escolhido.valorTotalCentavos)} />
+            ) : (
+              <>
+                <Info rotulo={escolhido.pagamentoDemanda || escolhido.possuiContrato ? "Valor anual" : "Valor da contratação"} valor={formatarReais(escolhido.valorTotalCentavos)} />
+                <Info rotulo="Valor mensal" valor={formatarReais(escolhido.pagamentoDemanda ? somaPagamentos(escolhido.pagamentos) : escolhido.valorMensalCentavos)} />
+              </>
+            )}
             {escolhido.retencaoImpostos ? <Info rotulo="Retenção de impostos" valor={`${rotuloRetencao(escolhido.retencaoTipo) || "—"} · ${formatarReais(escolhido.retencaoCentavos)}`} /> : null}
             <Info rotulo="Lançado por" valor={escolhido.autorNome || "sem nome"} />
           </dl>
@@ -3850,7 +3862,9 @@ function RelatorioPagamentos({
               ) : (
                 <p className="mt-3 text-sm font-medium text-ink">Total: {formatarReais(somaPagamentos(pagamentos))}</p>
               )}
-              {escolhido && !escolhido.pagamentoDemanda && escolhido.valorMensalCentavos != null && escolhido.valorTotalCentavos != null ? (
+              {escolhido && perfilContratacao(escolhido.status).contratado && !perfilContratacao(escolhido.status).fim && escolhido.valorTotalCentavos != null ? (
+                <p className="mt-1 text-sm text-muted">Valor Homologado: {formatarReais(escolhido.valorTotalCentavos)}</p>
+              ) : escolhido && !escolhido.pagamentoDemanda && escolhido.valorMensalCentavos != null && escolhido.valorTotalCentavos != null ? (
                 <p className="mt-1 text-sm text-muted">Valor anual: {formatarReais(escolhido.valorTotalCentavos)}</p>
               ) : null}
             </div>

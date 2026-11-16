@@ -180,8 +180,8 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
       if (!vigenciaInicio || !vigenciaFim) throw new Error("Informe a vigência do contrato.");
       if (vigenciaFim < vigenciaInicio) throw new Error("A vigência termina antes de começar.");
     }
-    if (valorTotalCentavos == null) throw new Error("Informe o valor anual do contrato.");
-    if (!pagamentoDemanda && valorMensalCentavos == null) throw new Error("Informe o valor mensal do contrato.");
+    if (valorTotalCentavos == null) throw new Error(modo === "contratado" ? "Informe o valor homologado." : "Informe o valor anual do contrato.");
+    if (modo === "contrato" && !pagamentoDemanda && valorMensalCentavos == null) throw new Error("Informe o valor mensal do contrato.");
   } else if (modo === "total") {
     if (!contratado) throw new Error("Informe o contratado.");
     const digitos = documento.replace(/\D/g, "");
@@ -233,7 +233,7 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
     documento2,
     nascimento2: documento2 ? nascimentoDe(documento2, bruto.nascimento2, "Informe a data de nascimento do segundo contratado.") : null,
     valorTotalCentavos: modo === "contrato" || modo === "contratado" || modo === "total" ? valorTotalCentavos : null,
-    valorMensalCentavos: pagamentoDemanda ? somaPagamentos(pagamentos) : modo === "contrato" || modo === "contratado" ? valorMensalCentavos : null,
+    valorMensalCentavos: pagamentoDemanda ? somaPagamentos(pagamentos) : modo === "contrato" ? valorMensalCentavos : null,
     valorEstimadoCentavos: pagamentoDemanda || modo !== "estimado" ? null : valorEstimadoCentavos,
     pagamentoDemanda,
     retencaoImpostos,
