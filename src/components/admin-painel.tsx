@@ -44,7 +44,7 @@ import {
   type UrgenciaAdmin,
   type LinhaControle,
 } from "@/lib/admin";
-import { apagarAdmin, lerContadorPrevisao, listarAdmin, listarCiAnotacoes, listarCiAvulsas, listarDotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao, salvarCiAvulsa, salvarContadorPrevisao, salvarDotacao, type ContadorPrevisao } from "@/lib/admin.functions";
+import { apagarAdmin, lerContadorPrevisao, listarAdmin, listarCiAnotacoes, listarCiAvulsas, listarDotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao, salvarContadorPrevisao, salvarDotacao, type ContadorPrevisao } from "@/lib/admin.functions";
 import { lerTimbradoEquipe, type TimbradoEquipe } from "@/lib/equipes.functions";
 import { cidadeDoTimbrado, termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
 import { DOTACOES, dotacaoDocumento, fichaDocumento, type Dotacao } from "@/lib/dotacoes";
@@ -914,13 +914,14 @@ export function AdminPainel({
             ano: item.ciAno as number,
             referencia: item.referencia,
             processo: rotuloNumero(item.numero, item.numeroAno),
-          }))
-          .concat(
-            ciAvulsas
-              .filter((item) => !lista.some((processo) => processo.ciNumero === item.numero && processo.ciAno === item.ano && daGerenciaAdministrativa(processo.ciOrigem)))
-              .map((item) => ({ numero: item.numero, ano: item.ano, referencia: item.referencia, processo: "", avulsa: true })),
-          ),
-        anotacoesCi,
+          })),
+        [
+          ...anotacoesCi,
+          ...ciAvulsas
+            .filter((item) => !anotacoesCi.some((nota) => nota.ano === item.ano && nota.numero === item.numero))
+            .filter((item) => !lista.some((processo) => processo.ciNumero === item.numero && processo.ciAno === item.ano && daGerenciaAdministrativa(processo.ciOrigem)))
+            .map((item) => ({ ano: item.ano, numero: item.numero, destino: item.referencia, desativada: false })),
+        ],
       ),
     [lista, anotacoesCi, ciAvulsas],
   );
@@ -1711,13 +1712,11 @@ export function AdminPainel({
                 onToast("Essa comunicação já está em um processo.");
                 return;
               }
-              setCiAvulsas((atual) => {
-                const sem = atual.filter((item) => item.ano !== dados.ano || item.numero !== dados.numero);
-                return [...sem, dados];
-              });
-              void salvarCiAvulsa({ data: dados }).catch((err: unknown) => {
+              const nota = { ano: dados.ano, numero: dados.numero, destino: dados.referencia, desativada: false };
+              setAnotacoesCi((atual) => [...atual.filter((item) => item.ano !== dados.ano || item.numero !== dados.numero), nota]);
+              void salvarCiAnotacao({ data: nota }).catch((err: unknown) => {
                 onToast(mensagemErro(err));
-                void listarCiAvulsas().then(setCiAvulsas).catch(() => undefined);
+                void listarCiAnotacoes().then(setAnotacoesCi).catch(() => undefined);
               });
             }}
           />
@@ -4256,7 +4255,7 @@ function ControlePecas({
                   )}
                 </p>
                 {linha.destino && !linha.falta ? <p className="mt-1 text-muted">Para: {linha.destino}</p> : null}
-                {!linha.falta && <p className="mt-1 text-muted">{linha.avulsa ? "Sem processo" : `Processo ${linha.processo}`}</p>}
+                {!linha.falta && <p className="mt-1 text-muted">Processo {linha.processo}</p>}
               </li>
             ))}
           </ul>
@@ -4289,7 +4288,7 @@ function ControlePecas({
                         </>
                       )}
                     </td>
-                    <td className="py-2 pr-3 text-ink">{linha.falta ? "—" : linha.avulsa ? "Sem processo" : linha.processo}</td>
+                    <td className="py-2 pr-3 text-ink">{linha.falta ? "—" : linha.processo}</td>
                     {onAnotar ? (
                       <td className="py-2 text-right">
                         <MenuComunicacao linha={linha} onAnotar={onAnotar} />
