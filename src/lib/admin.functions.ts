@@ -1123,29 +1123,41 @@ export const salvarContadorPrevisao = createServerFn({ method: "POST" })
     return data;
   });
 
+let dotacoesProntas: Promise<Awaited<ReturnType<typeof getSql>>> | null = null;
+
 async function garantirDotacoes() {
-  const sql = await getSql();
-  await sql`
-    create table if not exists dotacoes_catalogo (
-      ficha integer primary key,
-      conta text not null,
-      descricao text not null,
-      fonte text not null,
-      fonte_nome text not null
-    )
-  `;
-  for (const item of DOTACOES) {
-    if (item.ficha > 30) continue;
+  dotacoesProntas ??= (async () => {
+    const sql = await getSql();
+    await sql`
+      create table if not exists dotacoes_catalogo (
+        ficha integer primary key,
+        conta text not null,
+        descricao text not null,
+        fonte text not null,
+        fonte_nome text not null
+      )
+    `;
+    const base = DOTACOES.filter((item) => item.ficha <= 30);
     await sql`
       insert into dotacoes_catalogo (ficha, conta, descricao, fonte, fonte_nome)
-      values (${item.ficha}, ${item.conta}, ${item.descricao}, ${item.fonte}, ${item.fonteNome})
+      select * from unnest(
+        ${base.map((item) => item.ficha)}::int[],
+        ${base.map((item) => item.conta)}::text[],
+        ${base.map((item) => item.descricao)}::text[],
+        ${base.map((item) => item.fonte)}::text[],
+        ${base.map((item) => item.fonteNome)}::text[]
+      )
       on conflict (ficha) do nothing
     `;
-  }
-  await sql`delete from dotacoes_catalogo where ficha > 30`;
-  await sql`update dotacoes_catalogo set descricao = ${"Outros Serviços de Terceiros — Pessoa Física"} where ficha = 25 and descricao = ${"Outros Serviços de Terceiros"}`;
-  await sql`update dotacoes_catalogo set descricao = ${"Outros Serviços de Terceiros — Pessoa Jurídica"} where ficha = 26 and descricao = ${"Outros Serviços de Terceiros — Pessoa Física"}`;
-  return sql;
+    await sql`delete from dotacoes_catalogo where ficha > 30`;
+    await sql`update dotacoes_catalogo set descricao = ${"Outros Serviços de Terceiros — Pessoa Física"} where ficha = 25 and descricao = ${"Outros Serviços de Terceiros"}`;
+    await sql`update dotacoes_catalogo set descricao = ${"Outros Serviços de Terceiros — Pessoa Jurídica"} where ficha = 26 and descricao = ${"Outros Serviços de Terceiros — Pessoa Física"}`;
+    return sql;
+  })().catch((erro) => {
+    dotacoesProntas = null;
+    throw erro;
+  });
+  return dotacoesProntas;
 }
 
 export const listarDotacoes = createServerFn({ method: "GET" })

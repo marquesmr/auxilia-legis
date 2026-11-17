@@ -3338,7 +3338,6 @@ function PainelDocumentos({
   const [fichaEditando, setFichaEditando] = useState<number | null>(null);
   const [rascunhoDotacao, setRascunhoDotacao] = useState<Dotacao | null>(null);
   const [erroDotacao, setErroDotacao] = useState("");
-  const [salvandoDotacao, setSalvandoDotacao] = useState(false);
   const [previsaoDocErro, setPrevisaoDocErro] = useState("");
   const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string; contrato: boolean }[]>([]);
   const [extratoEscolha, setExtratoEscolha] = useState("");
@@ -3929,7 +3928,7 @@ function PainelDocumentos({
                           <input value={rascunhoDotacao.fonteNome} onChange={(evento) => setRascunhoDotacao({ ...rascunhoDotacao, fonteNome: evento.target.value })} className={inputCls} placeholder="Nome da fonte" autoComplete="off" />
                           <div className="flex justify-end gap-2">
                             <button type="button" onClick={() => setFichaEditando(null)} className="h-10 rounded-xl border border-line px-3 text-sm text-ink">Cancelar</button>
-                            <button type="button" disabled={salvandoDotacao} onClick={() => { setSalvandoDotacao(true); setErroDotacao(""); void salvarDotacao({ data: rascunhoDotacao }).then((salva) => { setCatalogoDotacoes((atual) => atual.map((linha) => linha.ficha === salva.ficha ? salva : linha)); setFichaEditando(null); }).catch((err: unknown) => setErroDotacao(err instanceof Error ? err.message : "Não foi possível salvar a dotação.")).finally(() => setSalvandoDotacao(false)); }} className="h-10 rounded-xl bg-pine px-3 text-sm font-medium text-sheet disabled:opacity-50">Salvar</button>
+                            <button type="button" onClick={() => { const salva = rascunhoDotacao; setCatalogoDotacoes((atual) => atual.map((linha) => linha.ficha === salva.ficha ? salva : linha)); setFichaEditando(null); setErroDotacao(""); void salvarDotacao({ data: salva }).catch((err: unknown) => setErroDotacao(err instanceof Error ? err.message : "Não foi possível salvar a dotação.")); }} className="h-10 rounded-xl bg-pine px-3 text-sm font-medium text-sheet">Salvar</button>
                           </div>
                         </div>
                       ) : (
