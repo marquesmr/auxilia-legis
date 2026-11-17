@@ -17,6 +17,7 @@ import {
   formatarPeca,
   daGerenciaAdministrativa,
   sequenciaControle,
+  centavosParaCampo,
   formatarReais,
   intervaloPeriodo,
   marcarAvisosAdmin,
@@ -37,6 +38,7 @@ import {
   somaPagamentos,
   statusAdminLabel,
   urgenciaAdmin,
+  type Cotacao,
   type Modalidade,
   type PeriodoRelatorio,
   type ProcessoAdmin,
@@ -576,6 +578,9 @@ function TelaCotacoes({
   onFornecedores,
   onDocumento,
   onLancar,
+  editando,
+  onEditar,
+  onCancelar,
 }: {
   processos: ProcessoAdmin[];
   processoId: string;
@@ -586,9 +591,13 @@ function TelaCotacoes({
   onFornecedores: (valor: LinhaFornecedorCotacao[] | ((atual: LinhaFornecedorCotacao[]) => LinhaFornecedorCotacao[])) => void;
   onDocumento: (id: string, texto: string) => void;
   onLancar: () => void;
+  editando: boolean;
+  onEditar: (processoId: string, cotacao: Cotacao) => void;
+  onCancelar: () => void;
 }) {
   const ordenados = [...processos].sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
   const lancadas = ordenados.flatMap((processo) => (processo.cotacoes ?? []).map((cotacao) => ({ processo, cotacao })));
+  const [vista, setVista] = useState<{ processo: string; cotacao: Cotacao } | null>(null);
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -661,8 +670,13 @@ function TelaCotacoes({
             Outro fornecedor
           </button>
           <button type="button" onClick={onLancar} className="inline-flex h-11 items-center justify-center rounded-xl bg-pine px-4 text-sm font-medium text-sheet">
-            Vincular
+            {editando ? "Salvar" : "Vincular"}
           </button>
+          {editando ? (
+            <button type="button" onClick={onCancelar} className="inline-flex h-11 items-center justify-center rounded-xl border border-line px-4 text-sm font-medium text-ink">
+              Cancelar
+            </button>
+          ) : null}
         </div>
       </div>
       <div>
@@ -673,20 +687,45 @@ function TelaCotacoes({
           <ul className="mt-3 flex flex-col gap-2">
             {lancadas.map(({ processo, cotacao }, indice) => (
               <li key={cotacao.id} className={"rounded-xl border border-line px-4 py-3 text-sm " + (indice % 2 === 0 ? "bg-paper" : "bg-sheet")}>
-                <p className="font-medium text-ink">{rotuloLista(processo)}</p>
-                {cotacao.descricao ? <p className="mt-1 text-ink">{cotacao.descricao}</p> : null}
-                <ul className="mt-1 flex flex-col gap-0.5 text-muted">
-                  {cotacao.fornecedores.map((fornecedor, ordem) => (
-                    <li key={`${cotacao.id}-${ordem}`}>
-                      {formatDate(fornecedor.data)} · {fornecedor.fornecedor} · {formatarReais(fornecedor.valorCentavos)}
-                    </li>
-                  ))}
-                </ul>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink">{rotuloLista(processo)}</p>
+                    {cotacao.descricao ? <p className="mt-1 text-ink">{cotacao.descricao}</p> : null}
+                    <p className="mt-1 text-muted">{cotacao.fornecedores.length} fornecedor{cotacao.fornecedores.length === 1 ? "" : "es"}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <button type="button" onClick={() => setVista({ processo: rotuloLista(processo), cotacao })} className="text-sm font-medium text-pine">Ver</button>
+                    <button type="button" onClick={() => onEditar(processo.id, cotacao)} className="text-sm font-medium text-ink">Editar</button>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
         )}
       </div>
+      {vista ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 p-4" onClick={() => setVista(null)}>
+          <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-[1.75rem] border border-pine bg-sheet p-5" onClick={(evento) => evento.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-display text-xl text-ink">Fornecedores</h3>
+                <p className="mt-1 text-sm text-muted">{vista.processo}</p>
+                {vista.cotacao.descricao ? <p className="text-sm text-ink">{vista.cotacao.descricao}</p> : null}
+              </div>
+              <button type="button" onClick={() => setVista(null)} className="grid size-9 shrink-0 place-items-center rounded-xl bg-pine text-sheet" aria-label="Fechar"><X className="size-4" /></button>
+            </div>
+            <ul className="mt-4 flex flex-col gap-2">
+              {vista.cotacao.fornecedores.map((fornecedor, ordem) => (
+                <li key={`${vista.cotacao.id}-${ordem}`} className="rounded-xl border border-line bg-paper px-3 py-3 text-sm">
+                  <p className="font-medium text-ink">{fornecedor.fornecedor}</p>
+                  <p className="mt-1 text-ink">{fornecedor.documento}</p>
+                  <p className="mt-1 text-muted">{formatDate(fornecedor.data)} · {formatarReais(fornecedor.valorCentavos)}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -734,6 +773,7 @@ export function AdminPainel({
   const [cotacaoProcesso, setCotacaoProcesso] = useState("");
   const [cotacaoDescricao, setCotacaoDescricao] = useState("");
   const [cotacaoFornecedores, setCotacaoFornecedores] = useState<{ id: string; fornecedor: string; documento: string; valor: string; data: string }[]>(() => linhasFornecedorCotacao());
+  const [cotacaoEditando, setCotacaoEditando] = useState<{ processoId: string; cotacaoId: string } | null>(null);
   const [andamentoId, setAndamentoId] = useState<string | null>(null);
   const [notaAndamento, setNotaAndamento] = useState("");
   const [statusAndamento, setStatusAndamento] = useState<StatusAdmin>("proposta");
@@ -1079,21 +1119,32 @@ export function AdminPainel({
     }
     const atualizado: ProcessoAdmin = {
       ...atual,
-      cotacoes: [
-        ...(atual.cotacoes ?? []),
-        {
-          id: crypto.randomUUID(),
-          descricao: cotacaoDescricao.trim(),
-          fornecedores,
-        },
-      ],
+      cotacoes: cotacaoEditando
+        ? (atual.cotacoes ?? []).some((item) => item.id === cotacaoEditando.cotacaoId)
+          ? (atual.cotacoes ?? []).map((item) => (item.id === cotacaoEditando.cotacaoId ? { id: item.id, descricao: cotacaoDescricao.trim(), fornecedores } : item))
+          : [...(atual.cotacoes ?? []), { id: cotacaoEditando.cotacaoId, descricao: cotacaoDescricao.trim(), fornecedores }]
+        : [
+            ...(atual.cotacoes ?? []),
+            { id: crypto.randomUUID(), descricao: cotacaoDescricao.trim(), fornecedores },
+          ],
     };
+    const semOrigem =
+      cotacaoEditando && cotacaoEditando.processoId !== atualizado.id
+        ? listaViva.current.map((item) =>
+            item.id === cotacaoEditando.processoId ? { ...item, cotacoes: (item.cotacoes ?? []).filter((cotacao) => cotacao.id !== cotacaoEditando.cotacaoId) } : item,
+          )
+        : listaViva.current;
     persistir(
-      listaViva.current.map((item) => (item.id === atualizado.id ? atualizado : item)),
+      semOrigem.map((item) => (item.id === atualizado.id ? atualizado : item)),
       atualizado,
       null,
-      "Cotação vinculada",
+      cotacaoEditando ? "Cotação atualizada" : "Cotação vinculada",
     );
+    if (cotacaoEditando && cotacaoEditando.processoId !== atualizado.id) {
+      const origem = semOrigem.find((item) => item.id === cotacaoEditando.processoId);
+      if (origem) filaPagamento.current = filaPagamento.current.then(() => salvarAdmin({ data: origem })).then(() => undefined);
+    }
+    setCotacaoEditando(null);
     setCotacaoFornecedores(linhasFornecedorCotacao());
     setCotacaoDescricao("");
   }
@@ -1698,6 +1749,26 @@ export function AdminPainel({
             onFornecedores={setCotacaoFornecedores}
             onDocumento={aoDocumentoCotacao}
             onLancar={lancarCotacao}
+            editando={cotacaoEditando != null}
+            onEditar={(processoId, cotacao) => {
+              setCotacaoProcesso(processoId);
+              setCotacaoDescricao(cotacao.descricao);
+              setCotacaoFornecedores(
+                cotacao.fornecedores.map((item) => ({
+                  id: crypto.randomUUID(),
+                  fornecedor: item.fornecedor,
+                  documento: item.documento,
+                  valor: centavosParaCampo(item.valorCentavos),
+                  data: item.data,
+                })),
+              );
+              setCotacaoEditando({ processoId, cotacaoId: cotacao.id });
+            }}
+            onCancelar={() => {
+              setCotacaoEditando(null);
+              setCotacaoDescricao("");
+              setCotacaoFornecedores(linhasFornecedorCotacao());
+            }}
           />
         ) : guia === "lancamento" ? null : guia === "estatisticas" ? (
           <GraficoAdmin processos={lista} />
