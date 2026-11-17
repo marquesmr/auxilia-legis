@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, Check, CircleDollarSign, Copy, FilePen, FileText, Files, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, Wallet, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, Check, CircleDollarSign, Copy, Expand, FilePen, FileText, Files, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, Wallet, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -3882,7 +3882,10 @@ function PainelDocumentos({
               {previsaoDocErro || precoErro || erroVolume || termoAviso ? <p className="mt-3 text-sm text-seal">{previsaoDocErro || precoErro || erroVolume || termoAviso}</p> : null}
             </div>
             <div className="flex min-h-0 flex-col">
-              <div className="min-h-0 flex-1 overflow-hidden rounded-[1.75rem] border border-pine bg-sheet p-4">
+              <div className="relative min-h-0 flex-1 overflow-hidden rounded-[1.75rem] border border-pine bg-sheet p-4">
+                <button type="button" onClick={() => setPreviaCheia(true)} className="absolute right-3 top-3 z-10 grid size-8 place-items-center rounded-lg text-ink" aria-label="Ver em tela cheia">
+                  <Expand className="size-4" />
+                </button>
                 <EncaixePrevia>{previaMoldura}</EncaixePrevia>
               </div>
               <div className="mt-3 flex shrink-0 justify-end gap-2">
@@ -3891,6 +3894,14 @@ function PainelDocumentos({
               </div>
             </div>
           </div>
+          {previaCheia ? (
+            <div className="fixed inset-0 z-50 overflow-y-auto bg-paper px-4 py-6">
+              <button type="button" onClick={() => setPreviaCheia(false)} className="fixed right-4 top-4 z-10 grid size-10 place-items-center rounded-xl bg-pine text-sheet" aria-label="Fechar tela cheia">
+                <X className="size-4" />
+              </button>
+              <div className="mx-auto max-w-3xl rounded-[1.75rem] border border-pine bg-sheet p-6">{previaMoldura}</div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <>
