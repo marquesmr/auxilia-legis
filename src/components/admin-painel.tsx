@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, Check, CircleDollarSign, Copy, FilePen, FileText, Files, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, Check, CircleDollarSign, Copy, FilePen, FileText, Files, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, Wallet, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -3101,8 +3101,9 @@ function PainelDocumentos({
 }) {
   const [processoId, setProcessoId] = useState("");
   const [escolhaAberta, setEscolhaAberta] = useState(false);
-  const [tipoDoc, setTipoDoc] = useState<"capa" | "extrato" | "termo" | "parecer" | "preco" | null>(null);
+  const [tipoDoc, setTipoDoc] = useState<"capa" | "extrato" | "termo" | "parecer" | "preco" | "previsao" | null>(null);
   const [precoAberto, setPrecoAberto] = useState(false);
+  const [previsaoAberta, setPrevisaoAberta] = useState(false);
   const [extratoAberto, setExtratoAberto] = useState(false);
   const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string; contrato: boolean }[]>([]);
   const [extratoEscolha, setExtratoEscolha] = useState("");
@@ -3143,7 +3144,11 @@ function PainelDocumentos({
       .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível carregar o timbrado."));
   }
 
-  function abrirTipo(tipo: "capa" | "extrato" | "termo" | "parecer" | "preco") {
+  function abrirTipo(tipo: "capa" | "extrato" | "termo" | "parecer" | "preco" | "previsao") {
+    if (tipo === "previsao") {
+      setPrevisaoAberta(true);
+      return;
+    }
     if (ordenados.length === 0) return;
     setTipoDoc(tipo);
     setProcessoId((atual) => (ordenados.some((item) => item.id === atual) ? atual : ordenados[0].id));
@@ -3194,8 +3199,8 @@ function PainelDocumentos({
     prepararTimbre(escolhido, () => setParecerAberto(true));
   }
 
-  const [ordemDocs, setOrdemDocs] = useState<("capa" | "extrato" | "termo" | "parecer" | "preco")[]>(() => {
-    const padrao = ["capa", "extrato", "termo", "parecer", "preco"] as const;
+  const [ordemDocs, setOrdemDocs] = useState<("capa" | "extrato" | "termo" | "parecer" | "preco" | "previsao")[]>(() => {
+    const padrao = ["capa", "extrato", "termo", "parecer", "preco", "previsao"] as const;
     try {
       const lido = JSON.parse(localStorage.getItem("prazos.documentos.ordem") || "");
       if (!Array.isArray(lido)) return [...padrao];
@@ -3207,16 +3212,17 @@ function PainelDocumentos({
   });
   const docArrastado = useRef<string | null>(null);
   const ignorarCliqueDoc = useRef(false);
-  const catalogoDocs: { tipo: "capa" | "extrato" | "termo" | "parecer" | "preco"; rotulo: string; icone: ReactNode }[] = [
-    { tipo: "capa", rotulo: "Imprimir capa", icone: <Printer className="size-7" /> },
+  const catalogoDocs: { tipo: "capa" | "extrato" | "termo" | "parecer" | "preco" | "previsao"; rotulo: string; icone: ReactNode }[] = [
+    { tipo: "capa", rotulo: "Imprimir Capa", icone: <Printer className="size-7" /> },
     { tipo: "extrato", rotulo: "Extrato", icone: <FileText className="size-7" /> },
-    { tipo: "termo", rotulo: "Termo de encerramento", icone: <FilePen className="size-7" /> },
-    { tipo: "parecer", rotulo: "Solicitação de parecer", icone: <Scale className="size-7" /> },
-    { tipo: "preco", rotulo: "Justificativa de preço", icone: <CircleDollarSign className="size-7" /> },
+    { tipo: "termo", rotulo: "Termo de Encerramento", icone: <FilePen className="size-7" /> },
+    { tipo: "parecer", rotulo: "Solicitação de Parecer", icone: <Scale className="size-7" /> },
+    { tipo: "preco", rotulo: "Justificativa de Preço", icone: <CircleDollarSign className="size-7" /> },
+    { tipo: "previsao", rotulo: "Previsão de Recurso Orçamentários", icone: <Wallet className="size-7" /> },
   ];
   const botoes = ordemDocs.flatMap((tipo) => catalogoDocs.filter((item) => item.tipo === tipo));
 
-  function soltarDocumento(destino: "capa" | "extrato" | "termo" | "parecer" | "preco") {
+  function soltarDocumento(destino: "capa" | "extrato" | "termo" | "parecer" | "preco" | "previsao") {
     const origem = docArrastado.current;
     docArrastado.current = null;
     if (!origem || origem === destino) return;
@@ -3268,11 +3274,21 @@ function PainelDocumentos({
             className={"flex aspect-square cursor-grab flex-col items-center justify-center gap-3 rounded-2xl bg-pine px-3 text-center text-sm font-medium text-sheet active:cursor-grabbing" + (ordenados.length === 0 ? " opacity-50" : "")}
           >
             {botao.icone}
-            <span>{botao.rotulo}</span>
+            <span className="text-balance leading-tight">{botao.rotulo}</span>
           </button>
         ))}
       </div>
       {ordenados.length === 0 ? <p className="mt-4 text-sm text-muted">Não há processo para gerar documento.</p> : null}
+      <Dialog.Root open={previsaoAberta} onOpenChange={setPrevisaoAberta}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Previsão de Recurso Orçamentários</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted">O texto deste documento ainda não foi definido. Assim que o modelo chegar, a previsão sai por aqui.</Dialog.Description>
+            <Dialog.Close type="button" className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">Fechar</Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       <Dialog.Root open={escolhaAberta} onOpenChange={setEscolhaAberta}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
