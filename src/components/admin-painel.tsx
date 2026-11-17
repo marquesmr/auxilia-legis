@@ -737,13 +737,13 @@ function TelaCotacoes({
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-ink">{rotuloLista(processo)}</p>
-                      {cotacao.descricao ? <p className="mt-1 text-ink">{cotacao.descricao}</p> : null}
-                      <p className="mt-1 text-muted">{cotacao.fornecedores.length} fornecedor{cotacao.fornecedores.length === 1 ? "" : "es"}</p>
-                    </div>
-                    <div className="flex shrink-0 gap-2">
+                  <div className="flex items-center gap-3">
+                    <p className="min-w-0 flex-1 truncate text-ink">
+                      <span className="font-medium">{rotuloLista(processo)}</span>
+                      {cotacao.descricao ? <span> · {cotacao.descricao}</span> : null}
+                      <span className="text-muted"> · {cotacao.fornecedores.length} fornecedor{cotacao.fornecedores.length === 1 ? "" : "es"}</span>
+                    </p>
+                    <div className="ml-auto flex shrink-0 items-center gap-3">
                       <button type="button" onClick={() => setVista({ processo: rotuloLista(processo), cotacao })} className="text-sm font-medium text-pine">Ver</button>
                       <button type="button" onClick={() => setEditando({ processoId: processo.id, cotacaoId: cotacao.id, descricao: cotacao.descricao, fornecedores: cotacao.fornecedores.map((item) => ({ id: crypto.randomUUID(), fornecedor: item.fornecedor, documento: item.documento, valor: centavosParaCampo(item.valorCentavos), data: item.data })) })} className="text-sm font-medium text-ink">Editar</button>
                     </div>
