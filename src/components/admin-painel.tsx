@@ -46,7 +46,7 @@ import {
 } from "@/lib/admin";
 import { apagarAdmin, lerContadorPrevisao, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao, salvarContadorPrevisao, type ContadorPrevisao } from "@/lib/admin.functions";
 import { lerTimbradoEquipe, type TimbradoEquipe } from "@/lib/equipes.functions";
-import { cidadeDoTimbrado, imagensDoTimbrado, termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
+import { cidadeDoTimbrado, termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
 import { dotacaoDocumento, fichaDocumento, fichaDotacao } from "@/lib/dotacoes";
 import { buscarCnpjPorNome, consultarDocumento, type ConsultaDocumento, type ResultadoNomeCnpj } from "@/lib/cnpj.functions";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
@@ -3125,7 +3125,6 @@ function PainelDocumentos({
   const [contadorErro, setContadorErro] = useState("");
   const [contadorSalvando, setContadorSalvando] = useState(false);
   const [editorAberto, setEditorAberto] = useState(false);
-  const [timbreVista, setTimbreVista] = useState<{ topo: string[]; rodape: string[]; imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string } | null>(null);
   const onTelaRef = useRef(onTela);
   onTelaRef.current = onTela;
   useEffect(() => {
@@ -3156,15 +3155,10 @@ function PainelDocumentos({
 
   function mostrarTimbre(timbre: TimbradoEquipe | null) {
     if (!timbre) {
-      setTimbreVista(null);
       setPrevisaoCidade("");
       return;
     }
-    const base = { topo: [] as string[], rodape: [] as string[], imagem: timbre.imagem, linha1: timbre.linha1, linha2: timbre.linha2, rodape1: timbre.rodape1, rodape2: timbre.rodape2 };
-    setTimbreVista(base);
     setPrevisaoCidade(timbre.linha2.trim() || "");
-    if (!timbre.arquivo) return;
-    void imagensDoTimbrado(timbre.arquivo).then((imagens) => setTimbreVista({ ...base, ...imagens })).catch(() => undefined);
   }
 
   function prepararTimbre(alvo: ProcessoAdmin, abrir: () => void) {
@@ -3352,40 +3346,40 @@ function PainelDocumentos({
   const dataPrevia = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
   const assinantePrevia = contador ? (contador.tipo === "terceirizado" ? contador.nomeRt : contador.nome) : "";
   const previa = (
-    <article className="bg-white px-4 py-5 text-xs leading-snug text-black">
-      <h3 className="text-center text-[11px] font-bold">PREVISÃO DE RECURSO ORÇAMENTÁRIOS</h3>
-      <p className="mt-4 text-justify"><b>Ref.: </b>{processoPrevia?.objeto.trim() || "Objeto do processo."}</p>
-      <p className="mt-4 text-justify indent-4">Declaro que existe provisão de recursos orçamentários à conta da dotação orçamentária:</p>
-      <table className="mt-3 w-full border-collapse text-center">
+    <article className="bg-white px-8 py-8 font-[Arial,sans-serif] text-[11pt] leading-[1.15] text-[#111]">
+      <p className="text-center font-bold">PREVISÃO DE RECURSO ORÇAMENTÁRIOS</p>
+      <p className="mt-6 text-justify"><b>Ref.: </b>{processoPrevia?.objeto.trim() || "da contratação descrita nos autos."}</p>
+      <p className="mt-6 text-justify indent-[1.25cm]">Declaro que existe provisão de recursos orçamentários à conta da dotação orçamentária:</p>
+      <table className="mt-4 w-full border-collapse text-center">
         <thead>
-          <tr className="bg-neutral-100">
-            <th className="border border-black px-1 py-1">DOTAÇÃO</th>
-            <th className="border border-black px-1 py-1">FICHA</th>
-            <th className="border border-black px-1 py-1">FONTE/ORIGEM</th>
+          <tr className="bg-[#f3f3f3]">
+            <th className="border border-black px-2 py-1 font-bold">DOTAÇÃO</th>
+            <th className="border border-black px-2 py-1 font-bold">FICHA</th>
+            <th className="border border-black px-2 py-1 font-bold">FONTE/ORIGEM</th>
           </tr>
         </thead>
         <tbody>
           {linhasPrevia.length ? linhasPrevia.map((item, indice) => (
             <tr key={`${item.ficha}-${indice}`}>
-              <td className="border border-black px-1 py-1">{dotacaoDocumento(item.conta)}<br />{item.descricao}</td>
-              <td className="border border-black px-1 py-1">{fichaDocumento(item.ficha)}</td>
-              <td className="border border-black px-1 py-1">{item.fonte}<br />{item.fonteNome}</td>
+              <td className="border border-black px-2 py-1">{dotacaoDocumento(item.conta)}<br />{item.descricao}</td>
+              <td className="border border-black px-2 py-1">{fichaDocumento(item.ficha)}</td>
+              <td className="border border-black px-2 py-1">{item.fonte}<br />{item.fonteNome}</td>
             </tr>
           )) : (
             <tr>
-              <td className="border border-black px-1 py-3 text-neutral-400" colSpan={3}>Informe a ficha</td>
+              <td className="border border-black px-2 py-3 text-neutral-400" colSpan={3}>Informe a ficha</td>
             </tr>
           )}
         </tbody>
       </table>
-      <p className="mt-6 text-right">{previsaoCidade ? `${previsaoCidade}, ${dataPrevia}.` : `${dataPrevia}.`}</p>
-      <p className="mt-8 text-center font-bold">{assinantePrevia || "Responsável técnico"}</p>
+      <p className="mt-8 text-right">{previsaoCidade ? `${previsaoCidade}, ${dataPrevia}.` : `${dataPrevia}.`}</p>
+      <p className="mt-10 text-center font-bold">{assinantePrevia || "Responsável técnico"}</p>
       <p className="text-center">{contador?.funcao || "Função"}</p>
       <p className="text-center">{contador?.registro || "Registro"}</p>
     </article>
   );
   const previaAtual = tipoDoc === "previsao" || !tipoDoc ? previa : (
-    <article className="bg-white px-2 py-2 text-[13px] leading-snug text-black">
+    <article className="bg-white px-8 py-8 font-[Arial,sans-serif] text-[11pt] leading-[1.15] text-[#111]">
       <h3 className="text-center text-[12px] font-bold">{catalogoDocs.find((item) => item.tipo === tipoDoc)?.rotulo}</h3>
       {tipoDoc === "capa" && processo ? (
         <div className="mt-4 space-y-3">
@@ -3442,24 +3436,7 @@ function PainelDocumentos({
       ) : null}
     </article>
   );
-  const previaMoldura = (
-    <article className="bg-white text-[13px] leading-relaxed text-black">
-      {timbreVista?.topo.length ? timbreVista.topo.map((src, indice) => <img key={`topo-${indice}`} src={src} alt="" className="mx-auto w-full" />) : (
-        <div className="px-4 pt-4">
-          {timbreVista?.imagem?.startsWith("data:image/") ? <img src={timbreVista.imagem} alt="" className="mx-auto h-24 object-contain" /> : null}
-          {timbreVista?.linha1 ? <p className="text-center text-sm font-bold text-[#1F3864]">{timbreVista.linha1}</p> : null}
-          {timbreVista?.linha2 ? <p className="text-center text-xs font-bold text-[#1F3864]">{timbreVista.linha2}</p> : null}
-        </div>
-      )}
-      <div className="px-5 py-4">{previaAtual}</div>
-      {timbreVista?.rodape.length ? timbreVista.rodape.map((src, indice) => <img key={`rodape-${indice}`} src={src} alt="" className="mx-auto w-full" />) : (
-        <div className="px-4 pb-4">
-          {timbreVista?.rodape1 ? <p className="text-center text-[11px] font-bold text-[#1F3864]">{timbreVista.rodape1}</p> : null}
-          {timbreVista?.rodape2 ? <p className="text-center text-[11px] text-[#1F3864]">{timbreVista.rodape2}</p> : null}
-        </div>
-      )}
-    </article>
-  );
+  const previaMoldura = previaAtual;
 
   function baixarEditor() {
     if (tipoDoc === "previsao") {

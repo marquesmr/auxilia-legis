@@ -90,40 +90,6 @@ export async function cidadeDoTimbrado(arquivo: string) {
   return junta.match(/\bde\s+([^,]+)$/i)?.[1]?.trim() ?? "";
 }
 
-async function imagensDaParte(zip: JSZip, parte: string) {
-  const xml = await zip.file(parte)?.async("string");
-  if (!xml) return [];
-  const rels = await zip.file(`${parte.replace("word/", "word/_rels/")}.rels`)?.async("string");
-  const mapa = new Map<string, string>();
-  if (rels) {
-    for (const item of rels.matchAll(/Id="([^"]+)"[^>]*Target="([^"]+)"/g)) {
-      const alvo = item[2].replace(/^\.\.\//, "");
-      mapa.set(item[1], alvo.startsWith("word/") ? alvo : `word/${alvo}`);
-    }
-  }
-  const saida: string[] = [];
-  for (const item of xml.matchAll(/r:(?:embed|id)="([^"]+)"/g)) {
-    const caminho = mapa.get(item[1]);
-    const arquivo = caminho ? zip.file(caminho) : null;
-    if (!arquivo) continue;
-    const ext = caminho?.split(".").pop()?.toLowerCase() ?? "";
-    if (ext !== "png" && ext !== "jpg" && ext !== "jpeg" && ext !== "gif" && ext !== "webp") continue;
-    const tipo = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "gif" ? "image/gif" : "image/png";
-    saida.push(`data:${tipo};base64,${await arquivo.async("base64")}`);
-  }
-  return saida;
-}
-
-export async function imagensDoTimbrado(arquivo: string) {
-  const base64 = arquivo.includes(",") ? arquivo.slice(arquivo.indexOf(",") + 1) : arquivo;
-  const zip = await JSZip.loadAsync(base64, { base64: true });
-  const topo: string[] = [];
-  const rodape: string[] = [];
-  for (const nome of Object.keys(zip.files).filter((item) => /word\/header\d+\.xml$/.test(item)).sort()) topo.push(...(await imagensDaParte(zip, nome)));
-  for (const nome of Object.keys(zip.files).filter((item) => /word\/footer\d+\.xml$/.test(item)).sort()) rodape.push(...(await imagensDaParte(zip, nome)));
-  return { topo, rodape };
-}
-
 export async function termoNoTimbrado(arquivo: string, blocos: BlocoTermo[]) {
   const base64 = arquivo.includes(",") ? arquivo.slice(arquivo.indexOf(",") + 1) : arquivo;
   const zip = await JSZip.loadAsync(base64, { base64: true });
