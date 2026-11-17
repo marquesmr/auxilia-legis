@@ -17,7 +17,6 @@ import {
   formatarPeca,
   daGerenciaAdministrativa,
   sequenciaControle,
-  centavosParaCampo,
   formatarReais,
   intervaloPeriodo,
   marcarAvisosAdmin,
@@ -593,7 +592,7 @@ function TelaCotacoes({
 }) {
   const ordenados = [...processos].sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
   const lancadas = ordenados.flatMap((processo) => (processo.cotacoes ?? []).map((cotacao) => ({ processo, cotacao })));
-  const [vista, setVista] = useState<{ processo: string; cotacao: Cotacao } | null>(null);
+  const [vista, setVista] = useState<{ processo: string; descricao: string; fornecedor: Cotacao["fornecedores"][number] } | null>(null);
   const [editando, setEditando] = useState<{ processoId: string; cotacaoId: string; descricao: string; fornecedores: LinhaFornecedorCotacao[] } | null>(null);
   function documentoEdicao(id: string, texto: string) {
     const documento = mascaraDocumento(texto);
@@ -737,16 +736,19 @@ function TelaCotacoes({
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-3">
-                    <p className="min-w-0 flex-1 truncate text-ink">
-                      <span className="font-medium">{rotuloLista(processo)}</span>
-                      {cotacao.descricao ? <span> · {cotacao.descricao}</span> : null}
-                      <span className="text-muted"> · {cotacao.fornecedores.length} fornecedor{cotacao.fornecedores.length === 1 ? "" : "es"}</span>
-                    </p>
-                    <div className="ml-auto flex shrink-0 items-center gap-3">
-                      <button type="button" onClick={() => setVista({ processo: rotuloLista(processo), cotacao })} className="text-sm font-medium text-pine">Ver</button>
-                      <button type="button" onClick={() => setEditando({ processoId: processo.id, cotacaoId: cotacao.id, descricao: cotacao.descricao, fornecedores: cotacao.fornecedores.map((item) => ({ id: crypto.randomUUID(), fornecedor: item.fornecedor, documento: item.documento, valor: centavosParaCampo(item.valorCentavos), data: item.data })) })} className="text-sm font-medium text-ink">Editar</button>
-                    </div>
+                  <div>
+                    <p className="font-medium text-ink">{rotuloLista(processo)}{cotacao.descricao ? ` · ${cotacao.descricao}` : ""}</p>
+                    <ul className="mt-1 flex flex-col gap-1">
+                      {cotacao.fornecedores.map((fornecedor, ordem) => (
+                        <li key={`${cotacao.id}-${ordem}`} className="flex items-center gap-3">
+                          <p className="min-w-0 flex-1 text-muted">{formatDate(fornecedor.data)} · {fornecedor.fornecedor} · {formatarReais(fornecedor.valorCentavos)}</p>
+                          <div className="ml-auto flex shrink-0 items-center gap-3">
+                            <button type="button" onClick={() => setVista({ processo: rotuloLista(processo), descricao: cotacao.descricao, fornecedor })} className="text-sm font-medium text-pine">Ver</button>
+                            <button type="button" onClick={() => setEditando({ processoId: processo.id, cotacaoId: cotacao.id, descricao: cotacao.descricao, fornecedores: cotacao.fornecedores.map((item) => ({ id: crypto.randomUUID(), fornecedor: item.fornecedor, documento: item.documento, valor: centavosParaCampo(item.valorCentavos), data: item.data })) })} className="text-sm font-medium text-ink">Editar</button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </li>
@@ -760,21 +762,17 @@ function TelaCotacoes({
           <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-[1.75rem] border border-pine bg-sheet p-5" onClick={(evento) => evento.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="font-display text-xl text-ink">Fornecedores</h3>
+                <h3 className="font-display text-xl text-ink">Fornecedor</h3>
                 <p className="mt-1 text-sm text-muted">{vista.processo}</p>
-                {vista.cotacao.descricao ? <p className="text-sm text-ink">{vista.cotacao.descricao}</p> : null}
+                {vista.descricao ? <p className="text-sm text-ink">{vista.descricao}</p> : null}
               </div>
               <button type="button" onClick={() => setVista(null)} className="grid size-9 shrink-0 place-items-center rounded-xl bg-pine text-sheet" aria-label="Fechar"><X className="size-4" /></button>
             </div>
-            <ul className="mt-4 flex flex-col gap-2">
-              {vista.cotacao.fornecedores.map((fornecedor, ordem) => (
-                <li key={`${vista.cotacao.id}-${ordem}`} className="rounded-xl border border-line bg-paper px-3 py-3 text-sm">
-                  <p className="font-medium text-ink">{fornecedor.fornecedor}</p>
-                  <p className="mt-1 text-ink">{fornecedor.documento}</p>
-                  <p className="mt-1 text-muted">{formatDate(fornecedor.data)} · {formatarReais(fornecedor.valorCentavos)}</p>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-4 rounded-xl border border-line bg-paper px-3 py-3 text-sm">
+              <p className="font-medium text-ink">{vista.fornecedor.fornecedor}</p>
+              <p className="mt-1 text-ink">{vista.fornecedor.documento}</p>
+              <p className="mt-1 text-muted">{formatDate(vista.fornecedor.data)} · {formatarReais(vista.fornecedor.valorCentavos)}</p>
+            </div>
           </div>
         </div>
       ) : null}
