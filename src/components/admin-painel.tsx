@@ -578,9 +578,7 @@ function TelaCotacoes({
   onFornecedores,
   onDocumento,
   onLancar,
-  editando,
-  onEditar,
-  onCancelar,
+  onSalvar,
 }: {
   processos: ProcessoAdmin[];
   processoId: string;
@@ -591,13 +589,24 @@ function TelaCotacoes({
   onFornecedores: (valor: LinhaFornecedorCotacao[] | ((atual: LinhaFornecedorCotacao[]) => LinhaFornecedorCotacao[])) => void;
   onDocumento: (id: string, texto: string) => void;
   onLancar: () => void;
-  editando: boolean;
-  onEditar: (processoId: string, cotacao: Cotacao) => void;
-  onCancelar: () => void;
+  onSalvar: (processoId: string, cotacaoId: string, descricao: string, fornecedores: LinhaFornecedorCotacao[]) => boolean;
 }) {
   const ordenados = [...processos].sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
   const lancadas = ordenados.flatMap((processo) => (processo.cotacoes ?? []).map((cotacao) => ({ processo, cotacao })));
   const [vista, setVista] = useState<{ processo: string; cotacao: Cotacao } | null>(null);
+  const [editando, setEditando] = useState<{ processoId: string; cotacaoId: string; descricao: string; fornecedores: LinhaFornecedorCotacao[] } | null>(null);
+  function documentoEdicao(id: string, texto: string) {
+    const documento = mascaraDocumento(texto);
+    const digitos = documento.replace(/\D/g, "");
+    setEditando((atual) => atual && { ...atual, fornecedores: atual.fornecedores.map((item) => (item.id === id ? { ...item, documento } : item)) });
+    if (digitos.length !== 14) return;
+    void consultarDocumento({ data: { documento: digitos, nascimento: "" } })
+      .then((consulta) => {
+        if (consulta.tipo !== "cnpj" || !consulta.razaoSocial) return;
+        setEditando((atual) => atual && { ...atual, fornecedores: atual.fornecedores.map((item) => (item.id === id && item.documento.replace(/\D/g, "") === digitos ? { ...item, fornecedor: consulta.razaoSocial } : item)) });
+      })
+      .catch(() => undefined);
+  }
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -670,13 +679,8 @@ function TelaCotacoes({
             Outro fornecedor
           </button>
           <button type="button" onClick={onLancar} className="inline-flex h-11 items-center justify-center rounded-xl bg-pine px-4 text-sm font-medium text-sheet">
-            {editando ? "Salvar" : "Vincular"}
+            Vincular
           </button>
-          {editando ? (
-            <button type="button" onClick={onCancelar} className="inline-flex h-11 items-center justify-center rounded-xl border border-line px-4 text-sm font-medium text-ink">
-              Cancelar
-            </button>
-          ) : null}
         </div>
       </div>
       <div>
@@ -685,21 +689,69 @@ function TelaCotacoes({
           <p className="mt-2 text-sm text-muted">Nenhuma cotação lançada.</p>
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
-            {lancadas.map(({ processo, cotacao }, indice) => (
+            {lancadas.map(({ processo, cotacao }, indice) => {
+              const aberta = editando?.cotacaoId === cotacao.id ? editando : null;
+              return (
               <li key={cotacao.id} className={"rounded-xl border border-line px-4 py-3 text-sm " + (indice % 2 === 0 ? "bg-paper" : "bg-sheet")}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium text-ink">{rotuloLista(processo)}</p>
-                    {cotacao.descricao ? <p className="mt-1 text-ink">{cotacao.descricao}</p> : null}
-                    <p className="mt-1 text-muted">{cotacao.fornecedores.length} fornecedor{cotacao.fornecedores.length === 1 ? "" : "es"}</p>
+                {aberta ? (
+                  <div className="flex flex-col gap-3">
+                    <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                      Processo
+                      <select value={aberta.processoId} onChange={(evento) => setEditando({ ...aberta, processoId: evento.target.value })} className={inputCls + " font-normal"}>
+                        {ordenados.map((item) => (
+                          <option key={item.id} value={item.id}>{rotuloLista(item)}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <Campo label="Descrição">
+                      <input value={aberta.descricao} onChange={(evento) => setEditando({ ...aberta, descricao: evento.target.value })} className={inputCls} placeholder="Opcional" />
+                    </Campo>
+                    {aberta.fornecedores.map((linha, ordem) => (
+                      <div key={linha.id} className="rounded-xl border border-line bg-sheet p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <p className="font-medium text-ink">Fornecedor {ordem + 1}</p>
+                          {aberta.fornecedores.length > 1 ? (
+                            <button type="button" onClick={() => setEditando({ ...aberta, fornecedores: aberta.fornecedores.filter((item) => item.id !== linha.id) })} className="text-sm font-medium text-seal">Remover</button>
+                          ) : null}
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-4">
+                          <Campo label="Nome">
+                            <input value={linha.fornecedor} onChange={(evento) => setEditando({ ...aberta, fornecedores: aberta.fornecedores.map((item) => item.id === linha.id ? { ...item, fornecedor: evento.target.value } : item) })} className={inputCls} />
+                          </Campo>
+                          <Campo label="CPF ou CNPJ">
+                            <input value={linha.documento} onChange={(evento) => documentoEdicao(linha.id, evento.target.value)} className={inputCls} inputMode="numeric" />
+                          </Campo>
+                          <Campo label="Data">
+                            <input type="date" value={linha.data} onChange={(evento) => setEditando({ ...aberta, fornecedores: aberta.fornecedores.map((item) => item.id === linha.id ? { ...item, data: evento.target.value } : item) })} className={inputCls} />
+                          </Campo>
+                          <Campo label="Valor">
+                            <input value={linha.valor} onChange={(evento) => setEditando({ ...aberta, fornecedores: aberta.fornecedores.map((item) => item.id === linha.id ? { ...item, valor: mascaraReais(evento.target.value) } : item) })} className={inputCls} inputMode="decimal" />
+                          </Campo>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => setEditando({ ...aberta, fornecedores: [...aberta.fornecedores, { id: crypto.randomUUID(), fornecedor: "", documento: "", valor: "", data: todayIso() }] })} className="inline-flex h-10 items-center rounded-xl border border-line px-3 text-sm font-medium text-ink">Outro fornecedor</button>
+                      <button type="button" onClick={() => { if (onSalvar(aberta.processoId, aberta.cotacaoId, aberta.descricao, aberta.fornecedores)) setEditando(null); }} className="inline-flex h-10 items-center rounded-xl bg-pine px-3 text-sm font-medium text-sheet">Salvar</button>
+                      <button type="button" onClick={() => setEditando(null)} className="inline-flex h-10 items-center rounded-xl border border-line px-3 text-sm font-medium text-ink">Cancelar</button>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    <button type="button" onClick={() => setVista({ processo: rotuloLista(processo), cotacao })} className="text-sm font-medium text-pine">Ver</button>
-                    <button type="button" onClick={() => onEditar(processo.id, cotacao)} className="text-sm font-medium text-ink">Editar</button>
+                ) : (
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink">{rotuloLista(processo)}</p>
+                      {cotacao.descricao ? <p className="mt-1 text-ink">{cotacao.descricao}</p> : null}
+                      <p className="mt-1 text-muted">{cotacao.fornecedores.length} fornecedor{cotacao.fornecedores.length === 1 ? "" : "es"}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <button type="button" onClick={() => setVista({ processo: rotuloLista(processo), cotacao })} className="text-sm font-medium text-pine">Ver</button>
+                      <button type="button" onClick={() => setEditando({ processoId: processo.id, cotacaoId: cotacao.id, descricao: cotacao.descricao, fornecedores: cotacao.fornecedores.map((item) => ({ id: crypto.randomUUID(), fornecedor: item.fornecedor, documento: item.documento, valor: centavosParaCampo(item.valorCentavos), data: item.data })) })} className="text-sm font-medium text-ink">Editar</button>
+                    </div>
                   </div>
-                </div>
+                )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
@@ -773,7 +825,6 @@ export function AdminPainel({
   const [cotacaoProcesso, setCotacaoProcesso] = useState("");
   const [cotacaoDescricao, setCotacaoDescricao] = useState("");
   const [cotacaoFornecedores, setCotacaoFornecedores] = useState<{ id: string; fornecedor: string; documento: string; valor: string; data: string }[]>(() => linhasFornecedorCotacao());
-  const [cotacaoEditando, setCotacaoEditando] = useState<{ processoId: string; cotacaoId: string } | null>(null);
   const [andamentoId, setAndamentoId] = useState<string | null>(null);
   const [notaAndamento, setNotaAndamento] = useState("");
   const [statusAndamento, setStatusAndamento] = useState<StatusAdmin>("proposta");
@@ -1119,34 +1170,61 @@ export function AdminPainel({
     }
     const atualizado: ProcessoAdmin = {
       ...atual,
-      cotacoes: cotacaoEditando
-        ? (atual.cotacoes ?? []).some((item) => item.id === cotacaoEditando.cotacaoId)
-          ? (atual.cotacoes ?? []).map((item) => (item.id === cotacaoEditando.cotacaoId ? { id: item.id, descricao: cotacaoDescricao.trim(), fornecedores } : item))
-          : [...(atual.cotacoes ?? []), { id: cotacaoEditando.cotacaoId, descricao: cotacaoDescricao.trim(), fornecedores }]
-        : [
-            ...(atual.cotacoes ?? []),
-            { id: crypto.randomUUID(), descricao: cotacaoDescricao.trim(), fornecedores },
-          ],
+      cotacoes: [...(atual.cotacoes ?? []), { id: crypto.randomUUID(), descricao: cotacaoDescricao.trim(), fornecedores }],
     };
-    const semOrigem =
-      cotacaoEditando && cotacaoEditando.processoId !== atualizado.id
-        ? listaViva.current.map((item) =>
-            item.id === cotacaoEditando.processoId ? { ...item, cotacoes: (item.cotacoes ?? []).filter((cotacao) => cotacao.id !== cotacaoEditando.cotacaoId) } : item,
-          )
-        : listaViva.current;
     persistir(
-      semOrigem.map((item) => (item.id === atualizado.id ? atualizado : item)),
+      listaViva.current.map((item) => (item.id === atualizado.id ? atualizado : item)),
       atualizado,
       null,
-      cotacaoEditando ? "Cotação atualizada" : "Cotação vinculada",
+      "Cotação vinculada",
     );
-    if (cotacaoEditando && cotacaoEditando.processoId !== atualizado.id) {
-      const origem = semOrigem.find((item) => item.id === cotacaoEditando.processoId);
-      if (origem) filaPagamento.current = filaPagamento.current.then(() => salvarAdmin({ data: origem })).then(() => undefined);
-    }
-    setCotacaoEditando(null);
     setCotacaoFornecedores(linhasFornecedorCotacao());
     setCotacaoDescricao("");
+  }
+
+  function salvarCotacaoEditada(processoId: string, cotacaoId: string, descricao: string, linhas: LinhaFornecedorCotacao[]) {
+    const atual = listaViva.current.find((item) => item.id === processoId);
+    if (!atual) {
+      onToast("Selecione o processo.");
+      return false;
+    }
+    const preenchidas = linhas.filter((linha) => linha.fornecedor.trim() || linha.documento.trim() || linha.valor.trim());
+    if (!preenchidas.length) {
+      onToast("Informe ao menos um fornecedor.");
+      return false;
+    }
+    const fornecedores = [];
+    for (const linha of preenchidas) {
+      const fornecedor = linha.fornecedor.trim();
+      const digitos = linha.documento.replace(/\D/g, "");
+      const valor = reaisParaCentavos(linha.valor);
+      if (!fornecedor || (digitos.length !== 11 && digitos.length !== 14) || valor == null || valor <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(linha.data)) {
+        onToast("Complete nome, CPF ou CNPJ, data e valor de cada fornecedor.");
+        return false;
+      }
+      fornecedores.push({ fornecedor, documento: mascaraDocumento(digitos), valorCentavos: valor, data: linha.data });
+    }
+    const origem = listaViva.current.find((item) => (item.cotacoes ?? []).some((cotacao) => cotacao.id === cotacaoId));
+    const atualizado: ProcessoAdmin = {
+      ...atual,
+      cotacoes: (atual.cotacoes ?? []).some((item) => item.id === cotacaoId)
+        ? (atual.cotacoes ?? []).map((item) => (item.id === cotacaoId ? { id: item.id, descricao: descricao.trim(), fornecedores } : item))
+        : [...(atual.cotacoes ?? []), { id: cotacaoId, descricao: descricao.trim(), fornecedores }],
+    };
+    const base = origem && origem.id !== atualizado.id
+      ? listaViva.current.map((item) => (item.id === origem.id ? { ...item, cotacoes: (item.cotacoes ?? []).filter((cotacao) => cotacao.id !== cotacaoId) } : item))
+      : listaViva.current;
+    persistir(
+      base.map((item) => (item.id === atualizado.id ? atualizado : item)),
+      atualizado,
+      null,
+      "Cotação atualizada",
+    );
+    if (origem && origem.id !== atualizado.id) {
+      const limpa = base.find((item) => item.id === origem.id);
+      if (limpa) filaPagamento.current = filaPagamento.current.then(() => salvarAdmin({ data: limpa })).then(() => undefined);
+    }
+    return true;
   }
 
   async function registrarAndamento() {
@@ -1749,26 +1827,7 @@ export function AdminPainel({
             onFornecedores={setCotacaoFornecedores}
             onDocumento={aoDocumentoCotacao}
             onLancar={lancarCotacao}
-            editando={cotacaoEditando != null}
-            onEditar={(processoId, cotacao) => {
-              setCotacaoProcesso(processoId);
-              setCotacaoDescricao(cotacao.descricao);
-              setCotacaoFornecedores(
-                cotacao.fornecedores.map((item) => ({
-                  id: crypto.randomUUID(),
-                  fornecedor: item.fornecedor,
-                  documento: item.documento,
-                  valor: centavosParaCampo(item.valorCentavos),
-                  data: item.data,
-                })),
-              );
-              setCotacaoEditando({ processoId, cotacaoId: cotacao.id });
-            }}
-            onCancelar={() => {
-              setCotacaoEditando(null);
-              setCotacaoDescricao("");
-              setCotacaoFornecedores(linhasFornecedorCotacao());
-            }}
+            onSalvar={salvarCotacaoEditada}
           />
         ) : guia === "lancamento" ? null : guia === "estatisticas" ? (
           <GraficoAdmin processos={lista} />
