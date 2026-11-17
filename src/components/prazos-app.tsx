@@ -284,6 +284,7 @@ export function PrazosApp() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">("unsupported");
   const [toast, setToast] = useState("");
+  const [documentoAberto, setDocumentoAberto] = useState(false);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [equipeAtual, setEquipeAtual] = useState<string | null>(null);
   const [tipoAba, setTipoAba] = useState<string>("todos");
@@ -1055,7 +1056,7 @@ export function PrazosApp() {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-[100rem] px-4 py-6 md:px-8 md:py-8 xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-x-6">
+    <div className={"mx-auto min-h-screen max-w-[100rem] px-4 py-6 md:px-8 md:py-8" + (documentoAberto ? "" : " xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-x-6")}>
       <header className="flex flex-col gap-4 border-b border-line pb-6 md:flex-row md:items-center md:justify-between xl:col-start-1">
         <h1 className="font-display text-2xl leading-tight text-ink sm:text-3xl">
           {area === "administrativo" ? "Processos Administrativo" : "Processos Legislativos"}
@@ -1111,9 +1112,11 @@ export function PrazosApp() {
       </header>
 
       <div className="mt-6 min-w-0 xl:col-start-1">
+      {documentoAberto ? null : (
       <div className="xl:hidden">
         <CalendarioExpediente dias={diasMarcados} equipeId={equipeVisivel} />
       </div>
+      )}
 
       {area === "administrativo" ? (
         <Suspense fallback={<p className="mt-6 text-sm text-muted">Carregando…</p>}>
@@ -1126,6 +1129,7 @@ export function PrazosApp() {
           processosIniciais={adminLista}
           cargaId={cargaId}
           abasIniciais={abasAdm}
+          onTelaDocumento={setDocumentoAberto}
         >
           <PainelEquipe
             equipes={equipesModulo}
@@ -1862,14 +1866,16 @@ export function PrazosApp() {
           {toast}
         </p>
       )}
-      <AjudaFlutuante nome={meuNome} area={area} />
+      {documentoAberto ? null : <AjudaFlutuante nome={meuNome} area={area} />}
       <TutorialInicio nome={meuNome} aberto={tutorialAberto} onFechar={fecharTutorial} />
       <AvisoManutencao aviso={avisoManutencao} onFechar={() => fecharAvisoManutencao(avisoManutencao, setAvisoManutencao)} />
       </div>
+      {documentoAberto ? null : (
       <div className="mt-6 hidden xl:sticky xl:top-6 xl:z-20 xl:col-start-2 xl:row-start-2 xl:block xl:self-start">
         <CalendarioExpediente dias={diasMarcados} equipeId={equipeVisivel} />
         <div id="lei-busca-nav" />
       </div>
+      )}
     </div>
   );
 }

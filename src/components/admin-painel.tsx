@@ -46,7 +46,7 @@ import {
 } from "@/lib/admin";
 import { apagarAdmin, lerContadorPrevisao, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao, salvarContadorPrevisao, type ContadorPrevisao } from "@/lib/admin.functions";
 import { lerTimbradoEquipe, type TimbradoEquipe } from "@/lib/equipes.functions";
-import { cidadeDoTimbrado, termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
+import { cidadeDoTimbrado, imagensDoTimbrado, termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
 import { dotacaoDocumento, fichaDocumento, fichaDotacao } from "@/lib/dotacoes";
 import { buscarCnpjPorNome, consultarDocumento, type ConsultaDocumento, type ResultadoNomeCnpj } from "@/lib/cnpj.functions";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
@@ -701,6 +701,7 @@ export function AdminPainel({
   cargaId,
   abasIniciais,
   children,
+  onTelaDocumento,
 }: {
   equipeAtual: string | null;
   equipes: { id: string; nome: string; membros?: { nome: string }[] }[];
@@ -711,11 +712,13 @@ export function AdminPainel({
   cargaId: number;
   abasIniciais: string[];
   children: ReactNode;
+  onTelaDocumento?: (aberta: boolean) => void;
 }) {
   const { user } = useCurrentUserState();
   const [lista, setLista] = useState<ProcessoAdmin[]>(processosIniciais);
   const [pronto, setPronto] = useState(cargaId > 0);
   const [guia, setGuia] = useState<GuiaAdmin>("lista");
+  const [docCheio, setDocCheio] = useState(false);
   const [filtro, setFiltro] = useState<FiltroAdmin>("todos");
   const [tipoAba, setTipoAba] = useState<string>("todos");
   const [abasExtra, setAbasExtra] = useState<string[]>(abasIniciais);
@@ -1566,7 +1569,8 @@ export function AdminPainel({
 
   return (
     <SoltarProcessoContext.Provider value={moverPara}>
-    <div className="mt-4 grid gap-6 md:grid-cols-[16rem_1fr]">
+    <div className={docCheio ? "mt-2" : "mt-4 grid gap-6 md:grid-cols-[16rem_1fr]"}>
+      {docCheio ? null : (
       <aside className="flex flex-col gap-4 md:sticky md:top-6 md:self-start">
         {(porTipo.length > 0 || porStatus.length > 0) && (
           <div className="flex flex-col gap-3">
@@ -1594,8 +1598,10 @@ export function AdminPainel({
         )}
         {children}
       </aside>
+      )}
 
       <section className="min-w-0">
+        {docCheio ? null : (
         <div className="mb-4 flex flex-col gap-2 xl:flex-row xl:items-stretch">
           <div className="flex min-w-0 flex-1 flex-wrap gap-2 xl:flex-col xl:flex-nowrap">
             <div className="contents xl:flex xl:gap-2">
@@ -1661,6 +1667,7 @@ export function AdminPainel({
             </button>
           </div>
         </div>
+        )}
 
         {!pronto && guia !== "cnpj" && guia !== "lei" && guia !== "documentos" && guia !== "lancamento" ? (
           <p className="text-sm text-muted">Carregando processos administrativos…</p>
@@ -1669,7 +1676,7 @@ export function AdminPainel({
         ) : guia === "cnpj" ? (
           <PainelConsulta mostrarNascimento />
         ) : guia === "documentos" ? (
-          <PainelDocumentos processos={lista} equipes={equipes} />
+          <PainelDocumentos processos={lista} equipes={equipes} onTela={(aberta) => { setDocCheio(aberta); onTelaDocumento?.(aberta); }} />
         ) : guia === "cotacoes" ? (
           <TelaCotacoes
             processos={lista}
@@ -3096,9 +3103,11 @@ function CardAdmin({
 function PainelDocumentos({
   processos,
   equipes,
+  onTela,
 }: {
   processos: ProcessoAdmin[];
   equipes: { id: string; nome: string; membros?: { nome: string }[] }[];
+  onTela?: (aberta: boolean) => void;
 }) {
   const [processoId, setProcessoId] = useState("");
   const [tipoDoc, setTipoDoc] = useState<"capa" | "extrato" | "termo" | "parecer" | "preco" | "previsao" | null>(null);
@@ -3116,6 +3125,13 @@ function PainelDocumentos({
   const [contadorErro, setContadorErro] = useState("");
   const [contadorSalvando, setContadorSalvando] = useState(false);
   const [editorAberto, setEditorAberto] = useState(false);
+  const [timbreVista, setTimbreVista] = useState<{ topo: string[]; rodape: string[]; imagem: string; linha1: string; linha2: string; rodape1: string; rodape2: string } | null>(null);
+  const onTelaRef = useRef(onTela);
+  onTelaRef.current = onTela;
+  useEffect(() => {
+    onTelaRef.current?.(editorAberto);
+    return () => onTelaRef.current?.(false);
+  }, [editorAberto]);
   const [previsaoCidade, setPrevisaoCidade] = useState("");
   const [previaCheia, setPreviaCheia] = useState(false);
   const [dotacoes, setDotacoes] = useState<{ ficha: string }[]>([{ ficha: "" }]);
@@ -3138,6 +3154,19 @@ function PainelDocumentos({
   const processo = processos.find((item) => item.id === processoId) ?? null;
   const ordenados = [...processos].sort((a, b) => (a.numeroAno ?? 0) - (b.numeroAno ?? 0) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
 
+  function mostrarTimbre(timbre: TimbradoEquipe | null) {
+    if (!timbre) {
+      setTimbreVista(null);
+      setPrevisaoCidade("");
+      return;
+    }
+    const base = { topo: [] as string[], rodape: [] as string[], imagem: timbre.imagem, linha1: timbre.linha1, linha2: timbre.linha2, rodape1: timbre.rodape1, rodape2: timbre.rodape2 };
+    setTimbreVista(base);
+    setPrevisaoCidade(timbre.linha2.trim() || "");
+    if (!timbre.arquivo) return;
+    void imagensDoTimbrado(timbre.arquivo).then((imagens) => setTimbreVista({ ...base, ...imagens })).catch(() => undefined);
+  }
+
   function prepararTimbre(alvo: ProcessoAdmin, abrir: () => void) {
     setTermoAssinante("");
     setTermoFuncao("");
@@ -3151,6 +3180,7 @@ function PainelDocumentos({
     void lerTimbradoEquipe({ data: alvo.equipeId })
       .then((timbre) => {
         setTermoTimbre(timbre);
+        mostrarTimbre(timbre);
         if (!timbre) setTermoAviso("Esta equipe ainda não tem timbrado na área restrita.");
       })
       .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível carregar o timbrado."));
@@ -3189,8 +3219,8 @@ function PainelDocumentos({
             const alvo = ordenados.find((item) => item.id === id);
             if (alvo?.equipeId) {
               void lerTimbradoEquipe({ data: alvo.equipeId })
-                .then((timbre) => setPrevisaoCidade(timbre?.linha2.trim() || ""))
-                .catch(() => setPrevisaoCidade(""));
+                .then((timbre) => mostrarTimbre(timbre))
+                .catch(() => mostrarTimbre(null));
             } else setPrevisaoCidade("");
           }
         })
@@ -3308,7 +3338,7 @@ function PainelDocumentos({
     void lerTimbradoEquipe({ data: escolhido.equipeId })
       .then((timbre) => {
         if (!timbre) throw new Error("Esta equipe ainda não tem timbrado na área restrita.");
-        setPrevisaoCidade(timbre.linha2.trim() || "");
+        mostrarTimbre(timbre);
         return baixarPrevisao(escolhido, timbre, contador, linhas);
       })
       .catch((err: unknown) => setPrevisaoDocErro(err instanceof Error ? err.message : "Não foi possível gerar a previsão."));
@@ -3322,7 +3352,7 @@ function PainelDocumentos({
   const dataPrevia = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
   const assinantePrevia = contador ? (contador.tipo === "terceirizado" ? contador.nomeRt : contador.nome) : "";
   const previa = (
-    <article className="bg-white px-4 py-5 text-[10px] leading-snug text-black">
+    <article className="bg-white px-4 py-5 text-xs leading-snug text-black">
       <h3 className="text-center text-[11px] font-bold">PREVISÃO DE RECURSO ORÇAMENTÁRIOS</h3>
       <p className="mt-4 text-justify"><b>Ref.: </b>{processoPrevia?.objeto.trim() || "Objeto do processo."}</p>
       <p className="mt-4 text-justify indent-4">Declaro que existe provisão de recursos orçamentários à conta da dotação orçamentária:</p>
@@ -3355,7 +3385,7 @@ function PainelDocumentos({
     </article>
   );
   const previaAtual = tipoDoc === "previsao" || !tipoDoc ? previa : (
-    <article className="bg-white px-4 py-5 text-[11px] leading-snug text-black">
+    <article className="bg-white px-2 py-2 text-[13px] leading-snug text-black">
       <h3 className="text-center text-[12px] font-bold">{catalogoDocs.find((item) => item.tipo === tipoDoc)?.rotulo}</h3>
       {tipoDoc === "capa" && processo ? (
         <div className="mt-4 space-y-3">
@@ -3410,6 +3440,24 @@ function PainelDocumentos({
           <p className="text-center">{termoFuncao || "Função"}</p>
         </div>
       ) : null}
+    </article>
+  );
+  const previaMoldura = (
+    <article className="bg-white text-[13px] leading-relaxed text-black">
+      {timbreVista?.topo.length ? timbreVista.topo.map((src, indice) => <img key={`topo-${indice}`} src={src} alt="" className="mx-auto w-full" />) : (
+        <div className="px-4 pt-4">
+          {timbreVista?.imagem?.startsWith("data:image/") ? <img src={timbreVista.imagem} alt="" className="mx-auto h-24 object-contain" /> : null}
+          {timbreVista?.linha1 ? <p className="text-center text-sm font-bold text-[#1F3864]">{timbreVista.linha1}</p> : null}
+          {timbreVista?.linha2 ? <p className="text-center text-xs font-bold text-[#1F3864]">{timbreVista.linha2}</p> : null}
+        </div>
+      )}
+      <div className="px-5 py-4">{previaAtual}</div>
+      {timbreVista?.rodape.length ? timbreVista.rodape.map((src, indice) => <img key={`rodape-${indice}`} src={src} alt="" className="mx-auto w-full" />) : (
+        <div className="px-4 pb-4">
+          {timbreVista?.rodape1 ? <p className="text-center text-[11px] font-bold text-[#1F3864]">{timbreVista.rodape1}</p> : null}
+          {timbreVista?.rodape2 ? <p className="text-center text-[11px] text-[#1F3864]">{timbreVista.rodape2}</p> : null}
+        </div>
+      )}
     </article>
   );
 
@@ -3500,7 +3548,7 @@ function PainelDocumentos({
       {editorAberto && tipoDoc ? (
         <div>
           <p className="text-sm text-ink">{catalogoDocs.find((item) => item.tipo === tipoDoc)?.rotulo}</p>
-          <div className="mt-3 grid items-start gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(15rem,0.72fr)]">
+          <div className="mt-3 grid items-start gap-4 lg:grid-cols-2">
             <div className="min-h-[32rem] rounded-[1.75rem] border border-pine bg-paper/50 p-5 sm:p-7">
               <div className="flex flex-col gap-3">
                 <label className="flex flex-col gap-1 text-sm font-medium text-ink">
@@ -3517,8 +3565,8 @@ function PainelDocumentos({
                         return;
                       }
                       void lerTimbradoEquipe({ data: alvo.equipeId })
-                        .then((timbre) => setPrevisaoCidade(timbre?.linha2.trim() || ""))
-                        .catch(() => setPrevisaoCidade(""));
+                        .then((timbre) => mostrarTimbre(timbre))
+                        .catch(() => mostrarTimbre(null));
                     }}
                     className={inputCls + " font-normal"}
                   >
@@ -3679,11 +3727,11 @@ function PainelDocumentos({
               {previsaoDocErro || precoErro || erroVolume || termoAviso ? <p className="mt-3 text-sm text-seal">{previsaoDocErro || precoErro || erroVolume || termoAviso}</p> : null}
             </div>
             <div>
-              <div className="relative min-h-[32rem] overflow-hidden rounded-2xl bg-[#d7e0ea] p-4">
-                <button type="button" onClick={() => setPreviaCheia(true)} className="absolute right-3 top-3 grid size-8 place-items-center text-ink/70" aria-label="Ampliar prévia">
+              <div className="relative min-h-[78vh] overflow-auto rounded-2xl bg-[#d7e0ea] p-3">
+                <button type="button" onClick={() => setPreviaCheia(true)} className="absolute right-3 top-3 z-10 grid size-8 place-items-center text-ink/70" aria-label="Ampliar prévia">
                   <Expand className="size-4" />
                 </button>
-                <div className="mx-auto mt-6 max-w-sm">{previaAtual}</div>
+                <div className="mx-auto mt-8 max-w-3xl">{previaMoldura}</div>
               </div>
               <div className="mt-3 flex justify-end gap-2">
                 <button type="button" onClick={baixarEditor} className="h-11 rounded-full bg-[#d7e0ea] px-5 text-xs font-medium uppercase tracking-wide text-ink">Baixar doc</button>
@@ -3695,7 +3743,7 @@ function PainelDocumentos({
             <div className="fixed inset-0 z-40 overflow-y-auto bg-ink/50 p-4">
               <div className="relative mx-auto max-w-3xl rounded-2xl bg-[#d7e0ea] p-4">
                 <button type="button" onClick={() => setPreviaCheia(false)} className="absolute right-3 top-3 grid size-8 place-items-center" aria-label="Fechar prévia"><X className="size-4" /></button>
-                <div className="mt-8">{previaAtual}</div>
+                <div className="mt-8">{previaMoldura}</div>
               </div>
             </div>
           ) : null}
