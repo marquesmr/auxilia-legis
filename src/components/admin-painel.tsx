@@ -3101,9 +3101,7 @@ function PainelDocumentos({
   equipes: { id: string; nome: string; membros?: { nome: string }[] }[];
 }) {
   const [processoId, setProcessoId] = useState("");
-  const [escolhaAberta, setEscolhaAberta] = useState(false);
   const [tipoDoc, setTipoDoc] = useState<"capa" | "extrato" | "termo" | "parecer" | "preco" | "previsao" | null>(null);
-  const [precoAberto, setPrecoAberto] = useState(false);
   const [previsaoAberta, setPrevisaoAberta] = useState(false);
   const [contador, setContador] = useState<ContadorPrevisao | null>(null);
   const [contadorTipo, setContadorTipo] = useState<"proprio" | "terceirizado">("proprio");
@@ -3117,26 +3115,22 @@ function PainelDocumentos({
   const [contadorEditando, setContadorEditando] = useState(true);
   const [contadorErro, setContadorErro] = useState("");
   const [contadorSalvando, setContadorSalvando] = useState(false);
-  const [previsaoDoc, setPrevisaoDoc] = useState(false);
+  const [editorAberto, setEditorAberto] = useState(false);
   const [previsaoCidade, setPrevisaoCidade] = useState("");
   const [previaCheia, setPreviaCheia] = useState(false);
   const [dotacoes, setDotacoes] = useState<{ ficha: string }[]>([{ ficha: "" }]);
   const [previsaoDocErro, setPrevisaoDocErro] = useState("");
-  const [extratoAberto, setExtratoAberto] = useState(false);
   const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string; contrato: boolean }[]>([]);
   const [extratoEscolha, setExtratoEscolha] = useState("");
-  const [capaAberta, setCapaAberta] = useState(false);
   const [idsCapa, setIdsCapa] = useState<{ id: string; volume: boolean; numero: string }[]>([]);
   const [capaEscolha, setCapaEscolha] = useState("");
   const [volumeCapa, setVolumeCapa] = useState(false);
   const [numeroVolume, setNumeroVolume] = useState("");
   const [erroVolume, setErroVolume] = useState("");
-  const [termoAberto, setTermoAberto] = useState(false);
   const [termoAssinante, setTermoAssinante] = useState("");
   const [termoFuncao, setTermoFuncao] = useState("");
   const [termoTimbre, setTermoTimbre] = useState<TimbradoEquipe | null>(null);
   const [termoAviso, setTermoAviso] = useState("");
-  const [parecerAberto, setParecerAberto] = useState(false);
   const [parecerFundamento, setParecerFundamento] = useState("");
   const [houveDesclassificacao, setHouveDesclassificacao] = useState(false);
   const [desclassificados, setDesclassificados] = useState<Record<number, string>>({});
@@ -3186,7 +3180,8 @@ function PainelDocumentos({
           setPrevisaoAberta(!vigente);
           if (vigente) {
             const id = ordenados.some((item) => item.id === processoId) ? processoId : ordenados[0]?.id ?? "";
-            setPrevisaoDoc(true);
+            setEditorAberto(true);
+            setTipoDoc("previsao");
             setPreviaCheia(false);
             setPrevisaoDocErro("");
             setDotacoes([{ ficha: "" }]);
@@ -3207,53 +3202,49 @@ function PainelDocumentos({
       return;
     }
     if (ordenados.length === 0) return;
+    const id = ordenados.some((item) => item.id === processoId) ? processoId : ordenados[0].id;
+    const escolhido = ordenados.find((item) => item.id === id);
+    if (!escolhido) return;
     setTipoDoc(tipo);
-    setProcessoId((atual) => (ordenados.some((item) => item.id === atual) ? atual : ordenados[0].id));
-    setEscolhaAberta(true);
+    setProcessoId(id);
+    setEditorAberto(true);
+    setPreviaCheia(false);
+    setTermoAviso("");
+    setPrecoErro("");
+    setErroVolume("");
+    prepararDocumento(tipo, escolhido);
   }
 
-  function confirmarProcesso() {
-    const escolhido = ordenados.find((item) => item.id === processoId);
-    if (!escolhido || !tipoDoc) return;
-    setEscolhaAberta(false);
-    if (tipoDoc === "capa") {
+  function prepararDocumento(tipo: "capa" | "extrato" | "termo" | "parecer" | "preco" | "previsao", escolhido: ProcessoAdmin) {
+    if (tipo === "capa") {
       setIdsCapa([]);
       setCapaEscolha("");
       setVolumeCapa(false);
       setNumeroVolume("");
       setErroVolume("");
-      setCapaAberta(true);
       return;
     }
-    if (tipoDoc === "extrato") {
+    if (tipo === "extrato") {
       setItensExtrato([{ id: escolhido.id, fundamento: fundamentoInicial(escolhido.tipo), assinatura: escolhido.vigenciaInicio ?? "", contrato: extratoPadraoContrato(escolhido) }]);
       setExtratoEscolha("");
-      setExtratoAberto(true);
       return;
     }
-    if (tipoDoc === "termo") {
-      prepararTimbre(escolhido, () => setTermoAberto(true));
-      return;
-    }
-    if (tipoDoc === "preco") {
-      const temCotacao = (escolhido.cotacoes ?? []).some((cotacao) => cotacao.fornecedores.length > 0);
+    if (tipo === "preco") {
       setParecerFundamento(fundamentoInicial(escolhido.tipo));
       setHouveDesclassificacao(false);
       setDesclassificados({});
       setPrecoErro("");
+      const temCotacao = (escolhido.cotacoes ?? []).some((cotacao) => cotacao.fornecedores.length > 0);
       if (!temCotacao) {
         setTermoAssinante("");
         setTermoFuncao("");
         setTermoTimbre(null);
         setTermoAviso("Este processo ainda não tem cotação. Lance em Cotações.");
-        setPrecoAberto(true);
         return;
       }
-      prepararTimbre(escolhido, () => setPrecoAberto(true));
-      return;
     }
-    setParecerFundamento(fundamentoInicial(escolhido.tipo));
-    prepararTimbre(escolhido, () => setParecerAberto(true));
+    if (tipo === "parecer" || tipo === "preco") setParecerFundamento(fundamentoInicial(escolhido.tipo));
+    if (tipo === "termo" || tipo === "parecer" || tipo === "preco") prepararTimbre(escolhido, () => undefined);
   }
 
   const [ordemDocs, setOrdemDocs] = useState<("capa" | "extrato" | "termo" | "parecer" | "preco" | "previsao")[]>(() => {
@@ -3363,12 +3354,152 @@ function PainelDocumentos({
       <p className="text-center">{contador?.registro || "Registro"}</p>
     </article>
   );
+  const previaAtual = tipoDoc === "previsao" || !tipoDoc ? previa : (
+    <article className="bg-white px-4 py-5 text-[11px] leading-snug text-black">
+      <h3 className="text-center text-[12px] font-bold">{catalogoDocs.find((item) => item.tipo === tipoDoc)?.rotulo}</h3>
+      {tipoDoc === "capa" && processo ? (
+        <div className="mt-4 space-y-3">
+          {[{ id: processo.id, volume: volumeCapa, numero: numeroVolume }, ...idsCapa].map((capa) => {
+            const item = capa.id === processo.id ? processo : processos.find((atual) => atual.id === capa.id);
+            if (!item) return null;
+            return (
+              <div key={capa.id}>
+                {capa.volume && Number(capa.numero) >= 1 ? <p className="text-center font-bold">VOLUME {romano(Number(capa.numero))}</p> : null}
+                <p className="font-bold">{rotuloLista(item)}</p>
+                <p>{item.objeto || "Objeto"}</p>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+      {tipoDoc === "extrato" ? itensExtrato.map((item) => {
+        const atual = processos.find((candidato) => candidato.id === item.id);
+        if (!atual) return null;
+        return (
+          <div key={item.id} className="mt-4">
+            <p className="font-bold">{item.contrato ? "EXTRATO DE CONTRATO" : "EXTRATO DE AQUISIÇÃO"}</p>
+            <p>{rotuloLista(atual)}</p>
+            <p>{atual.objeto}</p>
+            <p>{item.fundamento || "Fundamento legal"}</p>
+          </div>
+        );
+      }) : null}
+      {tipoDoc === "termo" && processo ? (
+        <div className="mt-4 space-y-2 text-justify">
+          <p>Processo {rotuloLista(processo)}</p>
+          <p>{processo.objeto}</p>
+          <p className="pt-6 text-center font-bold">{termoAssinante || "Quem assina"}</p>
+          <p className="text-center">{termoFuncao || "Função"}</p>
+        </div>
+      ) : null}
+      {tipoDoc === "parecer" && processo ? (
+        <div className="mt-4 space-y-2 text-justify">
+          <p>{processo.objeto}</p>
+          <p>{parecerFundamento || "Fundamento legal"}</p>
+          <p className="pt-6 text-center font-bold">{termoAssinante || "Quem assina"}</p>
+          <p className="text-center">{termoFuncao || "Função"}</p>
+        </div>
+      ) : null}
+      {tipoDoc === "preco" && processo ? (
+        <div className="mt-4 space-y-2">
+          <p>{processo.objeto}</p>
+          {processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores).map((fornecedor, ordem) => (
+            <p key={`${fornecedor.documento}-${ordem}`} className={ordem in desclassificados ? "line-through" : ""}>{fornecedor.fornecedor} · {formatarReais(fornecedor.valorCentavos)}</p>
+          ))}
+          <p className="pt-4 text-center font-bold">{termoAssinante || "Quem assina"}</p>
+          <p className="text-center">{termoFuncao || "Função"}</p>
+        </div>
+      ) : null}
+    </article>
+  );
+
+  function baixarEditor() {
+    if (tipoDoc === "previsao") {
+      gerarPrevisao();
+      return;
+    }
+    if (!processo) return;
+    if (tipoDoc === "capa") {
+      const volumes: Record<string, number> = {};
+      const numero = Number(numeroVolume);
+      if (volumeCapa && (!Number.isInteger(numero) || numero < 1 || numero > 3999)) {
+        setErroVolume("Informe o número do volume, de 1 a 3999.");
+        return;
+      }
+      if (volumeCapa) volumes[processo.id] = numero;
+      for (const capa of idsCapa) {
+        if (!capa.volume) continue;
+        const numeroExtra = Number(capa.numero);
+        if (!Number.isInteger(numeroExtra) || numeroExtra < 1 || numeroExtra > 3999) {
+          const nome = processos.find((item) => item.id === capa.id);
+          setErroVolume(`Informe o volume de ${nome ? rotuloLista(nome) : "o processo adicional"}.`);
+          return;
+        }
+        volumes[capa.id] = numeroExtra;
+      }
+      const juntos = [processo, ...idsCapa.map((capa) => processos.find((item) => item.id === capa.id)).filter((item): item is ProcessoAdmin => Boolean(item))];
+      setErroVolume("");
+      imprimirCapas(juntos, volumes);
+      return;
+    }
+    if (tipoDoc === "extrato") {
+      if (itensExtrato.some((item) => !item.fundamento.trim() || (item.contrato && !item.assinatura))) {
+        setTermoAviso("Preencha o fundamento e, se for contrato, a data de assinatura.");
+        return;
+      }
+      const prontos = itensExtrato
+        .map((item) => ({
+          processo: processos.find((candidato) => candidato.id === item.id) ?? (item.id === processo.id ? processo : null),
+          fundamento: item.fundamento,
+          assinatura: item.assinatura,
+          contrato: item.contrato,
+        }))
+        .filter((item): item is { processo: ProcessoAdmin; fundamento: string; assinatura: string; contrato: boolean } => Boolean(item.processo));
+      setTermoAviso("");
+      baixarExtratos(prontos);
+      return;
+    }
+    if (tipoDoc === "termo") {
+      if (!termoTimbre || !termoAssinante || !termoFuncao.trim()) {
+        setTermoAviso(termoAviso || "Escolha quem assina e a função. O timbrado é o da equipe.");
+        return;
+      }
+      void baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim()).catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar o termo."));
+      return;
+    }
+    if (tipoDoc === "parecer") {
+      if (!termoTimbre || !parecerFundamento.trim() || !termoAssinante || !termoFuncao.trim()) {
+        setTermoAviso(termoAviso || "Escolha o fundamento, quem assina e a função.");
+        return;
+      }
+      void baixarParecer(processo, termoTimbre, parecerFundamento.trim(), termoAssinante, termoFuncao.trim()).catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar a solicitação."));
+      return;
+    }
+    if (tipoDoc === "preco") {
+      if (!termoTimbre || !parecerFundamento.trim() || !termoAssinante || !termoFuncao.trim() || !(processo.cotacoes ?? []).some((cotacao) => cotacao.fornecedores.length > 0)) {
+        setPrecoErro(termoAviso || "Preencha a justificativa e vincule uma cotação.");
+        return;
+      }
+      const marcadas = Object.entries(desclassificados).map(([indice, motivo]) => ({ indice: Number(indice), motivo: motivo.trim() }));
+      if (houveDesclassificacao && (marcadas.length === 0 || marcadas.some((item) => !item.motivo))) {
+        setPrecoErro("Selecione quem foi desclassificada e informe o motivo.");
+        return;
+      }
+      const total = processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores).length;
+      if (houveDesclassificacao && marcadas.length >= total) {
+        setPrecoErro("É preciso permanecer ao menos um fornecedor apto.");
+        return;
+      }
+      setPrecoErro("");
+      void baixarJustificativa(processo, termoTimbre, parecerFundamento.trim(), termoAssinante, termoFuncao.trim(), houveDesclassificacao ? marcadas : []).catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar a justificativa."));
+    }
+  }
 
   return (
     <div>
-      {previsaoDoc ? (
+      {editorAberto && tipoDoc ? (
         <div>
-          <p className="text-sm text-ink">Previsão de Recurso Orçamentários</p>
+          <p className="text-sm text-ink">{catalogoDocs.find((item) => item.tipo === tipoDoc)?.rotulo}</p>
           <div className="mt-3 grid items-start gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(15rem,0.72fr)]">
             <div className="min-h-[32rem] rounded-[1.75rem] border border-pine bg-paper/50 p-5 sm:p-7">
               <div className="flex flex-col gap-3">
@@ -3380,6 +3511,7 @@ function PainelDocumentos({
                       const id = evento.target.value;
                       setProcessoId(id);
                       const alvo = ordenados.find((item) => item.id === id);
+                      if (alvo && tipoDoc && tipoDoc !== "previsao") prepararDocumento(tipoDoc, alvo);
                       if (!alvo?.equipeId) {
                         setPrevisaoCidade("");
                         return;
@@ -3395,9 +3527,11 @@ function PainelDocumentos({
                     ))}
                   </select>
                 </label>
-                {contador ? (
+                {tipoDoc === "previsao" && contador ? (
                   <p className="text-sm text-ink">{assinantePrevia} · {contador.funcao} · {contador.registro}</p>
                 ) : null}
+                {tipoDoc === "previsao" ? (
+                  <>
                 {dotacoes.map((linha, indice) => {
                   const achada = fichaDotacao(linha.ficha);
                   return (
@@ -3418,19 +3552,142 @@ function PainelDocumentos({
                 })}
                 <button type="button" onClick={() => setDotacoes((atual) => [...atual, { ficha: "" }])} className="h-11 rounded-xl border border-line bg-sheet text-sm font-medium text-ink">Adicionar ficha</button>
                 <button type="button" onClick={() => { setContadorEditando(true); setPrevisaoAberta(true); }} className="h-11 rounded-xl border border-line bg-sheet text-sm font-medium text-ink">Alterar cadastro do RT</button>
+                  </>
+                ) : null}
+                {tipoDoc === "capa" && processo ? (
+                  <>
+                    <ul className="flex flex-col gap-2 text-sm">
+                      <li className="rounded-xl border border-line bg-sheet px-3 py-2 text-ink">{rotuloLista(processo)}</li>
+                      {idsCapa.map((capa) => {
+                        const item = processos.find((atual) => atual.id === capa.id);
+                        if (!item) return null;
+                        return (
+                          <li key={capa.id} className="rounded-xl border border-line bg-sheet px-3 py-2 text-ink">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="min-w-0 break-words">{rotuloLista(item)}</span>
+                              <button type="button" onClick={() => setIdsCapa((atual) => atual.filter((valor) => valor.id !== capa.id))} className="shrink-0 text-xs font-medium text-seal">Remover</button>
+                            </div>
+                            <label className="mt-2 flex items-center gap-2 text-xs font-medium">
+                              <input type="checkbox" checked={capa.volume} onChange={(evento) => setIdsCapa((atual) => atual.map((valor) => valor.id === capa.id ? { ...valor, volume: evento.target.checked, numero: evento.target.checked ? valor.numero : "" } : valor))} className="size-4 accent-pine" />
+                              Tem volume
+                            </label>
+                            {capa.volume ? <input value={capa.numero} onChange={(evento) => setIdsCapa((atual) => atual.map((valor) => valor.id === capa.id ? { ...valor, numero: evento.target.value.replace(/\D/g, "").slice(0, 4) } : valor))} className={inputCls + " mt-2"} inputMode="numeric" placeholder="Número do volume" autoComplete="off" /> : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <div className="flex gap-2">
+                      <select value={capaEscolha} onChange={(evento) => setCapaEscolha(evento.target.value)} className={inputCls + " min-w-0 flex-1 font-normal"}>
+                        <option value="">Adicionar outro processo</option>
+                        {processos.filter((item) => item.id !== processo.id && !idsCapa.some((capa) => capa.id === item.id)).map((item) => (
+                          <option key={item.id} value={item.id}>{rotuloLista(item)}</option>
+                        ))}
+                      </select>
+                      <button type="button" disabled={!capaEscolha} onClick={() => { setIdsCapa((atual) => [...atual, { id: capaEscolha, volume: false, numero: "" }]); setCapaEscolha(""); }} className="inline-flex h-11 shrink-0 items-center rounded-xl border border-line bg-sheet px-3 text-sm font-medium text-ink disabled:opacity-50">Adicionar</button>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                      <input type="checkbox" checked={volumeCapa} onChange={(evento) => { setVolumeCapa(evento.target.checked); setErroVolume(""); if (!evento.target.checked) setNumeroVolume(""); }} className="size-4 accent-pine" />
+                      Imprimir volume
+                    </label>
+                    {volumeCapa ? <input value={numeroVolume} onChange={(evento) => { setNumeroVolume(evento.target.value.replace(/\D/g, "").slice(0, 4)); setErroVolume(""); }} className={inputCls} inputMode="numeric" placeholder="Número do volume" autoComplete="off" /> : null}
+                  </>
+                ) : null}
+                {tipoDoc === "extrato" ? (
+                  <>
+                    {itensExtrato.map((item) => {
+                      const atual = processos.find((candidato) => candidato.id === item.id) ?? processo;
+                      if (!atual) return null;
+                      return (
+                        <div key={item.id} className="rounded-xl border border-line bg-sheet p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-medium text-ink">{rotuloLista(atual)}</p>
+                              <p className="text-xs text-muted">{item.contrato ? "Extrato de contrato" : "Extrato de aquisição"}</p>
+                            </div>
+                            {processo && item.id !== processo.id ? <button type="button" onClick={() => setItensExtrato((listaAtual) => listaAtual.filter((valor) => valor.id !== item.id))} className="shrink-0 text-xs font-medium text-seal">Remover</button> : null}
+                          </div>
+                          <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
+                            Fundamento legal
+                            <select value={item.fundamento} onChange={(evento) => setItensExtrato((listaAtual) => listaAtual.map((valor) => valor.id === item.id ? { ...valor, fundamento: evento.target.value } : valor))} className={inputCls + " font-normal"}>
+                              {fundamentosDoTipo(atual.tipo).length > 1 && <option value="">Selecione o fundamento legal</option>}
+                              {fundamentosDoTipo(atual.tipo).map((opcao) => <option key={opcao.valor} value={opcao.valor}>{opcao.rotulo}</option>)}
+                            </select>
+                          </label>
+                          <label className="mt-3 flex items-center gap-2 text-sm font-medium text-ink">
+                            <input type="checkbox" checked={item.contrato} onChange={(evento) => setItensExtrato((listaAtual) => listaAtual.map((valor) => valor.id === item.id ? { ...valor, contrato: evento.target.checked } : valor))} className="size-4 accent-pine" />
+                            É contrato
+                          </label>
+                          {item.contrato ? <input type="date" value={item.assinatura} onChange={(evento) => setItensExtrato((listaAtual) => listaAtual.map((valor) => valor.id === item.id ? { ...valor, assinatura: evento.target.value } : valor))} className={inputCls + " mt-3"} autoComplete="off" /> : null}
+                        </div>
+                      );
+                    })}
+                    <div className="flex gap-2">
+                      <select value={extratoEscolha} onChange={(evento) => setExtratoEscolha(evento.target.value)} className={inputCls + " min-w-0 flex-1 font-normal"}>
+                        <option value="">Adicionar outro processo</option>
+                        {processos.filter((item) => !itensExtrato.some((valor) => valor.id === item.id)).map((item) => <option key={item.id} value={item.id}>{rotuloLista(item)}</option>)}
+                      </select>
+                      <button type="button" disabled={!extratoEscolha} onClick={() => { const escolhido = processos.find((item) => item.id === extratoEscolha); if (!escolhido) return; setItensExtrato((listaAtual) => [...listaAtual, { id: escolhido.id, fundamento: fundamentoInicial(escolhido.tipo), assinatura: escolhido.vigenciaInicio ?? "", contrato: extratoPadraoContrato(escolhido) }]); setExtratoEscolha(""); }} className="inline-flex h-11 shrink-0 items-center rounded-xl border border-line bg-sheet px-3 text-sm font-medium text-ink disabled:opacity-50">Adicionar</button>
+                    </div>
+                  </>
+                ) : null}
+                {(tipoDoc === "termo" || tipoDoc === "parecer" || tipoDoc === "preco") && processo ? (
+                  <>
+                    {tipoDoc === "preco" ? (
+                      <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                        <input type="checkbox" checked={houveDesclassificacao} onChange={(evento) => { setHouveDesclassificacao(evento.target.checked); setDesclassificados({}); setPrecoErro(""); }} className="size-4 accent-pine" />
+                        Houve desclassificação?
+                      </label>
+                    ) : null}
+                    {tipoDoc === "preco" && houveDesclassificacao ? processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores).map((fornecedor, ordem) => (
+                      <div key={`${fornecedor.documento}-${ordem}`} className="rounded-xl border border-line bg-sheet px-3 py-2">
+                        <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                          <input type="checkbox" checked={ordem in desclassificados} onChange={(evento) => setDesclassificados((atual) => { const proximo = { ...atual }; if (evento.target.checked) proximo[ordem] = atual[ordem] ?? ""; else delete proximo[ordem]; return proximo; })} className="size-4 accent-pine" />
+                          {fornecedor.fornecedor} · {formatarReais(fornecedor.valorCentavos)}
+                        </label>
+                        {ordem in desclassificados ? <input value={desclassificados[ordem] ?? ""} onChange={(evento) => setDesclassificados((atual) => ({ ...atual, [ordem]: evento.target.value }))} className={inputCls + " mt-2"} placeholder="Motivo da desclassificação" autoComplete="off" /> : null}
+                      </div>
+                    )) : null}
+                    {tipoDoc !== "termo" ? (
+                      <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                        Fundamento legal
+                        <select value={parecerFundamento} onChange={(evento) => setParecerFundamento(evento.target.value)} className={inputCls + " font-normal"}>
+                          {fundamentosDoTipo(processo.tipo).length > 1 && <option value="">Selecione o fundamento legal</option>}
+                          {fundamentosDoTipo(processo.tipo).map((opcao) => <option key={opcao.valor} value={opcao.valor}>{opcao.rotulo}</option>)}
+                        </select>
+                      </label>
+                    ) : null}
+                    <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                      Quem assina
+                      <select value={termoAssinante} onChange={(evento) => setTermoAssinante(evento.target.value)} className={inputCls + " font-normal"}>
+                        <option value="">Selecione alguém da equipe</option>
+                        {(equipes.find((equipe) => equipe.id === processo.equipeId)?.membros ?? []).map((membro) => <option key={membro.nome} value={membro.nome}>{membro.nome}</option>)}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                      Função
+                      <select value={termoFuncao} onChange={(evento) => setTermoFuncao(evento.target.value)} className={inputCls + " font-normal"}>
+                        <option value="">Selecione a função</option>
+                        <option>Agente de Contratações</option>
+                        <option>Gerente Administrativo</option>
+                        <option>Controladoria Geral</option>
+                        <option>{termoTimbre?.linha2.trim() ? `Presidente da Câmara Municipal de ${termoTimbre.linha2.trim()}` : "Presidente da Câmara Municipal"}</option>
+                      </select>
+                    </label>
+                  </>
+                ) : null}
               </div>
-              {previsaoDocErro ? <p className="mt-3 text-sm text-seal">{previsaoDocErro}</p> : null}
+              {previsaoDocErro || precoErro || erroVolume || termoAviso ? <p className="mt-3 text-sm text-seal">{previsaoDocErro || precoErro || erroVolume || termoAviso}</p> : null}
             </div>
             <div>
               <div className="relative min-h-[32rem] overflow-hidden rounded-2xl bg-[#d7e0ea] p-4">
                 <button type="button" onClick={() => setPreviaCheia(true)} className="absolute right-3 top-3 grid size-8 place-items-center text-ink/70" aria-label="Ampliar prévia">
                   <Expand className="size-4" />
                 </button>
-                <div className="mx-auto mt-6 max-w-sm">{previa}</div>
+                <div className="mx-auto mt-6 max-w-sm">{previaAtual}</div>
               </div>
               <div className="mt-3 flex justify-end gap-2">
-                <button type="button" onClick={gerarPrevisao} className="h-11 rounded-full bg-[#d7e0ea] px-5 text-xs font-medium uppercase tracking-wide text-ink">Baixar doc</button>
-                <button type="button" onClick={() => { setPrevisaoDoc(false); setPreviaCheia(false); }} className="h-11 rounded-full bg-[#d7e0ea] px-5 text-xs font-medium uppercase tracking-wide text-ink">Voltar</button>
+                <button type="button" onClick={baixarEditor} className="h-11 rounded-full bg-[#d7e0ea] px-5 text-xs font-medium uppercase tracking-wide text-ink">Baixar doc</button>
+                <button type="button" onClick={() => { setEditorAberto(false); setPreviaCheia(false); setTipoDoc(null); }} className="h-11 rounded-full bg-[#d7e0ea] px-5 text-xs font-medium uppercase tracking-wide text-ink">Voltar</button>
               </div>
             </div>
           </div>
@@ -3438,7 +3695,7 @@ function PainelDocumentos({
             <div className="fixed inset-0 z-40 overflow-y-auto bg-ink/50 p-4">
               <div className="relative mx-auto max-w-3xl rounded-2xl bg-[#d7e0ea] p-4">
                 <button type="button" onClick={() => setPreviaCheia(false)} className="absolute right-3 top-3 grid size-8 place-items-center" aria-label="Fechar prévia"><X className="size-4" /></button>
-                <div className="mt-8">{previa}</div>
+                <div className="mt-8">{previaAtual}</div>
               </div>
             </div>
           ) : null}
@@ -3605,549 +3862,6 @@ function PainelDocumentos({
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      <Dialog.Root open={escolhaAberta} onOpenChange={setEscolhaAberta}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
-            <Dialog.Title className="font-display text-2xl text-ink">Qual processo?</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted">O documento sai com os dados deste processo.</Dialog.Description>
-            <select value={processoId} onChange={(evento) => setProcessoId(evento.target.value)} className={inputCls + " mt-4 font-normal"}>
-              {ordenados.map((item) => (
-                <option key={item.id} value={item.id}>{rotuloLista(item)}</option>
-              ))}
-            </select>
-            <div className="mt-4 flex gap-2">
-              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">Cancelar</Dialog.Close>
-              <button type="button" onClick={confirmarProcesso} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">Continuar</button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-      <Dialog.Root open={precoAberto} onOpenChange={setPrecoAberto}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 max-h-[85vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-lg md:-translate-x-1/2">
-            <Dialog.Title className="font-display text-2xl text-ink">Justificativa de preço</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted">
-              {processo ? `As cotações de ${rotuloLista(processo)} entram na tabela do documento.` : "Escolha o processo para vincular as cotações."}
-            </Dialog.Description>
-            {termoAviso ? (
-              <p className="mt-4 text-sm text-seal">{termoAviso}</p>
-            ) : processo ? (
-              <div className="mt-4 flex flex-col gap-3">
-                <label className="flex items-center gap-2 text-sm font-medium text-ink">
-                  <input
-                    type="checkbox"
-                    checked={houveDesclassificacao}
-                    onChange={(evento) => {
-                      setHouveDesclassificacao(evento.target.checked);
-                      setDesclassificados({});
-                      setPrecoErro("");
-                    }}
-                    className="size-4 accent-pine"
-                  />
-                  Houve desclassificação?
-                </label>
-                {houveDesclassificacao ? (
-                  <div className="flex flex-col gap-2">
-                    {processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores).map((fornecedor, ordem) => {
-                      const marcada = ordem in desclassificados;
-                      return (
-                        <div key={`${fornecedor.documento}-${ordem}`} className="rounded-xl border border-line px-3 py-2">
-                          <label className="flex items-center gap-2 text-sm font-medium text-ink">
-                            <input
-                              type="checkbox"
-                              checked={marcada}
-                              onChange={(evento) => {
-                                setDesclassificados((atual) => {
-                                  const proximo = { ...atual };
-                                  if (evento.target.checked) proximo[ordem] = atual[ordem] ?? "";
-                                  else delete proximo[ordem];
-                                  return proximo;
-                                });
-                                setPrecoErro("");
-                              }}
-                              className="size-4 accent-pine"
-                            />
-                            {fornecedor.fornecedor} · {formatarReais(fornecedor.valorCentavos)}
-                          </label>
-                          {marcada ? (
-                            <input
-                              value={desclassificados[ordem] ?? ""}
-                              onChange={(evento) => setDesclassificados((atual) => ({ ...atual, [ordem]: evento.target.value }))}
-                              className={inputCls + " mt-2"}
-                              placeholder="Motivo da desclassificação"
-                            />
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
-                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                  Fundamento legal
-                  <select value={parecerFundamento} onChange={(evento) => setParecerFundamento(evento.target.value)} className={inputCls + " font-normal"}>
-                    {fundamentosDoTipo(processo.tipo).length > 1 && <option value="">Selecione o fundamento legal</option>}
-                    {fundamentosDoTipo(processo.tipo).map((opcao) => (
-                      <option key={opcao.valor} value={opcao.valor}>{opcao.rotulo}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                  Quem assina
-                  <select value={termoAssinante} onChange={(evento) => setTermoAssinante(evento.target.value)} className={inputCls + " font-normal"}>
-                    <option value="">Selecione alguém da equipe</option>
-                    {(equipes.find((equipe) => equipe.id === processo.equipeId)?.membros ?? []).map((membro) => (
-                      <option key={membro.nome} value={membro.nome}>{membro.nome}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                  Função
-                  <select value={termoFuncao} onChange={(evento) => setTermoFuncao(evento.target.value)} className={inputCls + " font-normal"}>
-                    <option value="">Selecione a função</option>
-                    <option>Agente de Contratações</option>
-                    <option>Gerente Administrativo</option>
-                    <option>Controladoria Geral</option>
-                    <option>{termoTimbre?.linha2.trim() ? `Presidente da Câmara Municipal de ${termoTimbre.linha2.trim()}` : "Presidente da Câmara Municipal"}</option>
-                  </select>
-                </label>
-              </div>
-            ) : null}
-            <div className="mt-4 flex gap-2">
-              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">Cancelar</Dialog.Close>
-              <button
-                type="button"
-                disabled={!processo || !termoTimbre || !parecerFundamento.trim() || !termoAssinante || !termoFuncao.trim() || !(processo?.cotacoes ?? []).some((cotacao) => cotacao.fornecedores.length > 0)}
-                onClick={() => {
-                  if (!processo || !termoTimbre) return;
-                  const marcadas = Object.entries(desclassificados).map(([indice, motivo]) => ({ indice: Number(indice), motivo: motivo.trim() }));
-                  if (houveDesclassificacao && marcadas.length === 0) {
-                    setPrecoErro("Selecione quem foi desclassificada.");
-                    return;
-                  }
-                  if (houveDesclassificacao && marcadas.some((item) => !item.motivo)) {
-                    setPrecoErro("Informe o motivo da desclassificação.");
-                    return;
-                  }
-                  const total = processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores).length;
-                  if (houveDesclassificacao && marcadas.length >= total) {
-                    setPrecoErro("É preciso permanecer ao menos um fornecedor apto.");
-                    return;
-                  }
-                  setPrecoErro("");
-                  void baixarJustificativa(processo, termoTimbre, parecerFundamento.trim(), termoAssinante, termoFuncao.trim(), houveDesclassificacao ? marcadas : [])
-                    .then(() => setPrecoAberto(false))
-                    .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar a justificativa."));
-                }}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
-              >
-                Baixar Word
-              </button>
-            </div>
-            {precoErro ? <p className="mt-3 text-sm text-seal">{precoErro}</p> : null}
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-      {processo ? (
-        <>
-      <Dialog.Root open={capaAberta} onOpenChange={setCapaAberta}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 max-h-[85vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
-            <Dialog.Title className="font-display text-2xl text-ink">Imprimir capa</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted">
-              {idsCapa.length > 0 ? "Com mais de um processo, a folha leva quantos couberem, sem cortar o objeto." : "Uma capa nesta folha. Se quiser, junte outro processo."}
-            </Dialog.Description>
-            <ul className="mt-4 flex flex-col gap-2 text-sm">
-              <li className="rounded-xl border border-line px-3 py-2 text-ink">{rotuloLista(processo)}</li>
-              {idsCapa.map((capa) => {
-                const item = processos.find((atual) => atual.id === capa.id);
-                if (!item) return null;
-                return (
-                  <li key={capa.id} className="rounded-xl border border-line px-3 py-2 text-ink">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 break-words">{rotuloLista(item)}</span>
-                      <button type="button" onClick={() => setIdsCapa((atual) => atual.filter((valor) => valor.id !== capa.id))} className="shrink-0 text-xs font-medium text-seal">
-                        Remover
-                      </button>
-                    </div>
-                    <label className="mt-2 flex items-center gap-2 text-xs font-medium">
-                      <input
-                        type="checkbox"
-                        checked={capa.volume}
-                        onChange={(evento) => setIdsCapa((atual) => atual.map((valor) => valor.id === capa.id ? { ...valor, volume: evento.target.checked, numero: evento.target.checked ? valor.numero : "" } : valor))}
-                        className="size-4 accent-pine"
-                      />
-                      Tem volume
-                    </label>
-                    {capa.volume ? (
-                      <div className="mt-2">
-                        <input
-                          value={capa.numero}
-                          onChange={(evento) => setIdsCapa((atual) => atual.map((valor) => valor.id === capa.id ? { ...valor, numero: evento.target.value.replace(/\D/g, "").slice(0, 4) } : valor))}
-                          className={inputCls}
-                          inputMode="numeric"
-                          placeholder="Número do volume"
-                          autoComplete="off"
-                        />
-                        {Number(capa.numero) >= 1 ? <p className="mt-1 text-xs text-muted">VOLUME {romano(Number(capa.numero))}</p> : null}
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="mt-3 flex gap-2">
-              <select value={capaEscolha} onChange={(evento) => setCapaEscolha(evento.target.value)} className={inputCls + " min-w-0 flex-1"}>
-                <option value="">Adicionar outro processo</option>
-                {processos
-                  .filter((item) => item.id !== processo.id && !idsCapa.some((capa) => capa.id === item.id))
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {rotuloLista(item)}
-                    </option>
-                  ))}
-              </select>
-              <button
-                type="button"
-                disabled={!capaEscolha}
-                onClick={() => {
-                  setIdsCapa((atual) => [...atual, { id: capaEscolha, volume: false, numero: "" }]);
-                  setCapaEscolha("");
-                }}
-                className="inline-flex h-11 shrink-0 items-center rounded-xl border border-line px-3 text-sm font-medium text-ink disabled:opacity-50"
-              >
-                Adicionar
-              </button>
-            </div>
-            <label className="mt-4 flex items-center gap-2 text-sm font-medium text-ink">
-              <input
-                type="checkbox"
-                checked={volumeCapa}
-                onChange={(evento) => {
-                  setVolumeCapa(evento.target.checked);
-                  setErroVolume("");
-                  if (!evento.target.checked) setNumeroVolume("");
-                }}
-                className="size-4 accent-pine"
-              />
-              Imprimir volume
-            </label>
-            {volumeCapa ? (
-              <div className="mt-3">
-                <Campo label="Qual volume?">
-                  <input
-                    value={numeroVolume}
-                    onChange={(evento) => {
-                      setNumeroVolume(evento.target.value.replace(/\D/g, "").slice(0, 4));
-                      setErroVolume("");
-                    }}
-                    className={inputCls}
-                    inputMode="numeric"
-                    placeholder="2"
-                    autoComplete="off"
-                  />
-                </Campo>
-                {Number(numeroVolume) >= 1 ? <p className="mt-2 text-sm text-muted">Na capa: VOLUME {romano(Number(numeroVolume))}</p> : null}
-              </div>
-            ) : null}
-            {erroVolume ? <p className="mt-3 text-sm text-seal">{erroVolume}</p> : null}
-            <div className="mt-4 flex gap-2">
-              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
-                Cancelar
-              </Dialog.Close>
-              <button
-                type="button"
-                onClick={() => {
-                  const volumes: Record<string, number> = {};
-                  const numero = Number(numeroVolume);
-                  if (volumeCapa && (!Number.isInteger(numero) || numero < 1 || numero > 3999)) {
-                    setErroVolume("Informe o número do volume, de 1 a 3999.");
-                    return;
-                  }
-                  if (volumeCapa) volumes[processo.id] = numero;
-                  for (const capa of idsCapa) {
-                    if (!capa.volume) continue;
-                    const numeroExtra = Number(capa.numero);
-                    if (!Number.isInteger(numeroExtra) || numeroExtra < 1 || numeroExtra > 3999) {
-                      const nome = processos.find((item) => item.id === capa.id);
-                      setErroVolume(`Informe o volume de ${nome ? rotuloLista(nome) : "o processo adicional"}.`);
-                      return;
-                    }
-                    volumes[capa.id] = numeroExtra;
-                  }
-                  const juntos = [processo, ...idsCapa.map((capa) => processos.find((item) => item.id === capa.id)).filter((item): item is ProcessoAdmin => Boolean(item))];
-                  imprimirCapas(juntos, volumes);
-                  setCapaAberta(false);
-                }}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet"
-              >
-                Imprimir
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-      <Dialog.Root open={extratoAberto} onOpenChange={setExtratoAberto}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 flex max-h-[85vh] -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
-            <Dialog.Title className="font-display text-2xl text-ink">Extrato</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted">
-              Marque se é contrato. Se não for, sai o extrato de aquisição. Todos saem na mesma página.
-            </Dialog.Description>
-            <div className="mt-4 flex flex-col gap-3 overflow-y-auto">
-              {itensExtrato.map((item) => {
-                const atual = processos.find((candidato) => candidato.id === item.id) ?? processo;
-                return (
-                  <div key={item.id} className="rounded-xl border border-line p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-medium text-ink">{rotuloLista(atual)}</p>
-                        <p className="text-xs text-muted">{item.contrato ? "Extrato de contrato" : "Extrato de aquisição"}</p>
-                      </div>
-                      {item.id !== processo.id && (
-                        <button
-                          type="button"
-                          onClick={() => setItensExtrato((listaAtual) => listaAtual.filter((valor) => valor.id !== item.id))}
-                          className="shrink-0 text-xs font-medium text-seal"
-                        >
-                          Remover
-                        </button>
-                      )}
-                    </div>
-                    <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
-                      Fundamento legal
-                      <select
-                        value={item.fundamento}
-                        onChange={(evento) =>
-                          setItensExtrato((listaAtual) =>
-                            listaAtual.map((valor) => (valor.id === item.id ? { ...valor, fundamento: evento.target.value } : valor)),
-                          )
-                        }
-                        className={inputCls + " font-normal"}
-                      >
-                        {fundamentosDoTipo(atual.tipo).length > 1 && <option value="">Selecione o fundamento legal</option>}
-                        {fundamentosDoTipo(atual.tipo).map((opcao) => (
-                          <option key={opcao.valor} value={opcao.valor}>
-                            {opcao.rotulo}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="mt-3 flex items-center gap-2 text-sm font-medium text-ink">
-                      <input
-                        type="checkbox"
-                        checked={item.contrato}
-                        onChange={(evento) =>
-                          setItensExtrato((listaAtual) =>
-                            listaAtual.map((valor) => (valor.id === item.id ? { ...valor, contrato: evento.target.checked } : valor)),
-                          )
-                        }
-                        className="size-4 accent-pine"
-                      />
-                      É contrato
-                    </label>
-                    {item.contrato && (
-                      <label className="mt-3 flex flex-col gap-1 text-sm font-medium text-ink">
-                        Assinatura do contrato
-                        <input
-                          type="date"
-                          value={item.assinatura}
-                          onChange={(evento) =>
-                            setItensExtrato((listaAtual) =>
-                              listaAtual.map((valor) => (valor.id === item.id ? { ...valor, assinatura: evento.target.value } : valor)),
-                            )
-                          }
-                          className={inputCls}
-                        />
-                      </label>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-3 flex gap-2">
-              <select value={extratoEscolha} onChange={(evento) => setExtratoEscolha(evento.target.value)} className={inputCls + " min-w-0 flex-1"}>
-                <option value="">Adicionar outro processo</option>
-                {processos
-                  .filter((item) => !itensExtrato.some((valor) => valor.id === item.id))
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {rotuloLista(item)}
-                    </option>
-                  ))}
-              </select>
-              <button
-                type="button"
-                disabled={!extratoEscolha}
-                onClick={() => {
-                  const escolhido = processos.find((item) => item.id === extratoEscolha);
-                  if (!escolhido) return;
-                  setItensExtrato((listaAtual) => [
-                    ...listaAtual,
-                    { id: escolhido.id, fundamento: fundamentoInicial(escolhido.tipo), assinatura: escolhido.vigenciaInicio ?? "", contrato: extratoPadraoContrato(escolhido) },
-                  ]);
-                  setExtratoEscolha("");
-                }}
-                className="inline-flex h-11 shrink-0 items-center rounded-xl border border-line px-3 text-sm font-medium text-ink disabled:opacity-50"
-              >
-                Adicionar
-              </button>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
-                Cancelar
-              </Dialog.Close>
-              <button
-                type="button"
-                disabled={itensExtrato.some((item) => !item.fundamento.trim() || (item.contrato && !item.assinatura))}
-                onClick={() => {
-                  const prontos = itensExtrato
-                    .map((item) => ({
-                      processo: processos.find((candidato) => candidato.id === item.id) ?? (item.id === processo.id ? processo : null),
-                      fundamento: item.fundamento,
-                      assinatura: item.assinatura,
-                      contrato: item.contrato,
-                    }))
-                    .filter((item): item is { processo: ProcessoAdmin; fundamento: string; assinatura: string; contrato: boolean } => Boolean(item.processo));
-                  baixarExtratos(prontos);
-                  setExtratoAberto(false);
-                }}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
-              >
-                Baixar Word
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-      <Dialog.Root open={termoAberto} onOpenChange={setTermoAberto}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
-            <Dialog.Title className="font-display text-2xl text-ink">Termo de encerramento</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted">
-              O documento usa o timbrado da equipe. Escolha quem assina e a função.
-            </Dialog.Description>
-            {termoAviso ? (
-              <p className="mt-4 text-sm text-seal">{termoAviso}</p>
-            ) : (
-              <div className="mt-4 flex flex-col gap-3">
-                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                  Quem assina
-                  <select value={termoAssinante} onChange={(evento) => setTermoAssinante(evento.target.value)} className={inputCls + " font-normal"}>
-                    <option value="">Selecione alguém da equipe</option>
-                    {(equipes.find((equipe) => equipe.id === processo.equipeId)?.membros ?? []).map((membro) => (
-                      <option key={membro.nome} value={membro.nome}>
-                        {membro.nome}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                  Função
-                  <select value={termoFuncao} onChange={(evento) => setTermoFuncao(evento.target.value)} className={inputCls + " font-normal"}>
-                    <option value="">Selecione a função</option>
-                    <option>Agente de Contratações</option>
-                    <option>Gerente Administrativo</option>
-                    <option>Controladoria Geral</option>
-                    <option>{termoTimbre?.linha2.trim() ? `Presidente da Câmara Municipal de ${termoTimbre.linha2.trim()}` : "Presidente da Câmara Municipal"}</option>
-                  </select>
-                </label>
-              </div>
-            )}
-            <div className="mt-4 flex gap-2">
-              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
-                Cancelar
-              </Dialog.Close>
-              <button
-                type="button"
-                disabled={!termoTimbre || !termoAssinante || !termoFuncao.trim()}
-                onClick={() => {
-                  if (!termoTimbre) return;
-                  void baixarTermo(processo, termoTimbre, termoAssinante, termoFuncao.trim())
-                    .then(() => setTermoAberto(false))
-                    .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar o termo."));
-                }}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
-              >
-                Baixar Word
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-      <Dialog.Root open={parecerAberto} onOpenChange={setParecerAberto}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
-            <Dialog.Title className="font-display text-2xl text-ink">Solicitação de parecer</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted">
-              O documento usa o timbrado da equipe. Escolha o fundamento, quem assina e a função.
-            </Dialog.Description>
-            {termoAviso ? (
-              <p className="mt-4 text-sm text-seal">{termoAviso}</p>
-            ) : (
-              <div className="mt-4 flex flex-col gap-3">
-                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                  Fundamento legal
-                  <select value={parecerFundamento} onChange={(evento) => setParecerFundamento(evento.target.value)} className={inputCls + " font-normal"}>
-                    {fundamentosDoTipo(processo.tipo).length > 1 && <option value="">Selecione o fundamento legal</option>}
-                    {fundamentosDoTipo(processo.tipo).map((opcao) => (
-                      <option key={opcao.valor} value={opcao.valor}>
-                        {opcao.rotulo}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                  Quem assina
-                  <select value={termoAssinante} onChange={(evento) => setTermoAssinante(evento.target.value)} className={inputCls + " font-normal"}>
-                    <option value="">Selecione alguém da equipe</option>
-                    {(equipes.find((equipe) => equipe.id === processo.equipeId)?.membros ?? []).map((membro) => (
-                      <option key={membro.nome} value={membro.nome}>
-                        {membro.nome}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                  Função
-                  <select value={termoFuncao} onChange={(evento) => setTermoFuncao(evento.target.value)} className={inputCls + " font-normal"}>
-                    <option value="">Selecione a função</option>
-                    <option>Agente de Contratações</option>
-                    <option>Gerente Administrativo</option>
-                    <option>Controladoria Geral</option>
-                    <option>{termoTimbre?.linha2.trim() ? `Presidente da Câmara Municipal de ${termoTimbre.linha2.trim()}` : "Presidente da Câmara Municipal"}</option>
-                  </select>
-                </label>
-              </div>
-            )}
-            <div className="mt-4 flex gap-2">
-              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">
-                Cancelar
-              </Dialog.Close>
-              <button
-                type="button"
-                disabled={!termoTimbre || !parecerFundamento.trim() || !termoAssinante || !termoFuncao.trim()}
-                onClick={() => {
-                  if (!termoTimbre) return;
-                  void baixarParecer(processo, termoTimbre, parecerFundamento.trim(), termoAssinante, termoFuncao.trim())
-                    .then(() => setParecerAberto(false))
-                    .catch((err: unknown) => setTermoAviso(err instanceof Error ? err.message : "Não foi possível gerar a solicitação."));
-                }}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
-              >
-                Baixar Word
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-        </>
-      ) : null}
     </div>
   );
 }
