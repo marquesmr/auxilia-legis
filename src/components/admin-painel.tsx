@@ -47,6 +47,7 @@ import {
 import { apagarAdmin, lerContadorPrevisao, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao, salvarContadorPrevisao, type ContadorPrevisao } from "@/lib/admin.functions";
 import { lerTimbradoEquipe, type TimbradoEquipe } from "@/lib/equipes.functions";
 import { cidadeDoTimbrado, termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
+import { dotacaoDocumento, fichaDocumento, fichaDotacao } from "@/lib/dotacoes";
 import { buscarCnpjPorNome, consultarDocumento, type ConsultaDocumento, type ResultadoNomeCnpj } from "@/lib/cnpj.functions";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { CampoMes } from "@/components/campo-mes";
@@ -3117,7 +3118,7 @@ function PainelDocumentos({
   const [contadorErro, setContadorErro] = useState("");
   const [contadorSalvando, setContadorSalvando] = useState(false);
   const [previsaoDoc, setPrevisaoDoc] = useState(false);
-  const [dotacoes, setDotacoes] = useState<{ dotacao: string; ficha: string; fonte: string }[]>([{ dotacao: "", ficha: "", fonte: "" }]);
+  const [dotacoes, setDotacoes] = useState<{ ficha: string }[]>([{ ficha: "" }]);
   const [previsaoDocErro, setPrevisaoDocErro] = useState("");
   const [extratoAberto, setExtratoAberto] = useState(false);
   const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string; contrato: boolean }[]>([]);
@@ -3184,7 +3185,7 @@ function PainelDocumentos({
           if (vigente) {
             setPrevisaoDoc(true);
             setPrevisaoDocErro("");
-            setDotacoes([{ dotacao: "", ficha: "", fonte: "" }]);
+            setDotacoes([{ ficha: "" }]);
             setProcessoId((id) => (ordenados.some((item) => item.id === id) ? id : ordenados[0]?.id ?? ""));
           }
         })
@@ -3449,7 +3450,7 @@ function PainelDocumentos({
           <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
           <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 max-h-[85vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-lg md:-translate-x-1/2">
             <Dialog.Title className="font-display text-2xl text-ink">Previsão de Recurso Orçamentários</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted">Quem assina é o RT. A lista oficial das dotações entra depois; por enquanto, lance cada linha.</Dialog.Description>
+            <Dialog.Description className="mt-1 text-sm text-muted">Quem assina é o RT. Informe só o número da ficha. A dotação e a fonte completam sozinhas.</Dialog.Description>
             {contador ? (
               <p className="mt-3 text-sm text-ink">{contador.tipo === "terceirizado" ? contador.nomeRt : contador.nome} · {contador.funcao} · {contador.registro}</p>
             ) : null}
@@ -3462,17 +3463,25 @@ function PainelDocumentos({
                   ))}
                 </select>
               </label>
-              {dotacoes.map((linha, indice) => (
-                <div key={indice} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_5rem_1fr_auto]">
-                  <input value={linha.dotacao} onChange={(evento) => setDotacoes((atual) => atual.map((item, ordem) => ordem === indice ? { ...item, dotacao: evento.target.value } : item))} autoComplete="off" placeholder="Dotação" className={inputCls} />
-                  <input value={linha.ficha} onChange={(evento) => setDotacoes((atual) => atual.map((item, ordem) => ordem === indice ? { ...item, ficha: evento.target.value } : item))} autoComplete="off" placeholder="Ficha" className={inputCls} />
-                  <input value={linha.fonte} onChange={(evento) => setDotacoes((atual) => atual.map((item, ordem) => ordem === indice ? { ...item, fonte: evento.target.value } : item))} autoComplete="off" placeholder="Fonte/origem" className={inputCls} />
-                  {dotacoes.length > 1 ? (
-                    <button type="button" onClick={() => setDotacoes((atual) => atual.filter((_, ordem) => ordem !== indice))} className="h-11 rounded-xl border border-line px-3 text-sm text-seal">Tirar</button>
-                  ) : null}
-                </div>
-              ))}
-              <button type="button" onClick={() => setDotacoes((atual) => [...atual, { dotacao: "", ficha: "", fonte: "" }])} className="h-11 rounded-xl border border-line text-sm font-medium text-ink">Adicionar dotação</button>
+              {dotacoes.map((linha, indice) => {
+                const achada = fichaDotacao(linha.ficha);
+                return (
+                  <div key={indice} className="rounded-xl border border-line p-3">
+                    <div className="flex gap-2">
+                      <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-medium text-ink">
+                        Ficha
+                        <input value={linha.ficha} onChange={(evento) => setDotacoes((atual) => atual.map((item, ordem) => ordem === indice ? { ficha: evento.target.value } : item))} inputMode="numeric" autoComplete="off" placeholder="2" className={inputCls} />
+                      </label>
+                      {dotacoes.length > 1 ? (
+                        <button type="button" onClick={() => setDotacoes((atual) => atual.filter((_, ordem) => ordem !== indice))} className="mt-6 h-11 rounded-xl border border-line px-3 text-sm text-seal">Tirar</button>
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-sm text-ink">{achada ? `${achada.descricao}` : linha.ficha.trim() ? "Ficha não encontrada." : "A dotação aparece aqui."}</p>
+                    {achada ? <p className="text-sm text-muted">{dotacaoDocumento(achada.conta)} · {achada.fonte}</p> : null}
+                  </div>
+                );
+              })}
+              <button type="button" onClick={() => setDotacoes((atual) => [...atual, { ficha: "" }])} className="h-11 rounded-xl border border-line text-sm font-medium text-ink">Adicionar ficha</button>
             </div>
             {previsaoDocErro ? <p className="mt-3 text-sm text-seal">{previsaoDocErro}</p> : null}
             <div className="mt-4 flex gap-2">
@@ -3481,13 +3490,16 @@ function PainelDocumentos({
                 type="button"
                 onClick={() => {
                   const escolhido = ordenados.find((item) => item.id === processoId);
-                  const linhas = dotacoes.map((item) => ({ dotacao: item.dotacao.trim(), ficha: item.ficha.trim(), fonte: item.fonte.trim() })).filter((item) => item.dotacao || item.ficha || item.fonte);
+                  const linhas = dotacoes.flatMap((item) => {
+                    const achada = fichaDotacao(item.ficha);
+                    return achada ? [{ dotacao: dotacaoDocumento(achada.conta), ficha: fichaDocumento(achada.ficha), fonte: achada.fonte }] : [];
+                  });
                   if (!escolhido || !contador) {
                     setPrevisaoDocErro("Escolha o processo.");
                     return;
                   }
-                  if (!linhas.length || linhas.some((item) => !item.dotacao || !item.ficha || !item.fonte)) {
-                    setPrevisaoDocErro("Preencha dotação, ficha e fonte de cada linha.");
+                  if (linhas.length !== dotacoes.filter((item) => item.ficha.trim()).length || !linhas.length) {
+                    setPrevisaoDocErro("Informe o número de uma ficha válida.");
                     return;
                   }
                   if (!escolhido.equipeId) {
