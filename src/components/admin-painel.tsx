@@ -3116,6 +3116,9 @@ function PainelDocumentos({
   const [contadorEditando, setContadorEditando] = useState(true);
   const [contadorErro, setContadorErro] = useState("");
   const [contadorSalvando, setContadorSalvando] = useState(false);
+  const [previsaoDoc, setPrevisaoDoc] = useState(false);
+  const [dotacoes, setDotacoes] = useState<{ dotacao: string; ficha: string; fonte: string }[]>([{ dotacao: "", ficha: "", fonte: "" }]);
+  const [previsaoDocErro, setPrevisaoDocErro] = useState("");
   const [extratoAberto, setExtratoAberto] = useState(false);
   const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string; contrato: boolean }[]>([]);
   const [extratoEscolha, setExtratoEscolha] = useState("");
@@ -3158,7 +3161,6 @@ function PainelDocumentos({
 
   function abrirTipo(tipo: "capa" | "extrato" | "termo" | "parecer" | "preco" | "previsao") {
     if (tipo === "previsao") {
-      setPrevisaoAberta(true);
       setContadorErro("");
       setContadorSalvando(true);
       void lerContadorPrevisao()
@@ -3176,9 +3178,20 @@ function PainelDocumentos({
           setContadorProcesso(atual?.processoId ?? "");
           setContadorDocumento(documento);
           setContadorRt(atual?.nomeRt ?? "");
-          setContadorEditando(!atual || ate < todayIso());
+          const vigente = Boolean(atual && ate >= todayIso() && (atual.tipo === "proprio" || atual.nomeRt.trim()));
+          setContadorEditando(!vigente);
+          setPrevisaoAberta(!vigente);
+          if (vigente) {
+            setPrevisaoDoc(true);
+            setPrevisaoDocErro("");
+            setDotacoes([{ dotacao: "", ficha: "", fonte: "" }]);
+            setProcessoId((id) => (ordenados.some((item) => item.id === id) ? id : ordenados[0]?.id ?? ""));
+          }
         })
-        .catch((err: unknown) => setContadorErro(err instanceof Error ? err.message : "Não foi possível carregar o cadastro."))
+        .catch((err: unknown) => {
+          setContadorErro(err instanceof Error ? err.message : "Não foi possível carregar o cadastro.");
+          setPrevisaoAberta(true);
+        })
         .finally(() => setContadorSalvando(false));
       return;
     }
@@ -3427,6 +3440,73 @@ function PainelDocumentos({
                   Salvar
                 </button>
               )}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      <Dialog.Root open={previsaoDoc} onOpenChange={setPrevisaoDoc}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 max-h-[85vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-lg md:-translate-x-1/2">
+            <Dialog.Title className="font-display text-2xl text-ink">Previsão de Recurso Orçamentários</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted">Quem assina é o RT. A lista oficial das dotações entra depois; por enquanto, lance cada linha.</Dialog.Description>
+            {contador ? (
+              <p className="mt-3 text-sm text-ink">{contador.tipo === "terceirizado" ? contador.nomeRt : contador.nome} · {contador.funcao} · {contador.registro}</p>
+            ) : null}
+            <div className="mt-4 flex flex-col gap-3">
+              <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                Processo
+                <select value={processoId} onChange={(evento) => setProcessoId(evento.target.value)} className={inputCls + " font-normal"}>
+                  {ordenados.map((item) => (
+                    <option key={item.id} value={item.id}>{rotuloLista(item)}</option>
+                  ))}
+                </select>
+              </label>
+              {dotacoes.map((linha, indice) => (
+                <div key={indice} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_5rem_1fr_auto]">
+                  <input value={linha.dotacao} onChange={(evento) => setDotacoes((atual) => atual.map((item, ordem) => ordem === indice ? { ...item, dotacao: evento.target.value } : item))} autoComplete="off" placeholder="Dotação" className={inputCls} />
+                  <input value={linha.ficha} onChange={(evento) => setDotacoes((atual) => atual.map((item, ordem) => ordem === indice ? { ...item, ficha: evento.target.value } : item))} autoComplete="off" placeholder="Ficha" className={inputCls} />
+                  <input value={linha.fonte} onChange={(evento) => setDotacoes((atual) => atual.map((item, ordem) => ordem === indice ? { ...item, fonte: evento.target.value } : item))} autoComplete="off" placeholder="Fonte/origem" className={inputCls} />
+                  {dotacoes.length > 1 ? (
+                    <button type="button" onClick={() => setDotacoes((atual) => atual.filter((_, ordem) => ordem !== indice))} className="h-11 rounded-xl border border-line px-3 text-sm text-seal">Tirar</button>
+                  ) : null}
+                </div>
+              ))}
+              <button type="button" onClick={() => setDotacoes((atual) => [...atual, { dotacao: "", ficha: "", fonte: "" }])} className="h-11 rounded-xl border border-line text-sm font-medium text-ink">Adicionar dotação</button>
+            </div>
+            {previsaoDocErro ? <p className="mt-3 text-sm text-seal">{previsaoDocErro}</p> : null}
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={() => { setPrevisaoDoc(false); setContadorEditando(true); setPrevisaoAberta(true); }} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">Cadastro</button>
+              <button
+                type="button"
+                onClick={() => {
+                  const escolhido = ordenados.find((item) => item.id === processoId);
+                  const linhas = dotacoes.map((item) => ({ dotacao: item.dotacao.trim(), ficha: item.ficha.trim(), fonte: item.fonte.trim() })).filter((item) => item.dotacao || item.ficha || item.fonte);
+                  if (!escolhido || !contador) {
+                    setPrevisaoDocErro("Escolha o processo.");
+                    return;
+                  }
+                  if (!linhas.length || linhas.some((item) => !item.dotacao || !item.ficha || !item.fonte)) {
+                    setPrevisaoDocErro("Preencha dotação, ficha e fonte de cada linha.");
+                    return;
+                  }
+                  if (!escolhido.equipeId) {
+                    setPrevisaoDocErro("Mova o processo para uma equipe. O timbrado é o da equipe.");
+                    return;
+                  }
+                  setPrevisaoDocErro("");
+                  void lerTimbradoEquipe({ data: escolhido.equipeId })
+                    .then((timbre) => {
+                      if (!timbre) throw new Error("Esta equipe ainda não tem timbrado na área restrita.");
+                      return baixarPrevisao(escolhido, timbre, contador, linhas);
+                    })
+                    .then(() => setPrevisaoDoc(false))
+                    .catch((err: unknown) => setPrevisaoDocErro(err instanceof Error ? err.message : "Não foi possível gerar a previsão."));
+                }}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet"
+              >
+                Baixar Word
+              </button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>
@@ -6150,6 +6230,90 @@ function artigoDaJustificativa(fundamento: string) {
 function colocada(ordem: number) {
   const nomes = ["primeira", "segunda", "terceira", "quarta", "quinta", "sexta", "sétima", "oitava", "nona", "décima"];
   return nomes[ordem - 1] ?? `${ordem}ª`;
+}
+
+async function baixarPrevisao(
+  processo: ProcessoAdmin,
+  timbre: TimbradoEquipe,
+  contador: ContadorPrevisao,
+  linhas: { dotacao: string; ficha: string; fonte: string }[],
+) {
+  const objeto = pontoFinal(processo.objeto.trim() || "da contratação descrita nos autos");
+  const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
+  const data = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
+  const cidade = timbre.linha2.trim() || (timbre.arquivo ? await cidadeDoTimbrado(timbre.arquivo) : "") || timbre.linha1.trim();
+  const dataCompleta = cidade ? `${cidade}, ${data}.` : `${data}.`;
+  const assinante = contador.tipo === "terceirizado" ? contador.nomeRt : contador.nome;
+  const bloco = (item: BlocoTermo): BlocoTermo => ({ ...item, tamanho: item.tamanho ?? 22 });
+  const blocos: BlocoTermo[] = [
+    bloco({ titulo: true, junto: true, partes: [{ texto: "PREVISÃO DE RECURSO ORÇAMENTÁRIOS" }] }),
+    bloco({ junto: true, antes: true, partes: [{ texto: "Ref.: ", negrito: true }, { texto: objeto }] }),
+    bloco({ recuo: true, partes: [{ texto: "Declaro que existe provisão de recursos orçamentários à conta da dotação orçamentária:" }] }),
+    bloco({
+      partes: [],
+      larguras: [62, 14, 24],
+      tabela: [["DOTAÇÃO", "FICHA", "FONTE/ORIGEM"], ...linhas.map((item) => [item.dotacao, item.ficha, item.fonte])],
+    }),
+    bloco({ centro: true, antes: true, partes: [{ texto: dataCompleta }] }),
+    bloco({ centro: true, junto: true, antes: true, partes: [{ texto: assinante, negrito: true }] }),
+    bloco({ centro: true, junto: true, partes: [{ texto: contador.funcao }] }),
+    bloco({ centro: true, junto: true, partes: [{ texto: contador.registro }] }),
+  ];
+  const numeroArquivo = `Previsão de recurso orçamentários ${numero.replaceAll("/", "-")}`;
+  if (timbre.arquivo) {
+    const arquivo = await termoNoTimbrado(timbre.arquivo, blocos);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(arquivo);
+    link.download = `${numeroArquivo}.docx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+    return;
+  }
+  const marca = timbre.imagem.startsWith("data:image/") ? `<p style="text-align:center;margin:0;"><img src="${timbre.imagem}" width="78" height="103" alt=""></p>` : "";
+  const corpo = blocos
+    .map((item) => {
+      if (item.tabela) {
+        const tabela = item.tabela.map((linha, indice) => `<tr>${linha.map((celula) => `<${indice === 0 ? "th" : "td"}>${escaparHtml(celula)}</${indice === 0 ? "th" : "td"}>`).join("")}</tr>`).join("");
+        return `<table>${tabela}</table>`;
+      }
+      const classe = item.titulo ? "titulo" : item.centro ? "centro" : item.recuo ? "recuo" : "ident";
+      const texto = item.partes.map((parte) => (parte.negrito || item.titulo ? `<b>${escaparHtml(parte.texto)}</b>` : escaparHtml(parte.texto))).join("");
+      return `<p class="${classe}">${texto}</p>`;
+    })
+    .join("");
+  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'>
+<style>
+body, p, td, th { font-family: Arial, sans-serif; font-size: 11pt; color: #111; }
+p { margin: 0 0 12pt; line-height: 1.15; }
+.titulo { text-align: center; font-weight: bold; margin: 0; }
+.ident { text-align: left; margin: 0; }
+.recuo { text-indent: 1.25cm; text-align: justify; }
+.centro { text-align: center; text-indent: 0; margin: 0; }
+table { width: 100%; border-collapse: collapse; margin: 12pt 0; }
+th, td { border: 1px solid #111; text-align: center; padding: 4pt; }
+th { background: #f3f3f3; }
+.timbre { text-align: center; color: #1F3864; font-weight: bold; font-size: 14pt; line-height: 1.1; margin: 0; }
+.rodape { text-align: center; color: #1F3864; font-size: 10pt; line-height: 1.3; margin: 0; }
+.linha { border: 0; border-top: 1.5pt solid #1F3864; margin: 8pt 0 14pt; }
+</style></head><body>
+${marca}
+${timbre.linha1.trim() ? `<p class="timbre">${escaparHtml(timbre.linha1.trim())}</p>` : ""}
+${timbre.linha2.trim() ? `<p class="timbre">${escaparHtml(timbre.linha2.trim())}</p>` : ""}
+<hr class="linha">
+${corpo}
+<hr class="linha">
+${timbre.rodape1.trim() ? `<p class="rodape"><b>${escaparHtml(timbre.rodape1.trim())}</b></p>` : ""}
+${timbre.rodape2.trim() ? `<p class="rodape">${escaparHtml(timbre.rodape2.trim())}</p>` : ""}
+</body></html>`;
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([html], { type: "application/msword" }));
+  link.download = `${numeroArquivo}.doc`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1500);
 }
 
 async function baixarJustificativa(
