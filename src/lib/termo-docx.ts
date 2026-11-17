@@ -10,6 +10,7 @@ export type BlocoTermo = {
   junto?: boolean;
   antes?: boolean;
   direita?: boolean;
+  justo?: boolean;
   italico?: boolean;
   tamanho?: number;
   tabela?: string[][];
@@ -23,7 +24,7 @@ function escaparXml(texto: string) {
 function blocoXml(bloco: BlocoTermo) {
   if (bloco.tabela && bloco.tabela.length > 0 && bloco.tabela[0].length > 0) return tabelaXml(bloco.tabela, bloco.tamanho ?? 22, bloco.larguras);
   const tamanho = bloco.tamanho ?? 24;
-  const alinhamento = bloco.direita ? "right" : bloco.centro || bloco.titulo ? "center" : bloco.recuo || bloco.cita ? "both" : "left";
+  const alinhamento = bloco.direita ? "right" : bloco.centro || bloco.titulo ? "center" : bloco.recuo || bloco.cita || bloco.justo ? "both" : "left";
   const recuo = bloco.cita ? `<w:ind w:left="709"/>` : bloco.recuo ? `<w:ind w:firstLine="709"/>` : "";
   const antes = bloco.antes ? "840" : "0";
   const depois = bloco.titulo && !bloco.junto ? "520" : bloco.junto ? "0" : "240";
@@ -51,7 +52,9 @@ function tabelaXml(linhas: string[][], tamanho: number, larguras?: number[]) {
           const largura = medidas[coluna] ?? medidas[0];
           const negrito = indice === 0 ? "<w:b/>" : "";
           const fundo = indice === 0 ? `<w:shd w:val="clear" w:color="auto" w:fill="F3F3F3"/>` : "";
-          return `<w:tc><w:tcPr><w:tcW w:w="${largura}" w:type="dxa"/><w:noWrap/>${fundo}<w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="60" w:after="60" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${negrito}<w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr><w:t xml:space="preserve">${escaparXml(texto)}</w:t></w:r></w:p></w:tc>`;
+          const quebra = texto.includes("\n");
+          const paragrafos = texto.split("\n").map((linha) => `<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="40" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${negrito}<w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr><w:t xml:space="preserve">${escaparXml(linha)}</w:t></w:r></w:p>`).join("");
+          return `<w:tc><w:tcPr><w:tcW w:w="${largura}" w:type="dxa"/>${quebra ? "" : "<w:noWrap/>"}${fundo}<w:vAlign w:val="center"/></w:tcPr>${paragrafos}</w:tc>`;
         })
         .join("");
       return `<w:tr>${celulas}</w:tr>`;

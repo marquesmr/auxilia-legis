@@ -3,9 +3,11 @@ export type Dotacao = {
   conta: string;
   descricao: string;
   fonte: string;
+  fonteNome: string;
 };
 
 const FONTE = "1.500.000.0000";
+const FONTE_NOME = "Recursos não vinculados de Impostos";
 
 const CONTAS: [number, string, string][] = [
   [1, "01.01.01.01.031.0001.1001.4.4.90.51.00", "Obras e Instalações"],
@@ -40,7 +42,7 @@ const CONTAS: [number, string, string][] = [
   [30, "01.01.01.01.031.0001.2004.3.3.90.93.00", "Indenizações e Restituições"],
 ];
 
-export const DOTACOES: Dotacao[] = CONTAS.map(([ficha, conta, descricao]) => ({ ficha, conta, descricao, fonte: FONTE }));
+export const DOTACOES: Dotacao[] = CONTAS.map(([ficha, conta, descricao]) => ({ ficha, conta, descricao, fonte: FONTE, fonteNome: FONTE_NOME }));
 
 export function fichaDotacao(valor: string) {
   const numero = Number(valor.replace(/\D/g, ""));

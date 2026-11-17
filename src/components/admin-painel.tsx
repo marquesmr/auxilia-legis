@@ -3477,7 +3477,7 @@ function PainelDocumentos({
                       ) : null}
                     </div>
                     <p className="mt-2 text-sm text-ink">{achada ? `${achada.descricao}` : linha.ficha.trim() ? "Ficha não encontrada." : "A dotação aparece aqui."}</p>
-                    {achada ? <p className="text-sm text-muted">{dotacaoDocumento(achada.conta)} · {achada.fonte}</p> : null}
+                    {achada ? <p className="text-sm text-muted">{dotacaoDocumento(achada.conta)} — {achada.descricao}<br />{achada.fonte} — {achada.fonteNome}</p> : null}
                   </div>
                 );
               })}
@@ -3492,7 +3492,7 @@ function PainelDocumentos({
                   const escolhido = ordenados.find((item) => item.id === processoId);
                   const linhas = dotacoes.flatMap((item) => {
                     const achada = fichaDotacao(item.ficha);
-                    return achada ? [{ dotacao: dotacaoDocumento(achada.conta), ficha: fichaDocumento(achada.ficha), fonte: achada.fonte }] : [];
+                    return achada ? [{ dotacao: `${dotacaoDocumento(achada.conta)}\n${achada.descricao}`, ficha: fichaDocumento(achada.ficha), fonte: `${achada.fonte}\n${achada.fonteNome}` }] : [];
                   });
                   if (!escolhido || !contador) {
                     setPrevisaoDocErro("Escolha o processo.");
@@ -6259,14 +6259,15 @@ async function baixarPrevisao(
   const bloco = (item: BlocoTermo): BlocoTermo => ({ ...item, tamanho: item.tamanho ?? 22 });
   const blocos: BlocoTermo[] = [
     bloco({ titulo: true, junto: true, partes: [{ texto: "PREVISÃO DE RECURSO ORÇAMENTÁRIOS" }] }),
-    bloco({ junto: true, antes: true, partes: [{ texto: "Ref.: ", negrito: true }, { texto: objeto }] }),
+    bloco({ justo: true, junto: true, antes: true, partes: [{ texto: "Ref.: ", negrito: true }, { texto: objeto }] }),
+    bloco({ junto: true, partes: [{ texto: " " }] }),
     bloco({ recuo: true, partes: [{ texto: "Declaro que existe provisão de recursos orçamentários à conta da dotação orçamentária:" }] }),
     bloco({
       partes: [],
-      larguras: [62, 14, 24],
+      larguras: [48, 12, 40],
       tabela: [["DOTAÇÃO", "FICHA", "FONTE/ORIGEM"], ...linhas.map((item) => [item.dotacao, item.ficha, item.fonte])],
     }),
-    bloco({ centro: true, antes: true, partes: [{ texto: dataCompleta }] }),
+    bloco({ direita: true, antes: true, partes: [{ texto: dataCompleta }] }),
     bloco({ centro: true, junto: true, antes: true, partes: [{ texto: assinante, negrito: true }] }),
     bloco({ centro: true, junto: true, partes: [{ texto: contador.funcao }] }),
     bloco({ centro: true, junto: true, partes: [{ texto: contador.registro }] }),
@@ -6287,10 +6288,10 @@ async function baixarPrevisao(
   const corpo = blocos
     .map((item) => {
       if (item.tabela) {
-        const tabela = item.tabela.map((linha, indice) => `<tr>${linha.map((celula) => `<${indice === 0 ? "th" : "td"}>${escaparHtml(celula)}</${indice === 0 ? "th" : "td"}>`).join("")}</tr>`).join("");
+        const tabela = item.tabela.map((linha, indice) => `<tr>${linha.map((celula) => `<${indice === 0 ? "th" : "td"}>${escaparHtml(celula).replaceAll("\n", "<br>")}</${indice === 0 ? "th" : "td"}>`).join("")}</tr>`).join("");
         return `<table>${tabela}</table>`;
       }
-      const classe = item.titulo ? "titulo" : item.centro ? "centro" : item.recuo ? "recuo" : "ident";
+      const classe = item.direita ? "direita" : item.titulo ? "titulo" : item.centro ? "centro" : item.recuo ? "recuo" : item.justo ? "justo" : "ident";
       const texto = item.partes.map((parte) => (parte.negrito || item.titulo ? `<b>${escaparHtml(parte.texto)}</b>` : escaparHtml(parte.texto))).join("");
       return `<p class="${classe}">${texto}</p>`;
     })
@@ -6301,8 +6302,10 @@ body, p, td, th { font-family: Arial, sans-serif; font-size: 11pt; color: #111; 
 p { margin: 0 0 12pt; line-height: 1.15; }
 .titulo { text-align: center; font-weight: bold; margin: 0; }
 .ident { text-align: left; margin: 0; }
+.justo { text-align: justify; margin: 0; }
 .recuo { text-indent: 1.25cm; text-align: justify; }
 .centro { text-align: center; text-indent: 0; margin: 0; }
+.direita { text-align: right; text-indent: 0; margin: 0; }
 table { width: 100%; border-collapse: collapse; margin: 12pt 0; }
 th, td { border: 1px solid #111; text-align: center; padding: 4pt; }
 th { background: #f3f3f3; }
