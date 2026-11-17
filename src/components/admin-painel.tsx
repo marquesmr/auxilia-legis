@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, Check, CircleDollarSign, Copy, Expand, FilePen, FileText, Files, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, Wallet, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, Check, CircleDollarSign, Copy, FilePen, FileText, Files, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, Wallet, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -3100,6 +3100,193 @@ function CardAdmin({
   );
 }
 
+function LinhaDoc({ children, tipo = "recuo" }: { children: ReactNode; tipo?: "titulo" | "nota" | "recuo" | "cita" | "centro" | "direita" | "ident" | "secao" }) {
+  const classe =
+    tipo === "titulo" ? "text-center font-bold"
+    : tipo === "nota" ? "mb-3 text-center text-[9pt] italic"
+    : tipo === "recuo" ? "mb-3 text-justify indent-[1.25cm]"
+    : tipo === "cita" ? "mb-3 ml-[1.25cm] text-justify"
+    : tipo === "centro" ? "text-center"
+    : tipo === "direita" ? "mb-3 text-right"
+    : tipo === "secao" ? "mb-3 font-bold"
+    : "";
+  return <p className={classe}>{children}</p>;
+}
+
+function dataDocumento(cidade: string) {
+  const data = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
+  return cidade.trim() ? `${cidade.trim()}, ${data}.` : `${data}.`;
+}
+
+function PreviaTermo({ processo, assinante, funcao, cidade }: { processo: ProcessoAdmin; assinante: string; funcao: string; cidade: string }) {
+  const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
+  const tipo = processo.tipo.toLocaleUpperCase("pt-BR");
+  const tipoFrase = processo.tipo.toLocaleLowerCase("pt-BR");
+  const peca = processo.tipo !== "Outros" && processo.tipoNumero != null && processo.tipoAno != null ? `${String(processo.tipoNumero).padStart(2, "0")}/${processo.tipoAno}` : "";
+  const contratado = processo.contratado.trim().toLocaleUpperCase("pt-BR") || "____________________";
+  const digitos = processo.documento.replace(/\D/g, "");
+  const docRotulo = digitos.length === 11 ? "CPF" : "CNPJ";
+  const doc = mascaraDocumento(processo.documento) || processo.documento.trim() || "____________________";
+  const funcaoFinal = funcao.startsWith("Presidente da Câmara Municipal") && cidade.trim() ? `Presidente da Câmara Municipal de ${cidade.trim()}` : funcao || "Função";
+  return (
+    <>
+      <LinhaDoc tipo="titulo">TERMO DE ENCERRAMENTO DE PROCESSO DE {tipo}</LinhaDoc>
+      <LinhaDoc tipo="ident"><b>PROCESSO ADMINISTRATIVO Nº {numero}</b></LinhaDoc>
+      <LinhaDoc tipo="ident"><b>{peca ? `${tipo} ${peca}` : tipo}</b></LinhaDoc>
+      <LinhaDoc><b>Considerando</b> o disposto na Lei nº 14.133/2021, que estabelece normas gerais de licitação e contratação para a Administração Pública;</LinhaDoc>
+      <LinhaDoc><b>Considerando</b> que o presente processo de {tipoFrase}, identificado pelo nº {numero}, foi conduzido conforme os requisitos legais e normativos aplicáveis, garantindo a regularidade da despesa pública;</LinhaDoc>
+      <LinhaDoc><b>Considerando</b> que o pagamento referente à despesa foi devidamente realizado em favor de <b>{contratado}</b>, inscrito no {docRotulo} <b>{doc}</b>, conforme comprovante de pagamento anexo anteriormente;</LinhaDoc>
+      <LinhaDoc><b>Considerando</b> que não há pendências documentais, financeiras ou administrativas relacionadas ao presente processo;</LinhaDoc>
+      <LinhaDoc><b>Resolve-se</b> pelo <b>encerramento do processo de</b> {tipoFrase}, com o devido arquivamento dos documentos pertinentes, garantindo a transparência e conformidade com os princípios da administração pública.</LinhaDoc>
+      <LinhaDoc>Registra-se para os devidos fins.</LinhaDoc>
+      <LinhaDoc>{dataDocumento(cidade)}</LinhaDoc>
+      <LinhaDoc tipo="centro"><b>{assinante || "Quem assina"}</b></LinhaDoc>
+      <LinhaDoc tipo="centro">{funcaoFinal}</LinhaDoc>
+    </>
+  );
+}
+
+function PreviaParecer({ processo, fundamento, assinante, funcao, cidade }: { processo: ProcessoAdmin; fundamento: string; assinante: string; funcao: string; cidade: string }) {
+  const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
+  const tipo = processo.tipo.toLocaleUpperCase("pt-BR");
+  const peca = processo.tipo !== "Outros" && processo.tipoNumero != null && processo.tipoAno != null ? `${String(processo.tipoNumero).padStart(2, "0")}/${processo.tipoAno}` : "";
+  const objeto = processo.objeto.trim().replace(/[.;]\s*$/, "") || "da contratação descrita nos autos";
+  const fornecedor = processo.contratado.trim() ? `pelo(s) fornecedor(es) ${processo.contratado.trim().toLocaleUpperCase("pt-BR")}` : "pelo(s) fornecedor(es)";
+  const base = fundamento.trim();
+  const baseTitulo = base ? base.charAt(0).toLocaleUpperCase("pt-BR") + base.slice(1) : "";
+  const direta = processo.tipo === "Dispensa de Licitação" || processo.tipo === "Inexigibilidade de Licitação";
+  const funcaoFinal = funcao.startsWith("Presidente da Câmara Municipal") && cidade.trim() ? `Presidente da Câmara Municipal de ${cidade.trim()}` : funcao || "Função";
+  return (
+    <>
+      <LinhaDoc tipo="titulo">SOLICITAÇÃO DE PARECERES TÉCNICOS</LinhaDoc>
+      <LinhaDoc tipo="titulo">PROCEDIMENTO DE {tipo}</LinhaDoc>
+      {baseTitulo ? <LinhaDoc tipo="nota">({baseTitulo})</LinhaDoc> : null}
+      <LinhaDoc tipo="ident"><b>Procedimento Administrativo nº: {numero}</b></LinhaDoc>
+      <LinhaDoc tipo="ident"><b>{peca ? `${processo.tipo}: ${peca}` : processo.tipo}</b></LinhaDoc>
+      <LinhaDoc>Considerando a necessidade de {objeto}, conforme especificado no Termo de Referência – TR constante dos autos;</LinhaDoc>
+      <LinhaDoc>Considerando a proposta apresentada {fornecedor}, bem como os documentos exigidos para comprovação da sua habilitação;</LinhaDoc>
+      <LinhaDoc>Considerando a justificativa e os fundamentos fático-legais apresentados pelo Agente de Contratação;</LinhaDoc>
+      {direta ? (
+        <>
+          <LinhaDoc>Considerando o que dispõe o art. 72 da Lei nº 14.133, de 2021, notadamente ao que expressa seu inciso III:</LinhaDoc>
+          <LinhaDoc tipo="cita">Art. 72. O processo de contratação direta, que compreende os casos de inexigibilidade e de dispensa de licitação, deverá ser instruído com os seguintes documentos:</LinhaDoc>
+          <LinhaDoc tipo="cita">[...]</LinhaDoc>
+          <LinhaDoc tipo="cita">III - parecer jurídico e pareceres técnicos, se for o caso, que demonstrem o atendimento dos requisitos exigidos;</LinhaDoc>
+          <LinhaDoc tipo="cita">[...]</LinhaDoc>
+        </>
+      ) : (
+        <LinhaDoc>Considerando o que dispõe a Lei nº 14.133, de 2021, notadamente quanto à necessidade de parecer jurídico e de pareceres técnicos que demonstrem o atendimento dos requisitos exigidos;</LinhaDoc>
+      )}
+      <LinhaDoc>Considerando assim, e por fim, que a referida contratação deve em tudo atender a lei e a essência de todos os princípios aplicáveis que norteiam as atividades da Administração Pública,</LinhaDoc>
+      <LinhaDoc><b>SOLICITA, </b>a Vossas Senhorias, que emita Parecer Jurídico e Parecer Técnico exercitando o controle de legalidade, cuja conclusão nesse sentido deve ser expressa, caso o processo assim demande. Expressa também deve ser orientação quanto à possibilidade de adjudicação, homologação e autorização para contratação.</LinhaDoc>
+      <LinhaDoc>Sem mais para o momento, subscrevo.</LinhaDoc>
+      <LinhaDoc tipo="direita">{dataDocumento(cidade)}</LinhaDoc>
+      <LinhaDoc tipo="centro"><b>{assinante || "Quem assina"}</b></LinhaDoc>
+      <LinhaDoc tipo="centro">{funcaoFinal}</LinhaDoc>
+    </>
+  );
+}
+
+function PreviaJustificativa({ processo, fundamento, assinante, funcao, cidade, desclassificados, houve }: { processo: ProcessoAdmin; fundamento: string; assinante: string; funcao: string; cidade: string; desclassificados: Record<number, string>; houve: boolean }) {
+  const todos = processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores);
+  const fornecedores = todos.filter((item) => item.fornecedor.trim() && item.valorCentavos > 0);
+  if (!fornecedores.length) return <LinhaDoc>Este processo ainda não tem cotação.</LinhaDoc>;
+  const motivos = new Map(houve ? Object.entries(desclassificados).map(([indice, motivo]) => [Number(indice), motivo.trim()]) : []);
+  const ordem = todos.map((item, indice) => ({ ...item, indice })).filter((item) => item.fornecedor.trim() && item.valorCentavos > 0).sort((a, b) => a.valorCentavos - b.valorCentavos || a.indice - b.indice);
+  const escolhido = ordem.find((item) => !motivos.has(item.indice));
+  if (!escolhido) return <LinhaDoc>É preciso permanecer ao menos um fornecedor apto.</LinhaDoc>;
+  const media = Math.round(fornecedores.reduce((total, item) => total + item.valorCentavos, 0) / fornecedores.length);
+  const posicao = (item: (typeof ordem)[number]) => ordem.findIndex((atual) => atual.indice === item.indice);
+  const numero = processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : "—";
+  const peca = processo.tipo !== "Outros" && processo.tipoNumero != null && processo.tipoAno != null ? `${String(processo.tipoNumero).padStart(2, "0")}/${processo.tipoAno}` : "";
+  const objeto = pontoFinal(processo.objeto.trim() || "da contratação descrita nos autos");
+  const direta = processo.tipo === "Dispensa de Licitação" || processo.tipo === "Inexigibilidade de Licitação";
+  const limite75 = /inciso II do artigo 75/i.test(fundamento);
+  const aposNumero = processo.tipo === "Dispensa de Licitação" ? "(art. 72 e 75 da Lei 14.133/2021)" : processo.tipo === "Inexigibilidade de Licitação" ? "(art. 72 e 74 da Lei 14.133/2021)" : "";
+  const linhaTipo = [peca ? `${processo.tipo}: ${peca}` : processo.tipo, aposNumero].filter(Boolean).join(" ");
+  const artigo = fundamento.trim() ? artigoDaJustificativa(fundamento) : "fundamento legal";
+  const anteriores = ordem.filter((item) => motivos.has(item.indice) && posicao(item) < posicao(escolhido));
+  const posteriores = ordem.filter((item) => motivos.has(item.indice) && posicao(item) > posicao(escolhido));
+  const comparacao = (centavos: number) => centavos < media ? <><b>abaixo do preço médio</b> de mercado</> : <><b>compatível com o preço médio</b> de mercado</>;
+  const fecho = anteriores.length === 0 ? "conforme demonstrado pelo balizador de preço." : anteriores.length === 1 ? "após a inabilitação da primeira colocada, conforme demonstrado pelo balizador de preço." : "após a inabilitação das primeiras colocadas, conforme demonstrado pelo balizador de preço.";
+  const funcaoFinal = funcao.startsWith("Presidente da Câmara Municipal") && cidade.trim() ? `Presidente da Câmara Municipal de ${cidade.trim()}` : funcao || "Função";
+  return (
+    <>
+      <LinhaDoc tipo="titulo">JUSTIFICATIVA DO PREÇO E ESCOLHA DO FORNECEDOR</LinhaDoc>
+      <LinhaDoc tipo="nota">(Lei 14.133 de 01 de abril de 2021)</LinhaDoc>
+      <LinhaDoc tipo="ident"><b>Ref.: </b>{objeto}</LinhaDoc>
+      <LinhaDoc tipo="ident"><b>Processo Administrativo: {numero}</b></LinhaDoc>
+      <LinhaDoc tipo="ident"><b>{linhaTipo}</b></LinhaDoc>
+      <LinhaDoc tipo="secao">1. JUSTIFICATIVA DO PREÇO PROPOSTO E BALIZADOR DE MERCADO</LinhaDoc>
+      <LinhaDoc>O preço global estimado de <b>{reaisDocumento(escolhido.valorCentavos)}</b> ({reaisPorExtenso(escolhido.valorCentavos)}) para a aquisição é justificado e demonstrado como vantajoso para a Administração, em cumprimento ao <b>{direta ? "Art. 72, inciso VII, da Lei 14.133/2021" : "Lei nº 14.133/2021"}</b>.</LinhaDoc>
+      <LinhaDoc>Para balizar o preço, foi realizada uma pesquisa de mercado que incluiu a coleta de {numeroPorExtenso(fornecedores.length)} {fornecedores.length === 1 ? "orçamento formal" : "orçamentos formais"} com empresas do ramo (anexados a este processo), resultando na seguinte referência de preço:</LinhaDoc>
+      <table className="mb-3 w-full border-collapse text-center">
+        <thead><tr>{fornecedores.map((item) => <th key={item.documento + item.fornecedor} className="border border-black bg-[#f3f3f3] px-1 py-1">{nomeTabelaCotacao(item.fornecedor, fornecedores.length)}</th>)}</tr></thead>
+        <tbody><tr>{fornecedores.map((item) => <td key={item.documento + item.valorCentavos} className="border border-black px-1 py-1">{reaisDocumento(item.valorCentavos)}</td>)}</tr></tbody>
+      </table>
+      <LinhaDoc tipo="secao">• Preço Médio de Mercado Apurado: {reaisDocumento(media)}</LinhaDoc>
+      <LinhaDoc>
+        {anteriores.length === 0 ? (
+          <>Dessa forma, a proposta apresentada pela empresa <b>{escolhido.fornecedor}</b>, no valor de <b>{reaisDocumento(escolhido.valorCentavos)}</b>, encontra-se {comparacao(escolhido.valorCentavos)} e demonstra compatibilidade de custos, sendo o valor global uma estimativa de gastos para atendimento das demandas durante o exercício.</>
+        ) : (
+          <>
+            {anteriores.map((item, indice) => {
+              const lugar = posicao(item) + 1;
+              const motivo = motivos.get(item.indice) ?? "";
+              return (
+                <span key={item.indice}>
+                  {indice > 0 ? ", " : null}
+                  {lugar === 1 ? <>Considerando que a proposta apresentada pela empresa <b>{item.fornecedor}</b>, no valor de <b>{reaisDocumento(item.valorCentavos)}</b>, encontra-se {comparacao(item.valorCentavos)} e demonstra compatibilidade de custos, porém, apesar de apresentar menor valor, {motivo}, sendo assim, inapta para o prosseguimento do processo</> : <>passamos para a {colocada(lugar)} colocada <b>{item.fornecedor}</b>, no valor de <b>{reaisDocumento(item.valorCentavos)}</b>, porém, {motivo}, sendo assim, inapta para o prosseguimento do processo</>}
+                </span>
+              );
+            })}
+            {", "}passamos para a {colocada(posicao(escolhido) + 1)} colocada <b>{escolhido.fornecedor}</b>, no valor de <b>{reaisDocumento(escolhido.valorCentavos)}</b> que ainda se encontra {comparacao(escolhido.valorCentavos)} e demonstra compatibilidade de custos, sendo o valor global uma estimativa de gastos para atendimento das demandas durante o exercício.
+          </>
+        )}
+        {posteriores.length > 0 ? ` Registra-se, ainda, a desclassificação de ${posteriores.map((item) => `${item.fornecedor}, ${motivos.get(item.indice)}`).join("; ")}.` : ""}
+      </LinhaDoc>
+      <LinhaDoc>Cabe ressaltar que também foi realizada consulta no site oficial do governo federal Portal Nacional de Compras Públicas <b>PNCP (ANEXO AO ETP)</b>, a fim de comprovação de compatibilidade de preço com demais órgãos públicos.</LinhaDoc>
+      <LinhaDoc tipo="secao">2. FUNDAMENTAÇÃO LEGAL</LinhaDoc>
+      <LinhaDoc>A presente Justificativa de Preço instrui o processo de <b>{processo.tipo}</b>, fundamentado no <b>{artigo}</b>{limite75 ? <>, que se aplica a contratações de serviços e compras de valor inferior a <b>R$ 65.492,11</b>.</> : "."}</LinhaDoc>
+      <LinhaDoc tipo="secao">3. CONCLUSÃO</LinhaDoc>
+      <LinhaDoc>Fica comprovado que o preço global proposto de <b>{reaisDocumento(escolhido.valorCentavos)}</b> está de acordo com os preços praticados no mercado e é <b>o mais vantajoso</b> para a Administração, {fecho}</LinhaDoc>
+      <LinhaDoc tipo="direita">{dataDocumento(cidade)}</LinhaDoc>
+      <LinhaDoc tipo="centro"><b>{assinante || "Quem assina"}</b></LinhaDoc>
+      <LinhaDoc tipo="centro">{funcaoFinal}</LinhaDoc>
+    </>
+  );
+}
+
+function EncaixePrevia({ children }: { children: ReactNode }) {
+  const caixa = useRef<HTMLDivElement>(null);
+  const miolo = useRef<HTMLDivElement>(null);
+  const [escala, setEscala] = useState(1);
+  useEffect(() => {
+    const caixaEl = caixa.current;
+    const mioloEl = miolo.current;
+    if (!caixaEl || !mioloEl) return;
+    const medir = () => {
+      const largura = 680;
+      const altura = mioloEl.scrollHeight || 1;
+      const sx = caixaEl.clientWidth / largura;
+      const sy = caixaEl.clientHeight / altura;
+      const proxima = Math.min(1, sx, sy);
+      setEscala((atual) => (Math.abs(atual - proxima) < 0.01 ? atual : proxima));
+    };
+    medir();
+    const obs = new ResizeObserver(medir);
+    obs.observe(caixaEl);
+    return () => obs.disconnect();
+  }, [children]);
+  return (
+    <div ref={caixa} className="h-full overflow-hidden">
+      <div ref={miolo} className="origin-top" style={{ width: 680, transform: `scale(${escala})` }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function PainelDocumentos({
   processos,
   equipes,
@@ -3129,7 +3316,19 @@ function PainelDocumentos({
   onTelaRef.current = onTela;
   useEffect(() => {
     onTelaRef.current?.(editorAberto);
-    return () => onTelaRef.current?.(false);
+    const raiz = document.documentElement;
+    const corpo = document.body;
+    const anterior = raiz.style.overflow;
+    const anteriorCorpo = corpo.style.overflow;
+    if (editorAberto) {
+      raiz.style.overflow = "hidden";
+      corpo.style.overflow = "hidden";
+    }
+    return () => {
+      onTelaRef.current?.(false);
+      raiz.style.overflow = anterior;
+      corpo.style.overflow = anteriorCorpo;
+    };
   }, [editorAberto]);
   const [previsaoCidade, setPrevisaoCidade] = useState("");
   const [previaCheia, setPreviaCheia] = useState(false);
@@ -3380,60 +3579,39 @@ function PainelDocumentos({
   );
   const previaAtual = tipoDoc === "previsao" || !tipoDoc ? previa : (
     <article className="bg-white px-8 py-8 font-[Arial,sans-serif] text-[11pt] leading-[1.15] text-[#111]">
-      <h3 className="text-center text-[12px] font-bold">{catalogoDocs.find((item) => item.tipo === tipoDoc)?.rotulo}</h3>
       {tipoDoc === "capa" && processo ? (
-        <div className="mt-4 space-y-3">
+        <div className="space-y-8">
           {[{ id: processo.id, volume: volumeCapa, numero: numeroVolume }, ...idsCapa].map((capa) => {
             const item = capa.id === processo.id ? processo : processos.find((atual) => atual.id === capa.id);
             if (!item) return null;
+            const numero = item.numero ? rotuloNumero(item.numero, item.numeroAno) : "—";
+            const tipoNumero = item.tipo !== "Outros" && item.tipoNumero != null ? `${String(item.tipoNumero).padStart(2, "0")}/${item.tipoAno ?? ""}` : "";
             return (
               <div key={capa.id}>
-                {capa.volume && Number(capa.numero) >= 1 ? <p className="text-center font-bold">VOLUME {romano(Number(capa.numero))}</p> : null}
-                <p className="font-bold">{rotuloLista(item)}</p>
-                <p>{item.objeto || "Objeto"}</p>
+                <hr className="border-black" />
+                {capa.volume && Number(capa.numero) >= 1 ? <p className="mt-3 text-center font-bold">VOLUME {romano(Number(capa.numero))}</p> : null}
+                <p className="mt-3 text-center font-bold">Processo Administrativo: {numero}</p>
+                <p className="text-center font-bold">{tipoNumero ? `${item.tipo}: ${tipoNumero}` : item.tipo}</p>
+                <p className="mt-4 font-bold">OBJETO:</p>
+                <p className="text-justify">{item.objeto.trim()}</p>
+                <hr className="mt-3 border-black" />
               </div>
             );
           })}
         </div>
       ) : null}
-      {tipoDoc === "extrato" ? itensExtrato.map((item) => {
-        const atual = processos.find((candidato) => candidato.id === item.id);
-        if (!atual) return null;
-        return (
-          <div key={item.id} className="mt-4">
-            <p className="font-bold">{item.contrato ? "EXTRATO DE CONTRATO" : "EXTRATO DE AQUISIÇÃO"}</p>
-            <p>{rotuloLista(atual)}</p>
-            <p>{atual.objeto}</p>
-            <p>{item.fundamento || "Fundamento legal"}</p>
-          </div>
-        );
-      }) : null}
-      {tipoDoc === "termo" && processo ? (
-        <div className="mt-4 space-y-2 text-justify">
-          <p>Processo {rotuloLista(processo)}</p>
-          <p>{processo.objeto}</p>
-          <p className="pt-6 text-center font-bold">{termoAssinante || "Quem assina"}</p>
-          <p className="text-center">{termoFuncao || "Função"}</p>
+      {tipoDoc === "extrato" ? (
+        <div className="space-y-4 font-['Times_New_Roman',Times,serif] text-[12pt]">
+          {itensExtrato.map((item) => {
+            const atual = processos.find((candidato) => candidato.id === item.id);
+            if (!atual) return null;
+            return <p key={item.id} className="text-justify" dangerouslySetInnerHTML={{ __html: textoExtrato(atual, item.fundamento, item.assinatura, item.contrato) }} />;
+          })}
         </div>
       ) : null}
-      {tipoDoc === "parecer" && processo ? (
-        <div className="mt-4 space-y-2 text-justify">
-          <p>{processo.objeto}</p>
-          <p>{parecerFundamento || "Fundamento legal"}</p>
-          <p className="pt-6 text-center font-bold">{termoAssinante || "Quem assina"}</p>
-          <p className="text-center">{termoFuncao || "Função"}</p>
-        </div>
-      ) : null}
-      {tipoDoc === "preco" && processo ? (
-        <div className="mt-4 space-y-2">
-          <p>{processo.objeto}</p>
-          {processo.cotacoes.flatMap((cotacao) => cotacao.fornecedores).map((fornecedor, ordem) => (
-            <p key={`${fornecedor.documento}-${ordem}`} className={ordem in desclassificados ? "line-through" : ""}>{fornecedor.fornecedor} · {formatarReais(fornecedor.valorCentavos)}</p>
-          ))}
-          <p className="pt-4 text-center font-bold">{termoAssinante || "Quem assina"}</p>
-          <p className="text-center">{termoFuncao || "Função"}</p>
-        </div>
-      ) : null}
+      {tipoDoc === "termo" && processo ? <PreviaTermo processo={processo} assinante={termoAssinante} funcao={termoFuncao} cidade={previsaoCidade || termoTimbre?.linha2.trim() || ""} /> : null}
+      {tipoDoc === "parecer" && processo ? <PreviaParecer processo={processo} fundamento={parecerFundamento} assinante={termoAssinante} funcao={termoFuncao} cidade={previsaoCidade || termoTimbre?.linha2.trim() || ""} /> : null}
+      {tipoDoc === "preco" && processo ? <PreviaJustificativa processo={processo} fundamento={parecerFundamento} assinante={termoAssinante} funcao={termoFuncao} cidade={previsaoCidade || termoTimbre?.linha2.trim() || ""} desclassificados={desclassificados} houve={houveDesclassificacao} /> : null}
     </article>
   );
   const previaMoldura = previaAtual;
@@ -3523,10 +3701,10 @@ function PainelDocumentos({
   return (
     <div>
       {editorAberto && tipoDoc ? (
-        <div>
-          <p className="text-sm text-ink">{catalogoDocs.find((item) => item.tipo === tipoDoc)?.rotulo}</p>
-          <div className="mt-3 grid items-start gap-4 lg:grid-cols-2">
-            <div className="min-h-[32rem] rounded-[1.75rem] border border-pine bg-paper/50 p-5 sm:p-7">
+        <div className="flex h-[calc(100dvh-8.5rem)] flex-col overflow-hidden">
+          <p className="shrink-0 text-sm text-ink">{catalogoDocs.find((item) => item.tipo === tipoDoc)?.rotulo}</p>
+          <div className="mt-3 grid min-h-0 flex-1 items-stretch gap-4 lg:grid-cols-2">
+            <div className="min-h-0 overflow-hidden rounded-[1.75rem] border border-pine bg-paper/50 p-4">
               <div className="flex flex-col gap-3">
                 <label className="flex flex-col gap-1 text-sm font-medium text-ink">
                   Processo
@@ -3703,27 +3881,16 @@ function PainelDocumentos({
               </div>
               {previsaoDocErro || precoErro || erroVolume || termoAviso ? <p className="mt-3 text-sm text-seal">{previsaoDocErro || precoErro || erroVolume || termoAviso}</p> : null}
             </div>
-            <div>
-              <div className="relative min-h-[78vh] overflow-auto rounded-2xl bg-[#d7e0ea] p-3">
-                <button type="button" onClick={() => setPreviaCheia(true)} className="absolute right-3 top-3 z-10 grid size-8 place-items-center text-ink/70" aria-label="Ampliar prévia">
-                  <Expand className="size-4" />
-                </button>
-                <div className="mx-auto mt-8 max-w-3xl">{previaMoldura}</div>
+            <div className="flex min-h-0 flex-col">
+              <div className="min-h-0 flex-1 overflow-hidden rounded-[1.75rem] border border-pine bg-sheet p-4">
+                <EncaixePrevia>{previaMoldura}</EncaixePrevia>
               </div>
-              <div className="mt-3 flex justify-end gap-2">
-                <button type="button" onClick={baixarEditor} className="h-11 rounded-full bg-[#d7e0ea] px-5 text-xs font-medium uppercase tracking-wide text-ink">Baixar doc</button>
-                <button type="button" onClick={() => { setEditorAberto(false); setPreviaCheia(false); setTipoDoc(null); }} className="h-11 rounded-full bg-[#d7e0ea] px-5 text-xs font-medium uppercase tracking-wide text-ink">Voltar</button>
+              <div className="mt-3 flex shrink-0 justify-end gap-2">
+                <button type="button" onClick={baixarEditor} className="h-11 rounded-full bg-pine px-5 text-xs font-medium uppercase tracking-wide text-sheet">Baixar doc</button>
+                <button type="button" onClick={() => { setEditorAberto(false); setPreviaCheia(false); setTipoDoc(null); }} className="h-11 rounded-full bg-pine px-5 text-xs font-medium uppercase tracking-wide text-sheet">Voltar</button>
               </div>
             </div>
           </div>
-          {previaCheia ? (
-            <div className="fixed inset-0 z-40 overflow-y-auto bg-ink/50 p-4">
-              <div className="relative mx-auto max-w-3xl rounded-2xl bg-[#d7e0ea] p-4">
-                <button type="button" onClick={() => setPreviaCheia(false)} className="absolute right-3 top-3 grid size-8 place-items-center" aria-label="Fechar prévia"><X className="size-4" /></button>
-                <div className="mt-8">{previaMoldura}</div>
-              </div>
-            </div>
-          ) : null}
         </div>
       ) : (
         <>
