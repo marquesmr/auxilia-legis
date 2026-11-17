@@ -3194,26 +3194,78 @@ function PainelDocumentos({
     prepararTimbre(escolhido, () => setParecerAberto(true));
   }
 
-  const botoes: { tipo: "capa" | "extrato" | "termo" | "parecer" | "preco"; rotulo: string; icone: ReactNode }[] = [
+  const [ordemDocs, setOrdemDocs] = useState<("capa" | "extrato" | "termo" | "parecer" | "preco")[]>(() => {
+    const padrao = ["capa", "extrato", "termo", "parecer", "preco"] as const;
+    try {
+      const lido = JSON.parse(localStorage.getItem("prazos.documentos.ordem") || "");
+      if (!Array.isArray(lido)) return [...padrao];
+      const validos = lido.filter((item): item is (typeof padrao)[number] => (padrao as readonly string[]).includes(item));
+      return [...validos, ...padrao.filter((item) => !validos.includes(item))];
+    } catch {
+      return [...padrao];
+    }
+  });
+  const docArrastado = useRef<string | null>(null);
+  const ignorarCliqueDoc = useRef(false);
+  const catalogoDocs: { tipo: "capa" | "extrato" | "termo" | "parecer" | "preco"; rotulo: string; icone: ReactNode }[] = [
     { tipo: "capa", rotulo: "Imprimir capa", icone: <Printer className="size-7" /> },
     { tipo: "extrato", rotulo: "Extrato", icone: <FileText className="size-7" /> },
     { tipo: "termo", rotulo: "Termo de encerramento", icone: <FilePen className="size-7" /> },
     { tipo: "parecer", rotulo: "Solicitação de parecer", icone: <Scale className="size-7" /> },
     { tipo: "preco", rotulo: "Justificativa de preço", icone: <CircleDollarSign className="size-7" /> },
   ];
+  const botoes = ordemDocs.flatMap((tipo) => catalogoDocs.filter((item) => item.tipo === tipo));
+
+  function soltarDocumento(destino: "capa" | "extrato" | "termo" | "parecer" | "preco") {
+    const origem = docArrastado.current;
+    docArrastado.current = null;
+    if (!origem || origem === destino) return;
+    setOrdemDocs((atual) => {
+      const proxima = [...atual];
+      const de = proxima.indexOf(origem as (typeof atual)[number]);
+      const para = proxima.indexOf(destino);
+      if (de < 0 || para < 0) return atual;
+      const [item] = proxima.splice(de, 1);
+      proxima.splice(para, 0, item);
+      localStorage.setItem("prazos.documentos.ordem", JSON.stringify(proxima));
+      return proxima;
+    });
+  }
 
   return (
     <div>
       <h2 className="font-display text-2xl text-ink">Documentos</h2>
-      <p className="mt-1 text-sm text-muted">Escolha o documento. Em seguida, o processo.</p>
+      <p className="mt-1 text-sm text-muted">Escolha o documento. Arraste os botões para organizar.</p>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {botoes.map((botao) => (
           <button
             key={botao.tipo}
             type="button"
-            disabled={ordenados.length === 0}
-            onClick={() => abrirTipo(botao.tipo)}
-            className="flex aspect-square flex-col items-center justify-center gap-3 rounded-2xl bg-pine px-3 text-center text-sm font-medium text-sheet disabled:opacity-50"
+            draggable
+            onDragStart={(evento) => {
+              docArrastado.current = botao.tipo;
+              ignorarCliqueDoc.current = true;
+              evento.dataTransfer.effectAllowed = "move";
+              evento.dataTransfer.setData("text/plain", botao.tipo);
+            }}
+            onDragOver={(evento) => {
+              evento.preventDefault();
+              evento.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(evento) => {
+              evento.preventDefault();
+              soltarDocumento(botao.tipo);
+            }}
+            onDragEnd={() => {
+              window.setTimeout(() => {
+                ignorarCliqueDoc.current = false;
+              }, 80);
+            }}
+            onClick={() => {
+              if (ignorarCliqueDoc.current || ordenados.length === 0) return;
+              abrirTipo(botao.tipo);
+            }}
+            className={"flex aspect-square cursor-grab flex-col items-center justify-center gap-3 rounded-2xl bg-pine px-3 text-center text-sm font-medium text-sheet active:cursor-grabbing" + (ordenados.length === 0 ? " opacity-50" : "")}
           >
             {botao.icone}
             <span>{botao.rotulo}</span>
