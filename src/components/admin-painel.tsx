@@ -44,7 +44,7 @@ import {
   type UrgenciaAdmin,
   type LinhaControle,
 } from "@/lib/admin";
-import { apagarAdmin, lerContadorPrevisao, listarAdmin, listarCiAnotacoes, listarDotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao, salvarContadorPrevisao, salvarDotacao, type ContadorPrevisao } from "@/lib/admin.functions";
+import { apagarAdmin, lerContadorPrevisao, listarAdmin, listarCiAnotacoes, listarCiAvulsas, listarDotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao, salvarCiAvulsa, salvarContadorPrevisao, salvarDotacao, type ContadorPrevisao } from "@/lib/admin.functions";
 import { lerTimbradoEquipe, type TimbradoEquipe } from "@/lib/equipes.functions";
 import { cidadeDoTimbrado, termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
 import { DOTACOES, dotacaoDocumento, fichaDocumento, type Dotacao } from "@/lib/dotacoes";
@@ -767,6 +767,7 @@ export function AdminPainel({
   const [anoPecas, setAnoPecas] = useState("todos");
   const [relatorioPecas, setRelatorioPecas] = useState<{ rotulo: string; itens: ProcessoAdmin[] } | null>(null);
   const [anotacoesCi, setAnotacoesCi] = useState<{ ano: number; numero: number; destino: string; desativada: boolean }[]>([]);
+  const [ciAvulsas, setCiAvulsas] = useState<{ ano: number; numero: number; referencia: string }[]>([]);
   const sinalVisto = useRef(sinalNovo);
   const listaGeracao = useRef(0);
   const listaViva = useRef<ProcessoAdmin[]>([]);
@@ -814,6 +815,9 @@ export function AdminPainel({
     if (!user?.id) return;
     void listarCiAnotacoes()
       .then(setAnotacoesCi)
+      .catch(() => undefined);
+    void listarCiAvulsas()
+      .then(setCiAvulsas)
       .catch(() => undefined);
   }, [user?.id, lista]);
 
@@ -910,10 +914,15 @@ export function AdminPainel({
             ano: item.ciAno as number,
             referencia: item.referencia,
             processo: rotuloNumero(item.numero, item.numeroAno),
-          })),
+          }))
+          .concat(
+            ciAvulsas
+              .filter((item) => !lista.some((processo) => processo.ciNumero === item.numero && processo.ciAno === item.ano && daGerenciaAdministrativa(processo.ciOrigem)))
+              .map((item) => ({ numero: item.numero, ano: item.ano, referencia: item.referencia, processo: "", avulsa: true })),
+          ),
         anotacoesCi,
       ),
-    [lista, anotacoesCi],
+    [lista, anotacoesCi, ciAvulsas],
   );
   const linhasParecer = useMemo(
     () =>
@@ -1697,6 +1706,20 @@ export function AdminPainel({
             nota="Entram só as comunicações feitas pela Gerência Administrativa."
             linhas={linhasCi}
             onAnotar={(linha, dados) => void anotarCi(linha, dados)}
+            onAdicionar={(dados) => {
+              if (lista.some((item) => item.ciNumero === dados.numero && item.ciAno === dados.ano && daGerenciaAdministrativa(item.ciOrigem))) {
+                onToast("Essa comunicação já está em um processo.");
+                return;
+              }
+              setCiAvulsas((atual) => {
+                const sem = atual.filter((item) => item.ano !== dados.ano || item.numero !== dados.numero);
+                return [...sem, dados];
+              });
+              void salvarCiAvulsa({ data: dados }).catch((err: unknown) => {
+                onToast(mensagemErro(err));
+                void listarCiAvulsas().then(setCiAvulsas).catch(() => undefined);
+              });
+            }}
           />
         ) : guia === "setores" ? (
           <ControleSetores grupos={gruposSetores} />
@@ -4127,20 +4150,71 @@ function ControlePecas({
   nota,
   linhas,
   onAnotar,
+  onAdicionar,
 }: {
   titulo: string;
   nota: string;
   linhas: LinhaControle[];
   onAnotar?: (linha: LinhaControle, dados: { destino: string; desativada: boolean }) => void;
+  onAdicionar?: (dados: { numero: number; ano: number; referencia: string }) => void;
 }) {
   const anos = [...new Set(linhas.map((linha) => linha.ano))].sort((a, b) => b - a);
   const [anoEscolhido, setAnoEscolhido] = useState<number | null>(null);
+  const [abrindo, setAbrindo] = useState(false);
+  const [numeroNovo, setNumeroNovo] = useState("");
+  const [anoNovo, setAnoNovo] = useState(String(new Date().getFullYear()));
+  const [referenciaNova, setReferenciaNova] = useState("");
+  const [erroNova, setErroNova] = useState("");
   const ano = anoEscolhido != null && anos.includes(anoEscolhido) ? anoEscolhido : anos[0];
   const visiveis = linhas.filter((linha) => linha.ano === ano);
+  function adicionar() {
+    const numero = Number(numeroNovo);
+    const anoInformado = Number(anoNovo);
+    if (!Number.isInteger(numero) || numero < 1) {
+      setErroNova("Informe o número da comunicação.");
+      return;
+    }
+    if (!Number.isInteger(anoInformado) || anoInformado < 2000 || anoInformado > 2100) {
+      setErroNova("Informe o ano.");
+      return;
+    }
+    if (referenciaNova.trim().length < 2) {
+      setErroNova("Informe a referência.");
+      return;
+    }
+    setErroNova("");
+    onAdicionar?.({ numero, ano: anoInformado, referencia: referenciaNova.trim() });
+    setNumeroNovo("");
+    setReferenciaNova("");
+    setAbrindo(false);
+  }
   return (
     <div className="rounded-2xl border border-line bg-sheet p-4">
       <h2 className="font-display text-2xl text-ink">{titulo}</h2>
       <p className="mt-1 text-sm text-muted">{nota}</p>
+      {onAdicionar ? (
+        <div className="mt-3">
+          {abrindo ? (
+            <div className="flex flex-col gap-2 rounded-xl border border-line bg-paper p-3">
+              <div className="grid gap-2 sm:grid-cols-3">
+                <input value={numeroNovo} onChange={(evento) => setNumeroNovo(evento.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" placeholder="Número" autoComplete="off" className="h-11 rounded-xl border border-line bg-sheet px-3 text-sm text-ink" />
+                <input value={anoNovo} onChange={(evento) => setAnoNovo(evento.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" placeholder="Ano" autoComplete="off" className="h-11 rounded-xl border border-line bg-sheet px-3 text-sm text-ink" />
+                <input value={referenciaNova} onChange={(evento) => setReferenciaNova(evento.target.value)} placeholder="Referência" autoComplete="off" className="h-11 rounded-xl border border-line bg-sheet px-3 text-sm text-ink" />
+              </div>
+              {erroNova ? <p className="text-sm text-seal">{erroNova}</p> : null}
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => { setAbrindo(false); setErroNova(""); }} className="h-10 rounded-xl border border-line px-3 text-sm text-ink">Cancelar</button>
+                <button type="button" onClick={adicionar} className="h-10 rounded-xl bg-pine px-3 text-sm font-medium text-sheet">Salvar</button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setAbrindo(true)} className="inline-flex h-10 items-center gap-2 rounded-xl bg-pine px-3 text-sm font-medium text-sheet">
+              <Plus className="size-4" />
+              Adicionar C.I. sem processo
+            </button>
+          )}
+        </div>
+      ) : null}
       {anos.length > 1 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {anos.map((opcao) => (
@@ -4182,7 +4256,7 @@ function ControlePecas({
                   )}
                 </p>
                 {linha.destino && !linha.falta ? <p className="mt-1 text-muted">Para: {linha.destino}</p> : null}
-                {!linha.falta && <p className="mt-1 text-muted">Processo {linha.processo}</p>}
+                {!linha.falta && <p className="mt-1 text-muted">{linha.avulsa ? "Sem processo" : `Processo ${linha.processo}`}</p>}
               </li>
             ))}
           </ul>
@@ -4215,7 +4289,7 @@ function ControlePecas({
                         </>
                       )}
                     </td>
-                    <td className="py-2 pr-3 text-ink">{linha.falta ? "—" : linha.processo}</td>
+                    <td className="py-2 pr-3 text-ink">{linha.falta ? "—" : linha.avulsa ? "Sem processo" : linha.processo}</td>
                     {onAnotar ? (
                       <td className="py-2 text-right">
                         <MenuComunicacao linha={linha} onAnotar={onAnotar} />

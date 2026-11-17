@@ -365,22 +365,24 @@ export type LinhaControle = {
   destino: string;
   referencia: string;
   processo: string;
+  avulsa?: boolean;
 };
 
 /** Do 1 até o maior número do ano. O que não foi lançado fica marcado. */
 export function sequenciaControle(
-  itens: { numero: number; ano: number; referencia: string; processo: string }[],
+  itens: { numero: number; ano: number; referencia: string; processo: string; avulsa?: boolean }[],
   anotacoes: { numero: number; ano: number; destino?: string; desativada?: boolean }[] = [],
 ): LinhaControle[] {
-  const porAno = new Map<number, Map<number, { referencias: string[]; processos: string[] }>>();
+  const porAno = new Map<number, Map<number, { referencias: string[]; processos: string[]; avulsa: boolean }>>();
   for (const item of itens) {
     if (!Number.isInteger(item.numero) || item.numero < 1 || !Number.isInteger(item.ano)) continue;
-    const mapa = porAno.get(item.ano) ?? new Map<number, { referencias: string[]; processos: string[] }>();
+    const mapa = porAno.get(item.ano) ?? new Map<number, { referencias: string[]; processos: string[]; avulsa: boolean }>();
     porAno.set(item.ano, mapa);
-    const atual = mapa.get(item.numero) ?? { referencias: [], processos: [] };
+    const atual = mapa.get(item.numero) ?? { referencias: [], processos: [], avulsa: true };
     const referencia = item.referencia.trim();
     if (referencia && !atual.referencias.includes(referencia)) atual.referencias.push(referencia);
     if (item.processo && !atual.processos.includes(item.processo)) atual.processos.push(item.processo);
+    if (!item.avulsa || item.processo.trim()) atual.avulsa = false;
     mapa.set(item.numero, atual);
   }
   for (const nota of anotacoes) {
@@ -407,6 +409,7 @@ export function sequenciaControle(
         destino: nota?.destino?.trim() ?? "",
         referencia: achado?.referencias.join(" · ") ?? "",
         processo: achado?.processos.join(" · ") ?? "",
+        avulsa: Boolean(achado?.avulsa) && !achado?.processos.length,
       });
     }
   }

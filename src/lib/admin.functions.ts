@@ -949,6 +949,61 @@ export const salvarCiAnotacao = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+export const listarCiAvulsas = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async () => {
+    const sql = await getSql();
+    await sql`
+      create table if not exists ci_avulsa (
+        ano integer not null,
+        numero integer not null,
+        referencia text not null default '',
+        primary key (ano, numero)
+      )
+    `;
+    const linhas = await sql<{ ano: number; numero: number; referencia: string }>`
+      select ano, numero, referencia from ci_avulsa order by ano desc, numero asc
+    `;
+    return linhas.map((linha) => ({ ano: Number(linha.ano), numero: Number(linha.numero), referencia: linha.referencia ?? "" }));
+  });
+
+export const salvarCiAvulsa = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!input || typeof input !== "object") throw new Error("Dados inválidos");
+    const bruto = input as { ano?: unknown; numero?: unknown; referencia?: unknown };
+    const ano = Number(bruto.ano);
+    const numero = Number(bruto.numero);
+    const referencia = typeof bruto.referencia === "string" ? bruto.referencia.trim().slice(0, 200) : "";
+    if (!Number.isInteger(ano) || ano < 2000 || ano > 2100) throw new Error("Ano inválido.");
+    if (!Number.isInteger(numero) || numero < 1 || numero > 9999) throw new Error("Número inválido.");
+    if (referencia.length < 2) throw new Error("Informe a referência da comunicação.");
+    return { ano, numero, referencia };
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    await sql`
+      create table if not exists ci_avulsa (
+        ano integer not null,
+        numero integer not null,
+        referencia text not null default '',
+        primary key (ano, numero)
+      )
+    `;
+    const usada = await sql<{ id: string }>`
+      select id from processos_admin
+      where ci_numero = ${data.numero} and ci_ano = ${data.ano}
+      limit 1
+    `;
+    if (usada.length) throw new Error("Essa comunicação já está em um processo.");
+    await sql`
+      insert into ci_avulsa (ano, numero, referencia)
+      values (${data.ano}, ${data.numero}, ${data.referencia})
+      on conflict (ano, numero) do update set referencia = ${data.referencia}
+    `;
+    return data;
+  });
+
 export const apagarAdmin = createServerFn({ method: "POST" })
   .validator((id: unknown) => {
     if (typeof id !== "string" || !id.trim()) throw new Error("Dados inválidos");
