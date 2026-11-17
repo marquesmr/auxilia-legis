@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, Check, CircleDollarSign, Copy, FilePen, FileText, Files, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, Wallet, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, Check, CircleDollarSign, Copy, Expand, FilePen, FileText, Files, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, Wallet, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -3118,6 +3118,8 @@ function PainelDocumentos({
   const [contadorErro, setContadorErro] = useState("");
   const [contadorSalvando, setContadorSalvando] = useState(false);
   const [previsaoDoc, setPrevisaoDoc] = useState(false);
+  const [previsaoCidade, setPrevisaoCidade] = useState("");
+  const [previaCheia, setPreviaCheia] = useState(false);
   const [dotacoes, setDotacoes] = useState<{ ficha: string }[]>([{ ficha: "" }]);
   const [previsaoDocErro, setPrevisaoDocErro] = useState("");
   const [extratoAberto, setExtratoAberto] = useState(false);
@@ -3183,10 +3185,18 @@ function PainelDocumentos({
           setContadorEditando(!vigente);
           setPrevisaoAberta(!vigente);
           if (vigente) {
+            const id = ordenados.some((item) => item.id === processoId) ? processoId : ordenados[0]?.id ?? "";
             setPrevisaoDoc(true);
+            setPreviaCheia(false);
             setPrevisaoDocErro("");
             setDotacoes([{ ficha: "" }]);
-            setProcessoId((id) => (ordenados.some((item) => item.id === id) ? id : ordenados[0]?.id ?? ""));
+            setProcessoId(id);
+            const alvo = ordenados.find((item) => item.id === id);
+            if (alvo?.equipeId) {
+              void lerTimbradoEquipe({ data: alvo.equipeId })
+                .then((timbre) => setPrevisaoCidade(timbre?.linha2.trim() || ""))
+                .catch(() => setPrevisaoCidade(""));
+            } else setPrevisaoCidade("");
           }
         })
         .catch((err: unknown) => {
@@ -3285,8 +3295,156 @@ function PainelDocumentos({
     });
   }
 
+  function gerarPrevisao() {
+    const escolhido = ordenados.find((item) => item.id === processoId);
+    const linhas = dotacoes.flatMap((item) => {
+      const achada = fichaDotacao(item.ficha);
+      return achada ? [{ dotacao: `${dotacaoDocumento(achada.conta)}\n${achada.descricao}`, ficha: fichaDocumento(achada.ficha), fonte: `${achada.fonte}\n${achada.fonteNome}` }] : [];
+    });
+    if (!escolhido || !contador) {
+      setPrevisaoDocErro("Escolha o processo.");
+      return;
+    }
+    if (linhas.length !== dotacoes.filter((item) => item.ficha.trim()).length || !linhas.length) {
+      setPrevisaoDocErro("Informe o número de uma ficha válida.");
+      return;
+    }
+    if (!escolhido.equipeId) {
+      setPrevisaoDocErro("Mova o processo para uma equipe. O timbrado é o da equipe.");
+      return;
+    }
+    setPrevisaoDocErro("");
+    void lerTimbradoEquipe({ data: escolhido.equipeId })
+      .then((timbre) => {
+        if (!timbre) throw new Error("Esta equipe ainda não tem timbrado na área restrita.");
+        setPrevisaoCidade(timbre.linha2.trim() || "");
+        return baixarPrevisao(escolhido, timbre, contador, linhas);
+      })
+      .catch((err: unknown) => setPrevisaoDocErro(err instanceof Error ? err.message : "Não foi possível gerar a previsão."));
+  }
+
+  const processoPrevia = ordenados.find((item) => item.id === processoId) ?? null;
+  const linhasPrevia = dotacoes.flatMap((item) => {
+    const achada = fichaDotacao(item.ficha);
+    return achada ? [achada] : [];
+  });
+  const dataPrevia = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
+  const assinantePrevia = contador ? (contador.tipo === "terceirizado" ? contador.nomeRt : contador.nome) : "";
+  const previa = (
+    <article className="bg-white px-4 py-5 text-[10px] leading-snug text-black">
+      <h3 className="text-center text-[11px] font-bold">PREVISÃO DE RECURSO ORÇAMENTÁRIOS</h3>
+      <p className="mt-4 text-justify"><b>Ref.: </b>{processoPrevia?.objeto.trim() || "Objeto do processo."}</p>
+      <p className="mt-4 text-justify indent-4">Declaro que existe provisão de recursos orçamentários à conta da dotação orçamentária:</p>
+      <table className="mt-3 w-full border-collapse text-center">
+        <thead>
+          <tr className="bg-neutral-100">
+            <th className="border border-black px-1 py-1">DOTAÇÃO</th>
+            <th className="border border-black px-1 py-1">FICHA</th>
+            <th className="border border-black px-1 py-1">FONTE/ORIGEM</th>
+          </tr>
+        </thead>
+        <tbody>
+          {linhasPrevia.length ? linhasPrevia.map((item, indice) => (
+            <tr key={`${item.ficha}-${indice}`}>
+              <td className="border border-black px-1 py-1">{dotacaoDocumento(item.conta)}<br />{item.descricao}</td>
+              <td className="border border-black px-1 py-1">{fichaDocumento(item.ficha)}</td>
+              <td className="border border-black px-1 py-1">{item.fonte}<br />{item.fonteNome}</td>
+            </tr>
+          )) : (
+            <tr>
+              <td className="border border-black px-1 py-3 text-neutral-400" colSpan={3}>Informe a ficha</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <p className="mt-6 text-right">{previsaoCidade ? `${previsaoCidade}, ${dataPrevia}.` : `${dataPrevia}.`}</p>
+      <p className="mt-8 text-center font-bold">{assinantePrevia || "Responsável técnico"}</p>
+      <p className="text-center">{contador?.funcao || "Função"}</p>
+      <p className="text-center">{contador?.registro || "Registro"}</p>
+    </article>
+  );
+
   return (
     <div>
+      {previsaoDoc ? (
+        <div>
+          <p className="text-sm text-ink">Previsão de Recurso Orçamentários</p>
+          <div className="mt-3 grid items-start gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(15rem,0.72fr)]">
+            <div className="min-h-[32rem] rounded-[1.75rem] border border-pine bg-paper/50 p-5 sm:p-7">
+              <div className="flex flex-col gap-3">
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Processo
+                  <select
+                    value={processoId}
+                    onChange={(evento) => {
+                      const id = evento.target.value;
+                      setProcessoId(id);
+                      const alvo = ordenados.find((item) => item.id === id);
+                      if (!alvo?.equipeId) {
+                        setPrevisaoCidade("");
+                        return;
+                      }
+                      void lerTimbradoEquipe({ data: alvo.equipeId })
+                        .then((timbre) => setPrevisaoCidade(timbre?.linha2.trim() || ""))
+                        .catch(() => setPrevisaoCidade(""));
+                    }}
+                    className={inputCls + " font-normal"}
+                  >
+                    {ordenados.map((item) => (
+                      <option key={item.id} value={item.id}>{rotuloLista(item)}</option>
+                    ))}
+                  </select>
+                </label>
+                {contador ? (
+                  <p className="text-sm text-ink">{assinantePrevia} · {contador.funcao} · {contador.registro}</p>
+                ) : null}
+                {dotacoes.map((linha, indice) => {
+                  const achada = fichaDotacao(linha.ficha);
+                  return (
+                    <div key={indice} className="rounded-xl border border-line bg-sheet p-3">
+                      <div className="flex gap-2">
+                        <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-medium text-ink">
+                          Ficha
+                          <input value={linha.ficha} onChange={(evento) => setDotacoes((atual) => atual.map((item, ordem) => ordem === indice ? { ficha: evento.target.value } : item))} inputMode="numeric" autoComplete="off" placeholder="2" className={inputCls} />
+                        </label>
+                        {dotacoes.length > 1 ? (
+                          <button type="button" onClick={() => setDotacoes((atual) => atual.filter((_, ordem) => ordem !== indice))} className="mt-6 h-11 rounded-xl border border-line px-3 text-sm text-seal">Tirar</button>
+                        ) : null}
+                      </div>
+                      <p className="mt-2 text-sm text-ink">{achada ? achada.descricao : linha.ficha.trim() ? "Ficha não encontrada." : "A dotação aparece aqui."}</p>
+                      {achada ? <p className="text-sm text-muted">{dotacaoDocumento(achada.conta)} — {achada.descricao}<br />{achada.fonte} — {achada.fonteNome}</p> : null}
+                    </div>
+                  );
+                })}
+                <button type="button" onClick={() => setDotacoes((atual) => [...atual, { ficha: "" }])} className="h-11 rounded-xl border border-line bg-sheet text-sm font-medium text-ink">Adicionar ficha</button>
+                <button type="button" onClick={() => { setContadorEditando(true); setPrevisaoAberta(true); }} className="h-11 rounded-xl border border-line bg-sheet text-sm font-medium text-ink">Alterar cadastro do RT</button>
+              </div>
+              {previsaoDocErro ? <p className="mt-3 text-sm text-seal">{previsaoDocErro}</p> : null}
+            </div>
+            <div>
+              <div className="relative min-h-[32rem] overflow-hidden rounded-2xl bg-[#d7e0ea] p-4">
+                <button type="button" onClick={() => setPreviaCheia(true)} className="absolute right-3 top-3 grid size-8 place-items-center text-ink/70" aria-label="Ampliar prévia">
+                  <Expand className="size-4" />
+                </button>
+                <div className="mx-auto mt-6 max-w-sm">{previa}</div>
+              </div>
+              <div className="mt-3 flex justify-end gap-2">
+                <button type="button" onClick={gerarPrevisao} className="h-11 rounded-full bg-[#d7e0ea] px-5 text-xs font-medium uppercase tracking-wide text-ink">Baixar doc</button>
+                <button type="button" onClick={() => { setPrevisaoDoc(false); setPreviaCheia(false); }} className="h-11 rounded-full bg-[#d7e0ea] px-5 text-xs font-medium uppercase tracking-wide text-ink">Voltar</button>
+              </div>
+            </div>
+          </div>
+          {previaCheia ? (
+            <div className="fixed inset-0 z-40 overflow-y-auto bg-ink/50 p-4">
+              <div className="relative mx-auto max-w-3xl rounded-2xl bg-[#d7e0ea] p-4">
+                <button type="button" onClick={() => setPreviaCheia(false)} className="absolute right-3 top-3 grid size-8 place-items-center" aria-label="Fechar prévia"><X className="size-4" /></button>
+                <div className="mt-8">{previa}</div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <>
       <h2 className="font-display text-2xl text-ink">Documentos</h2>
       <p className="mt-1 text-sm text-muted">Escolha o documento. Arraste os botões para organizar.</p>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
@@ -3327,6 +3485,8 @@ function PainelDocumentos({
         ))}
       </div>
       {ordenados.length === 0 ? <p className="mt-4 text-sm text-muted">Não há processo para gerar documento.</p> : null}
+        </>
+      )}
       <Dialog.Root open={previsaoAberta} onOpenChange={setPrevisaoAberta}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
@@ -3441,84 +3601,6 @@ function PainelDocumentos({
                   Salvar
                 </button>
               )}
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-      <Dialog.Root open={previsaoDoc} onOpenChange={setPrevisaoDoc}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 max-h-[85vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-lg md:-translate-x-1/2">
-            <Dialog.Title className="font-display text-2xl text-ink">Previsão de Recurso Orçamentários</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted">Quem assina é o RT. Informe só o número da ficha. A dotação e a fonte completam sozinhas.</Dialog.Description>
-            {contador ? (
-              <p className="mt-3 text-sm text-ink">{contador.tipo === "terceirizado" ? contador.nomeRt : contador.nome} · {contador.funcao} · {contador.registro}</p>
-            ) : null}
-            <div className="mt-4 flex flex-col gap-3">
-              <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                Processo
-                <select value={processoId} onChange={(evento) => setProcessoId(evento.target.value)} className={inputCls + " font-normal"}>
-                  {ordenados.map((item) => (
-                    <option key={item.id} value={item.id}>{rotuloLista(item)}</option>
-                  ))}
-                </select>
-              </label>
-              {dotacoes.map((linha, indice) => {
-                const achada = fichaDotacao(linha.ficha);
-                return (
-                  <div key={indice} className="rounded-xl border border-line p-3">
-                    <div className="flex gap-2">
-                      <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-medium text-ink">
-                        Ficha
-                        <input value={linha.ficha} onChange={(evento) => setDotacoes((atual) => atual.map((item, ordem) => ordem === indice ? { ficha: evento.target.value } : item))} inputMode="numeric" autoComplete="off" placeholder="2" className={inputCls} />
-                      </label>
-                      {dotacoes.length > 1 ? (
-                        <button type="button" onClick={() => setDotacoes((atual) => atual.filter((_, ordem) => ordem !== indice))} className="mt-6 h-11 rounded-xl border border-line px-3 text-sm text-seal">Tirar</button>
-                      ) : null}
-                    </div>
-                    <p className="mt-2 text-sm text-ink">{achada ? `${achada.descricao}` : linha.ficha.trim() ? "Ficha não encontrada." : "A dotação aparece aqui."}</p>
-                    {achada ? <p className="text-sm text-muted">{dotacaoDocumento(achada.conta)} — {achada.descricao}<br />{achada.fonte} — {achada.fonteNome}</p> : null}
-                  </div>
-                );
-              })}
-              <button type="button" onClick={() => setDotacoes((atual) => [...atual, { ficha: "" }])} className="h-11 rounded-xl border border-line text-sm font-medium text-ink">Adicionar ficha</button>
-            </div>
-            {previsaoDocErro ? <p className="mt-3 text-sm text-seal">{previsaoDocErro}</p> : null}
-            <div className="mt-4 flex gap-2">
-              <button type="button" onClick={() => { setPrevisaoDoc(false); setContadorEditando(true); setPrevisaoAberta(true); }} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">Cadastro</button>
-              <button
-                type="button"
-                onClick={() => {
-                  const escolhido = ordenados.find((item) => item.id === processoId);
-                  const linhas = dotacoes.flatMap((item) => {
-                    const achada = fichaDotacao(item.ficha);
-                    return achada ? [{ dotacao: `${dotacaoDocumento(achada.conta)}\n${achada.descricao}`, ficha: fichaDocumento(achada.ficha), fonte: `${achada.fonte}\n${achada.fonteNome}` }] : [];
-                  });
-                  if (!escolhido || !contador) {
-                    setPrevisaoDocErro("Escolha o processo.");
-                    return;
-                  }
-                  if (linhas.length !== dotacoes.filter((item) => item.ficha.trim()).length || !linhas.length) {
-                    setPrevisaoDocErro("Informe o número de uma ficha válida.");
-                    return;
-                  }
-                  if (!escolhido.equipeId) {
-                    setPrevisaoDocErro("Mova o processo para uma equipe. O timbrado é o da equipe.");
-                    return;
-                  }
-                  setPrevisaoDocErro("");
-                  void lerTimbradoEquipe({ data: escolhido.equipeId })
-                    .then((timbre) => {
-                      if (!timbre) throw new Error("Esta equipe ainda não tem timbrado na área restrita.");
-                      return baixarPrevisao(escolhido, timbre, contador, linhas);
-                    })
-                    .then(() => setPrevisaoDoc(false))
-                    .catch((err: unknown) => setPrevisaoDocErro(err instanceof Error ? err.message : "Não foi possível gerar a previsão."));
-                }}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet"
-              >
-                Baixar Word
-              </button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>
