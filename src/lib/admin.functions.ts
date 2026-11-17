@@ -1044,6 +1044,7 @@ export type ContadorPrevisao = {
   validoAte: string;
   processoId: string;
   documento: string;
+  nomeRt: string;
 };
 
 async function garantirContadorPrevisao() {
@@ -1060,6 +1061,7 @@ async function garantirContadorPrevisao() {
   await sql`alter table contadores_previsao add column if not exists tipo text not null default 'proprio'`;
   await sql`alter table contadores_previsao add column if not exists processo_id text not null default ''`;
   await sql`alter table contadores_previsao add column if not exists documento text not null default ''`;
+  await sql`alter table contadores_previsao add column if not exists nome_rt text not null default ''`;
   return sql;
 }
 
@@ -1067,8 +1069,8 @@ export const lerContadorPrevisao = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }): Promise<ContadorPrevisao | null> => {
     const sql = await garantirContadorPrevisao();
-    const linhas = await sql<{ nome: string; funcao: string; registro: string; valido_ate: string; tipo: string; processo_id: string; documento: string }>`
-      select nome, funcao, registro, valido_ate, tipo, processo_id, documento from contadores_previsao where user_id = ${context.userId} limit 1
+    const linhas = await sql<{ nome: string; funcao: string; registro: string; valido_ate: string; tipo: string; processo_id: string; documento: string; nome_rt: string }>`
+      select nome, funcao, registro, valido_ate, tipo, processo_id, documento, nome_rt from contadores_previsao where user_id = ${context.userId} limit 1
     `;
     const item = linhas[0];
     if (!item) return null;
@@ -1080,6 +1082,7 @@ export const lerContadorPrevisao = createServerFn({ method: "POST" })
       validoAte: item.valido_ate,
       processoId: item.processo_id,
       documento: item.documento,
+      nomeRt: item.nome_rt,
     };
   });
 
@@ -1093,6 +1096,7 @@ export const salvarContadorPrevisao = createServerFn({ method: "POST" })
     const validoAte = typeof bruto.validoAte === "string" ? bruto.validoAte : "";
     const processoId = tipo === "terceirizado" && typeof bruto.processoId === "string" ? bruto.processoId.trim().slice(0, 80) : "";
     const documento = tipo === "terceirizado" && typeof bruto.documento === "string" ? bruto.documento.trim().slice(0, 20) : "";
+    const nomeRt = tipo === "terceirizado" && typeof bruto.nomeRt === "string" ? bruto.nomeRt.trim().slice(0, 120) : "";
     if (funcao.length < 2) throw new Error("Informe a função.");
     if (registro.length < 2) throw new Error("Informe o registro do conselho.");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(validoAte)) throw new Error(tipo === "terceirizado" ? "O processo não tem data final de contrato." : "Informe até quando o cadastro vale.");
@@ -1100,19 +1104,20 @@ export const salvarContadorPrevisao = createServerFn({ method: "POST" })
     if (tipo === "terceirizado") {
       if (!processoId) throw new Error("Vincule um processo.");
       if (nome.length < 2 || documento.length < 11) throw new Error("O processo não tem os dados do contrato.");
+      if (nomeRt.length < 2) throw new Error("Informe o nome do RT.");
     } else if (nome.length < 2) {
       throw new Error("Informe o nome de quem assina.");
     }
-    return { tipo, nome, funcao, registro, validoAte, processoId, documento };
+    return { tipo, nome, funcao, registro, validoAte, processoId, documento, nomeRt };
   })
   .middleware([authMiddleware])
   .handler(async ({ data, context }) => {
     const sql = await garantirContadorPrevisao();
     await sql`
-      insert into contadores_previsao (user_id, nome, funcao, registro, valido_ate, tipo, processo_id, documento)
-      values (${context.userId}, ${data.nome}, ${data.funcao}, ${data.registro}, ${data.validoAte}, ${data.tipo}, ${data.processoId}, ${data.documento})
+      insert into contadores_previsao (user_id, nome, funcao, registro, valido_ate, tipo, processo_id, documento, nome_rt)
+      values (${context.userId}, ${data.nome}, ${data.funcao}, ${data.registro}, ${data.validoAte}, ${data.tipo}, ${data.processoId}, ${data.documento}, ${data.nomeRt})
       on conflict (user_id) do update
-      set nome = ${data.nome}, funcao = ${data.funcao}, registro = ${data.registro}, valido_ate = ${data.validoAte}, tipo = ${data.tipo}, processo_id = ${data.processoId}, documento = ${data.documento}
+      set nome = ${data.nome}, funcao = ${data.funcao}, registro = ${data.registro}, valido_ate = ${data.validoAte}, tipo = ${data.tipo}, processo_id = ${data.processoId}, documento = ${data.documento}, nome_rt = ${data.nomeRt}
     `;
     return data;
   });

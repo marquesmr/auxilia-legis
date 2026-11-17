@@ -3112,6 +3112,7 @@ function PainelDocumentos({
   const [contadorAte, setContadorAte] = useState("");
   const [contadorProcesso, setContadorProcesso] = useState("");
   const [contadorDocumento, setContadorDocumento] = useState("");
+  const [contadorRt, setContadorRt] = useState("");
   const [contadorEditando, setContadorEditando] = useState(true);
   const [contadorErro, setContadorErro] = useState("");
   const [contadorSalvando, setContadorSalvando] = useState(false);
@@ -3174,6 +3175,7 @@ function PainelDocumentos({
           setContadorAte(ate);
           setContadorProcesso(atual?.processoId ?? "");
           setContadorDocumento(documento);
+          setContadorRt(atual?.nomeRt ?? "");
           setContadorEditando(!atual || ate < todayIso());
         })
         .catch((err: unknown) => setContadorErro(err instanceof Error ? err.message : "Não foi possível carregar o cadastro."))
@@ -3324,6 +3326,7 @@ function PainelDocumentos({
                 <p className="text-muted">{contador.tipo === "terceirizado" ? "Terceirizado" : "Servidor próprio"}</p>
                 <p className="font-medium">{contador.nome}</p>
                 {contador.tipo === "terceirizado" ? <p>CNPJ {contador.documento}</p> : null}
+                {contador.tipo === "terceirizado" && contador.nomeRt ? <p>RT {contador.nomeRt}</p> : null}
                 <p>{contador.funcao}</p>
                 <p>Registro {contador.registro}</p>
                 <p className="mt-1 text-muted">{contador.tipo === "terceirizado" ? "Contrato até" : "Cadastrado até"} {formatDate(contador.validoAte)}.</p>
@@ -3361,6 +3364,10 @@ function PainelDocumentos({
                       <p>{contadorDocumento ? `CNPJ ${contadorDocumento}` : "CNPJ do contrato"}</p>
                       <p>{contadorAte ? `Contrato até ${formatDate(contadorAte)}` : "Data final do contrato"}</p>
                     </div>
+                    <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                      Nome do RT
+                      <input value={contadorRt} onChange={(evento) => setContadorRt(evento.target.value)} autoComplete="off" className={inputCls} />
+                    </label>
                   </>
                 ) : (
                   <label className="flex flex-col gap-1 text-sm font-medium text-ink">
@@ -3405,6 +3412,7 @@ function PainelDocumentos({
                         validoAte: contadorAte,
                         processoId: contadorTipo === "terceirizado" ? contadorProcesso : "",
                         documento: contadorTipo === "terceirizado" ? contadorDocumento : "",
+                        nomeRt: contadorTipo === "terceirizado" ? contadorRt : "",
                       },
                     })
                       .then((salvo) => {
