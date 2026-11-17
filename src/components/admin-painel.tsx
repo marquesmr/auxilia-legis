@@ -3123,21 +3123,6 @@ function CardAdmin({
                   ))}
                 </ul>
               )}
-              {(processo.cotacoes?.length ?? 0) > 0 && (
-                <div className="mt-4">
-                  <h3 className="font-display text-xl text-ink">Cotações</h3>
-                  <ul className="mt-2 flex max-h-40 flex-col gap-2 overflow-y-auto text-sm">
-                    {processo.cotacoes.map((item) => (
-                      <li key={item.id} className="text-ink">
-                        {item.descricao ? <span className="font-medium">{item.descricao}</span> : null}
-                        <span className={"block text-muted" + (item.descricao ? " mt-0.5" : "")}>
-                          {item.fornecedores.map((fornecedor) => `${formatDate(fornecedor.data)} · ${fornecedor.fornecedor} (${formatarReais(fornecedor.valorCentavos)})`).join(" · ")}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
               <div className="mt-4 flex flex-col gap-2">
                 {processo.linkAberturaNa ? (
                   <p className="inline-flex h-11 items-center rounded-xl border border-line bg-paper px-3 text-sm font-medium text-ink">Publicação: N/A</p>
