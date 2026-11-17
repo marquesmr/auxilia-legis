@@ -44,10 +44,10 @@ import {
   type UrgenciaAdmin,
   type LinhaControle,
 } from "@/lib/admin";
-import { apagarAdmin, lerContadorPrevisao, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao, salvarContadorPrevisao, type ContadorPrevisao } from "@/lib/admin.functions";
+import { apagarAdmin, lerContadorPrevisao, listarAdmin, listarCiAnotacoes, listarDotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao, salvarContadorPrevisao, salvarDotacao, type ContadorPrevisao } from "@/lib/admin.functions";
 import { lerTimbradoEquipe, type TimbradoEquipe } from "@/lib/equipes.functions";
 import { cidadeDoTimbrado, termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
-import { dotacaoDocumento, fichaDocumento, fichaDotacao } from "@/lib/dotacoes";
+import { DOTACOES, dotacaoDocumento, fichaDocumento, type Dotacao } from "@/lib/dotacoes";
 import { buscarCnpjPorNome, consultarDocumento, type ConsultaDocumento, type ResultadoNomeCnpj } from "@/lib/cnpj.functions";
 import { BotaoRelatorio } from "@/components/botao-relatorio";
 import { CampoMes } from "@/components/campo-mes";
@@ -3333,6 +3333,12 @@ function PainelDocumentos({
   const [previsaoCidade, setPrevisaoCidade] = useState("");
   const [previaCheia, setPreviaCheia] = useState(false);
   const [dotacoes, setDotacoes] = useState<{ ficha: string }[]>([{ ficha: "" }]);
+  const [catalogoDotacoes, setCatalogoDotacoes] = useState<Dotacao[]>(() => DOTACOES.filter((item) => item.ficha <= 30));
+  const [listaDotacoesAberta, setListaDotacoesAberta] = useState(false);
+  const [fichaEditando, setFichaEditando] = useState<number | null>(null);
+  const [rascunhoDotacao, setRascunhoDotacao] = useState<Dotacao | null>(null);
+  const [erroDotacao, setErroDotacao] = useState("");
+  const [salvandoDotacao, setSalvandoDotacao] = useState(false);
   const [previsaoDocErro, setPrevisaoDocErro] = useState("");
   const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string; contrato: boolean }[]>([]);
   const [extratoEscolha, setExtratoEscolha] = useState("");
@@ -3409,6 +3415,7 @@ function PainelDocumentos({
             setPrevisaoDocErro("");
             setDotacoes([{ ficha: "" }]);
             setProcessoId(id);
+            void listarDotacoes().then((lista) => { if (lista.length) setCatalogoDotacoes(lista.filter((item) => item.ficha <= 30)); }).catch(() => undefined);
             const alvo = ordenados.find((item) => item.id === id);
             if (alvo?.equipeId) {
               void lerTimbradoEquipe({ data: alvo.equipeId })
@@ -3509,10 +3516,16 @@ function PainelDocumentos({
     });
   }
 
+  function acharDotacao(valor: string) {
+    const numero = Number(valor.replace(/\D/g, ""));
+    if (!Number.isInteger(numero) || numero < 1 || numero > 30) return null;
+    return catalogoDotacoes.find((item) => item.ficha === numero) ?? null;
+  }
+
   function gerarPrevisao() {
     const escolhido = ordenados.find((item) => item.id === processoId);
     const linhas = dotacoes.flatMap((item) => {
-      const achada = fichaDotacao(item.ficha);
+      const achada = acharDotacao(item.ficha);
       return achada ? [{ dotacao: `${dotacaoDocumento(achada.conta)}\n${achada.descricao}`, ficha: fichaDocumento(achada.ficha), fonte: `${achada.fonte}\n${achada.fonteNome}` }] : [];
     });
     if (!escolhido || !contador) {
@@ -3539,7 +3552,7 @@ function PainelDocumentos({
 
   const processoPrevia = ordenados.find((item) => item.id === processoId) ?? null;
   const linhasPrevia = dotacoes.flatMap((item) => {
-    const achada = fichaDotacao(item.ficha);
+    const achada = acharDotacao(item.ficha);
     return achada ? [achada] : [];
   });
   const dataPrevia = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
@@ -3736,7 +3749,7 @@ function PainelDocumentos({
                 {tipoDoc === "previsao" ? (
                   <>
                 {dotacoes.map((linha, indice) => {
-                  const achada = fichaDotacao(linha.ficha);
+                  const achada = acharDotacao(linha.ficha);
                   return (
                     <div key={indice} className="rounded-xl border border-line bg-sheet p-3">
                       <div className="flex gap-2">
@@ -3755,6 +3768,7 @@ function PainelDocumentos({
                 })}
                 <button type="button" onClick={() => setDotacoes((atual) => [...atual, { ficha: "" }])} className="h-11 rounded-xl border border-line bg-sheet text-sm font-medium text-ink">Adicionar ficha</button>
                 <button type="button" onClick={() => { setContadorEditando(true); setPrevisaoAberta(true); }} className="h-11 rounded-xl border border-line bg-sheet text-sm font-medium text-ink">Alterar cadastro do RT</button>
+                <button type="button" onClick={() => { setErroDotacao(""); setFichaEditando(null); setListaDotacoesAberta(true); void listarDotacoes().then((lista) => { if (lista.length) setCatalogoDotacoes(lista.filter((item) => item.ficha <= 30)); }).catch((err: unknown) => setErroDotacao(err instanceof Error ? err.message : "Não foi possível abrir as dotações.")); }} className="h-11 rounded-xl border border-line bg-sheet text-sm font-medium text-ink">Lista de dotações</button>
                   </>
                 ) : null}
                 {tipoDoc === "capa" && processo ? (
@@ -3894,6 +3908,46 @@ function PainelDocumentos({
               </div>
             </div>
           </div>
+          {listaDotacoesAberta ? (
+            <div className="fixed inset-0 z-50 overflow-y-auto bg-paper px-4 py-6">
+              <div className="mx-auto max-w-3xl rounded-[1.75rem] border border-pine bg-sheet p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-display text-xl text-ink">Dotações</h3>
+                  <button type="button" onClick={() => { setListaDotacoesAberta(false); setFichaEditando(null); }} className="grid size-10 place-items-center rounded-xl bg-pine text-sheet" aria-label="Fechar lista de dotações"><X className="size-4" /></button>
+                </div>
+                <p className="mt-1 text-sm text-muted">Até a ficha 30. Edite uma de cada vez.</p>
+                {erroDotacao ? <p className="mt-3 text-sm text-seal">{erroDotacao}</p> : null}
+                <ul className="mt-4 flex flex-col gap-2">
+                  {catalogoDotacoes.filter((item) => item.ficha <= 30).map((item) => (
+                    <li key={item.ficha} className="rounded-xl border border-line bg-paper/40 px-3 py-3">
+                      {fichaEditando === item.ficha && rascunhoDotacao ? (
+                        <div className="flex flex-col gap-2">
+                          <p className="text-sm font-medium text-ink">Ficha {fichaDocumento(item.ficha)}</p>
+                          <input value={rascunhoDotacao.descricao} onChange={(evento) => setRascunhoDotacao({ ...rascunhoDotacao, descricao: evento.target.value })} className={inputCls} placeholder="Descrição" autoComplete="off" />
+                          <input value={rascunhoDotacao.conta} onChange={(evento) => setRascunhoDotacao({ ...rascunhoDotacao, conta: evento.target.value })} className={inputCls} placeholder="Dotação" autoComplete="off" />
+                          <input value={rascunhoDotacao.fonte} onChange={(evento) => setRascunhoDotacao({ ...rascunhoDotacao, fonte: evento.target.value })} className={inputCls} placeholder="Fonte" autoComplete="off" />
+                          <input value={rascunhoDotacao.fonteNome} onChange={(evento) => setRascunhoDotacao({ ...rascunhoDotacao, fonteNome: evento.target.value })} className={inputCls} placeholder="Nome da fonte" autoComplete="off" />
+                          <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => setFichaEditando(null)} className="h-10 rounded-xl border border-line px-3 text-sm text-ink">Cancelar</button>
+                            <button type="button" disabled={salvandoDotacao} onClick={() => { setSalvandoDotacao(true); setErroDotacao(""); void salvarDotacao({ data: rascunhoDotacao }).then((salva) => { setCatalogoDotacoes((atual) => atual.map((linha) => linha.ficha === salva.ficha ? salva : linha)); setFichaEditando(null); }).catch((err: unknown) => setErroDotacao(err instanceof Error ? err.message : "Não foi possível salvar a dotação.")).finally(() => setSalvandoDotacao(false)); }} className="h-10 rounded-xl bg-pine px-3 text-sm font-medium text-sheet disabled:opacity-50">Salvar</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-ink">Ficha {fichaDocumento(item.ficha)} · {item.descricao}</p>
+                            <p className="text-xs text-muted">{item.conta}</p>
+                            <p className="text-xs text-muted">{item.fonte} — {item.fonteNome}</p>
+                          </div>
+                          <button type="button" onClick={() => { setFichaEditando(item.ficha); setRascunhoDotacao({ ...item }); setErroDotacao(""); }} className="shrink-0 text-sm font-medium text-pine">Editar</button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
           {previaCheia ? (
             <div className="fixed inset-0 z-50 overflow-y-auto bg-paper px-4 py-6">
               <button type="button" onClick={() => setPreviaCheia(false)} className="fixed right-4 top-4 z-10 grid size-10 place-items-center rounded-xl bg-pine text-sheet" aria-label="Fechar tela cheia">

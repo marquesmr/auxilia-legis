@@ -4,6 +4,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, perfilContratacao, permiteDoisContratados, RETENCOES, somaPagamentos, tipoSimples, type Cotacao, type PagamentoDemanda, type ProcessoAdmin } from "@/lib/admin";
 import { todayIso, type Andamento } from "@/lib/prazos";
 import { definirStatus } from "@/lib/status-catalogo";
+import { DOTACOES, type Dotacao } from "@/lib/dotacoes";
 
 function nascimentoDe(documento: string, valor: unknown, erro: string): string | null {
   if (documento.replace(/\D/g, "").length !== 11) return null;
@@ -1118,6 +1119,65 @@ export const salvarContadorPrevisao = createServerFn({ method: "POST" })
       values (${context.userId}, ${data.nome}, ${data.funcao}, ${data.registro}, ${data.validoAte}, ${data.tipo}, ${data.processoId}, ${data.documento}, ${data.nomeRt})
       on conflict (user_id) do update
       set nome = ${data.nome}, funcao = ${data.funcao}, registro = ${data.registro}, valido_ate = ${data.validoAte}, tipo = ${data.tipo}, processo_id = ${data.processoId}, documento = ${data.documento}, nome_rt = ${data.nomeRt}
+    `;
+    return data;
+  });
+
+async function garantirDotacoes() {
+  const sql = await getSql();
+  await sql`
+    create table if not exists dotacoes_catalogo (
+      ficha integer primary key,
+      conta text not null,
+      descricao text not null,
+      fonte text not null,
+      fonte_nome text not null
+    )
+  `;
+  for (const item of DOTACOES) {
+    if (item.ficha > 30) continue;
+    await sql`
+      insert into dotacoes_catalogo (ficha, conta, descricao, fonte, fonte_nome)
+      values (${item.ficha}, ${item.conta}, ${item.descricao}, ${item.fonte}, ${item.fonteNome})
+      on conflict (ficha) do nothing
+    `;
+  }
+  await sql`delete from dotacoes_catalogo where ficha > 30`;
+  await sql`update dotacoes_catalogo set descricao = ${"Outros Serviços de Terceiros — Pessoa Física"} where ficha = 25 and descricao = ${"Outros Serviços de Terceiros"}`;
+  await sql`update dotacoes_catalogo set descricao = ${"Outros Serviços de Terceiros — Pessoa Jurídica"} where ficha = 26 and descricao = ${"Outros Serviços de Terceiros — Pessoa Física"}`;
+  return sql;
+}
+
+export const listarDotacoes = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async (): Promise<Dotacao[]> => {
+    const sql = await garantirDotacoes();
+    const linhas = await sql<{ ficha: number; conta: string; descricao: string; fonte: string; fonte_nome: string }>`
+      select ficha, conta, descricao, fonte, fonte_nome from dotacoes_catalogo where ficha <= 30 order by ficha
+    `;
+    return linhas.map((item) => ({ ficha: item.ficha, conta: item.conta, descricao: item.descricao, fonte: item.fonte, fonteNome: item.fonte_nome }));
+  });
+
+export const salvarDotacao = createServerFn({ method: "POST" })
+  .validator((input: unknown): Dotacao => {
+    const bruto = input && typeof input === "object" ? (input as Partial<Dotacao>) : {};
+    const ficha = typeof bruto.ficha === "number" ? bruto.ficha : Number(bruto.ficha);
+    const conta = typeof bruto.conta === "string" ? bruto.conta.trim().slice(0, 80) : "";
+    const descricao = typeof bruto.descricao === "string" ? bruto.descricao.trim().slice(0, 160) : "";
+    const fonte = typeof bruto.fonte === "string" ? bruto.fonte.trim().slice(0, 40) : "";
+    const fonteNome = typeof bruto.fonteNome === "string" ? bruto.fonteNome.trim().slice(0, 120) : "";
+    if (!Number.isInteger(ficha) || ficha < 1 || ficha > 30) throw new Error("A ficha vai de 1 a 30.");
+    if (conta.length < 4 || descricao.length < 2 || fonte.length < 2 || fonteNome.length < 2) throw new Error("Preencha a dotação, a descrição e a fonte.");
+    return { ficha, conta, descricao, fonte, fonteNome };
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ data }) => {
+    const sql = await garantirDotacoes();
+    await sql`
+      insert into dotacoes_catalogo (ficha, conta, descricao, fonte, fonte_nome)
+      values (${data.ficha}, ${data.conta}, ${data.descricao}, ${data.fonte}, ${data.fonteNome})
+      on conflict (ficha) do update
+      set conta = ${data.conta}, descricao = ${data.descricao}, fonte = ${data.fonte}, fonte_nome = ${data.fonteNome}
     `;
     return data;
   });
