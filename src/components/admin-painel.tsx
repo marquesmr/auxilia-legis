@@ -44,7 +44,7 @@ import {
   type UrgenciaAdmin,
   type LinhaControle,
 } from "@/lib/admin";
-import { apagarAdmin, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao } from "@/lib/admin.functions";
+import { apagarAdmin, lerContadorPrevisao, listarAdmin, listarCiAnotacoes, moverAdmin, salvarAdmin, salvarCiAnotacao, salvarContadorPrevisao, type ContadorPrevisao } from "@/lib/admin.functions";
 import { lerTimbradoEquipe, type TimbradoEquipe } from "@/lib/equipes.functions";
 import { cidadeDoTimbrado, termoNoTimbrado, type BlocoTermo } from "@/lib/termo-docx";
 import { buscarCnpjPorNome, consultarDocumento, type ConsultaDocumento, type ResultadoNomeCnpj } from "@/lib/cnpj.functions";
@@ -3104,6 +3104,14 @@ function PainelDocumentos({
   const [tipoDoc, setTipoDoc] = useState<"capa" | "extrato" | "termo" | "parecer" | "preco" | "previsao" | null>(null);
   const [precoAberto, setPrecoAberto] = useState(false);
   const [previsaoAberta, setPrevisaoAberta] = useState(false);
+  const [contador, setContador] = useState<ContadorPrevisao | null>(null);
+  const [contadorNome, setContadorNome] = useState("");
+  const [contadorFuncao, setContadorFuncao] = useState("");
+  const [contadorRegistro, setContadorRegistro] = useState("");
+  const [contadorAte, setContadorAte] = useState("");
+  const [contadorEditando, setContadorEditando] = useState(true);
+  const [contadorErro, setContadorErro] = useState("");
+  const [contadorSalvando, setContadorSalvando] = useState(false);
   const [extratoAberto, setExtratoAberto] = useState(false);
   const [itensExtrato, setItensExtrato] = useState<{ id: string; fundamento: string; assinatura: string; contrato: boolean }[]>([]);
   const [extratoEscolha, setExtratoEscolha] = useState("");
@@ -3147,6 +3155,19 @@ function PainelDocumentos({
   function abrirTipo(tipo: "capa" | "extrato" | "termo" | "parecer" | "preco" | "previsao") {
     if (tipo === "previsao") {
       setPrevisaoAberta(true);
+      setContadorErro("");
+      setContadorSalvando(true);
+      void lerContadorPrevisao()
+        .then((atual) => {
+          setContador(atual);
+          setContadorNome(atual?.nome ?? "");
+          setContadorFuncao(atual?.funcao ?? "");
+          setContadorRegistro(atual?.registro ?? "");
+          setContadorAte(atual?.validoAte ?? "");
+          setContadorEditando(!atual || atual.validoAte < todayIso());
+        })
+        .catch((err: unknown) => setContadorErro(err instanceof Error ? err.message : "Não foi possível carregar o cadastro."))
+        .finally(() => setContadorSalvando(false));
       return;
     }
     if (ordenados.length === 0) return;
@@ -3268,10 +3289,11 @@ function PainelDocumentos({
               }, 80);
             }}
             onClick={() => {
-              if (ignorarCliqueDoc.current || ordenados.length === 0) return;
+              if (ignorarCliqueDoc.current) return;
+              if (botao.tipo !== "previsao" && ordenados.length === 0) return;
               abrirTipo(botao.tipo);
             }}
-            className={"flex aspect-square cursor-grab flex-col items-center justify-center gap-3 rounded-2xl bg-pine px-3 text-center text-sm font-medium text-sheet active:cursor-grabbing" + (ordenados.length === 0 ? " opacity-50" : "")}
+            className={"flex aspect-square cursor-grab flex-col items-center justify-center gap-3 rounded-2xl bg-pine px-3 text-center text-sm font-medium text-sheet active:cursor-grabbing" + (botao.tipo !== "previsao" && ordenados.length === 0 ? " opacity-50" : "")}
           >
             {botao.icone}
             <span className="text-balance leading-tight">{botao.rotulo}</span>
@@ -3282,10 +3304,64 @@ function PainelDocumentos({
       <Dialog.Root open={previsaoAberta} onOpenChange={setPrevisaoAberta}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
-          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
+          <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 max-h-[85vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
             <Dialog.Title className="font-display text-2xl text-ink">Previsão de Recurso Orçamentários</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted">O texto deste documento ainda não foi definido. Assim que o modelo chegar, a previsão sai por aqui.</Dialog.Description>
-            <Dialog.Close type="button" className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">Fechar</Dialog.Close>
+            <Dialog.Description className="mt-1 text-sm text-muted">Quem assina é o contador. O cadastro vale até a data informada.</Dialog.Description>
+            {contadorSalvando ? (
+              <p className="mt-4 text-sm text-muted">Carregando cadastro…</p>
+            ) : contador && !contadorEditando ? (
+              <div className="mt-4 rounded-xl border border-line bg-paper px-3 py-3 text-sm text-ink">
+                <p className="font-medium">{contador.nome}</p>
+                <p>{contador.funcao}</p>
+                <p>Registro {contador.registro}</p>
+                <p className="mt-1 text-muted">Cadastrado até {formatDate(contador.validoAte)}.</p>
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-col gap-3">
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Nome
+                  <input value={contadorNome} onChange={(evento) => setContadorNome(evento.target.value)} autoComplete="off" className={inputCls} />
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Função
+                  <input value={contadorFuncao} onChange={(evento) => setContadorFuncao(evento.target.value)} autoComplete="off" className={inputCls} placeholder="Contador" />
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Registro do conselho
+                  <input value={contadorRegistro} onChange={(evento) => setContadorRegistro(evento.target.value)} autoComplete="off" className={inputCls} placeholder="CRC" />
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                  Válido até
+                  <input type="date" value={contadorAte} min={todayIso()} onChange={(evento) => setContadorAte(evento.target.value)} autoComplete="off" className={inputCls} />
+                </label>
+              </div>
+            )}
+            {contadorErro ? <p className="mt-3 text-sm text-seal">{contadorErro}</p> : null}
+            <div className="mt-4 flex gap-2">
+              <Dialog.Close type="button" className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line text-sm font-medium">Fechar</Dialog.Close>
+              {contador && !contadorEditando ? (
+                <button type="button" onClick={() => setContadorEditando(true)} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet">Alterar</button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={contadorSalvando}
+                  onClick={() => {
+                    setContadorErro("");
+                    setContadorSalvando(true);
+                    void salvarContadorPrevisao({ data: { nome: contadorNome, funcao: contadorFuncao, registro: contadorRegistro, validoAte: contadorAte } })
+                      .then((salvo) => {
+                        setContador(salvo);
+                        setContadorEditando(false);
+                      })
+                      .catch((err: unknown) => setContadorErro(err instanceof Error ? err.message : "Não foi possível salvar o cadastro."))
+                      .finally(() => setContadorSalvando(false));
+                  }}
+                  className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-pine text-sm font-medium text-sheet disabled:opacity-50"
+                >
+                  Salvar
+                </button>
+              )}
+            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

@@ -1036,3 +1036,62 @@ export const moverAdmin = createServerFn({ method: "POST" })
     return { id: salvos[0].id };
   });
 
+export type ContadorPrevisao = {
+  nome: string;
+  funcao: string;
+  registro: string;
+  validoAte: string;
+};
+
+async function garantirContadorPrevisao() {
+  const sql = await getSql();
+  await sql`
+    create table if not exists contadores_previsao (
+      user_id text primary key,
+      nome text not null,
+      funcao text not null,
+      registro text not null,
+      valido_ate text not null
+    )
+  `;
+  return sql;
+}
+
+export const lerContadorPrevisao = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<ContadorPrevisao | null> => {
+    const sql = await garantirContadorPrevisao();
+    const linhas = await sql<{ nome: string; funcao: string; registro: string; valido_ate: string }>`
+      select nome, funcao, registro, valido_ate from contadores_previsao where user_id = ${context.userId} limit 1
+    `;
+    const item = linhas[0];
+    if (!item) return null;
+    return { nome: item.nome, funcao: item.funcao, registro: item.registro, validoAte: item.valido_ate };
+  });
+
+export const salvarContadorPrevisao = createServerFn({ method: "POST" })
+  .validator((input: unknown): ContadorPrevisao => {
+    const bruto = input && typeof input === "object" ? (input as Partial<ContadorPrevisao>) : {};
+    const nome = typeof bruto.nome === "string" ? bruto.nome.trim().slice(0, 120) : "";
+    const funcao = typeof bruto.funcao === "string" ? bruto.funcao.trim().slice(0, 80) : "";
+    const registro = typeof bruto.registro === "string" ? bruto.registro.trim().slice(0, 40) : "";
+    const validoAte = typeof bruto.validoAte === "string" ? bruto.validoAte : "";
+    if (nome.length < 2) throw new Error("Informe o nome de quem assina.");
+    if (funcao.length < 2) throw new Error("Informe a função.");
+    if (registro.length < 2) throw new Error("Informe o registro do conselho.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(validoAte)) throw new Error("Informe até quando o cadastro vale.");
+    if (validoAte < todayIso()) throw new Error("A data não pode ser anterior a hoje.");
+    return { nome, funcao, registro, validoAte };
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ data, context }) => {
+    const sql = await garantirContadorPrevisao();
+    await sql`
+      insert into contadores_previsao (user_id, nome, funcao, registro, valido_ate)
+      values (${context.userId}, ${data.nome}, ${data.funcao}, ${data.registro}, ${data.validoAte})
+      on conflict (user_id) do update
+      set nome = ${data.nome}, funcao = ${data.funcao}, registro = ${data.registro}, valido_ate = ${data.validoAte}
+    `;
+    return data;
+  });
+
