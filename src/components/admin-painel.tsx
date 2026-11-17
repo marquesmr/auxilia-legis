@@ -3105,10 +3105,13 @@ function PainelDocumentos({
   const [precoAberto, setPrecoAberto] = useState(false);
   const [previsaoAberta, setPrevisaoAberta] = useState(false);
   const [contador, setContador] = useState<ContadorPrevisao | null>(null);
+  const [contadorTipo, setContadorTipo] = useState<"proprio" | "terceirizado">("proprio");
   const [contadorNome, setContadorNome] = useState("");
   const [contadorFuncao, setContadorFuncao] = useState("");
   const [contadorRegistro, setContadorRegistro] = useState("");
   const [contadorAte, setContadorAte] = useState("");
+  const [contadorProcesso, setContadorProcesso] = useState("");
+  const [contadorDocumento, setContadorDocumento] = useState("");
   const [contadorEditando, setContadorEditando] = useState(true);
   const [contadorErro, setContadorErro] = useState("");
   const [contadorSalvando, setContadorSalvando] = useState(false);
@@ -3159,12 +3162,19 @@ function PainelDocumentos({
       setContadorSalvando(true);
       void lerContadorPrevisao()
         .then((atual) => {
-          setContador(atual);
-          setContadorNome(atual?.nome ?? "");
+          const processo = atual?.processoId ? ordenados.find((item) => item.id === atual.processoId) : undefined;
+          const nome = processo?.contratado.trim() || atual?.nome || "";
+          const documento = processo?.documento.trim() || atual?.documento || "";
+          const ate = processo?.vigenciaFim || atual?.validoAte || "";
+          setContador(atual ? { ...atual, nome, documento, validoAte: ate } : null);
+          setContadorTipo(atual?.tipo ?? "proprio");
+          setContadorNome(nome);
           setContadorFuncao(atual?.funcao ?? "");
           setContadorRegistro(atual?.registro ?? "");
-          setContadorAte(atual?.validoAte ?? "");
-          setContadorEditando(!atual || atual.validoAte < todayIso());
+          setContadorAte(ate);
+          setContadorProcesso(atual?.processoId ?? "");
+          setContadorDocumento(documento);
+          setContadorEditando(!atual || ate < todayIso());
         })
         .catch((err: unknown) => setContadorErro(err instanceof Error ? err.message : "Não foi possível carregar o cadastro."))
         .finally(() => setContadorSalvando(false));
@@ -3306,22 +3316,58 @@ function PainelDocumentos({
           <Dialog.Overlay className="fixed inset-0 z-30 bg-ink/40" />
           <Dialog.Content className="fixed inset-x-3 top-1/2 z-30 max-h-[85vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-sheet p-5 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2">
             <Dialog.Title className="font-display text-2xl text-ink">Previsão de Recurso Orçamentários</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted">Quem assina é o contador. O cadastro vale até a data informada.</Dialog.Description>
+            <Dialog.Description className="mt-1 text-sm text-muted">Quem assina pode ser servidor próprio ou o contador do contrato terceirizado.</Dialog.Description>
             {contadorSalvando ? (
               <p className="mt-4 text-sm text-muted">Carregando cadastro…</p>
             ) : contador && !contadorEditando ? (
               <div className="mt-4 rounded-xl border border-line bg-paper px-3 py-3 text-sm text-ink">
+                <p className="text-muted">{contador.tipo === "terceirizado" ? "Terceirizado" : "Servidor próprio"}</p>
                 <p className="font-medium">{contador.nome}</p>
+                {contador.tipo === "terceirizado" ? <p>CNPJ {contador.documento}</p> : null}
                 <p>{contador.funcao}</p>
                 <p>Registro {contador.registro}</p>
-                <p className="mt-1 text-muted">Cadastrado até {formatDate(contador.validoAte)}.</p>
+                <p className="mt-1 text-muted">{contador.tipo === "terceirizado" ? "Contrato até" : "Cadastrado até"} {formatDate(contador.validoAte)}.</p>
               </div>
             ) : (
               <div className="mt-4 flex flex-col gap-3">
-                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                  Nome
-                  <input value={contadorNome} onChange={(evento) => setContadorNome(evento.target.value)} autoComplete="off" className={inputCls} />
-                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setContadorTipo("proprio")} className={"h-11 rounded-xl border text-sm font-medium " + (contadorTipo === "proprio" ? "border-pine bg-pine text-sheet" : "border-line text-ink")}>Servidor próprio</button>
+                  <button type="button" onClick={() => setContadorTipo("terceirizado")} className={"h-11 rounded-xl border text-sm font-medium " + (contadorTipo === "terceirizado" ? "border-pine bg-pine text-sheet" : "border-line text-ink")}>Terceirizado</button>
+                </div>
+                {contadorTipo === "terceirizado" ? (
+                  <>
+                    <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                      Processo
+                      <select
+                        value={contadorProcesso}
+                        onChange={(evento) => {
+                          const id = evento.target.value;
+                          const item = ordenados.find((processo) => processo.id === id);
+                          setContadorProcesso(id);
+                          setContadorNome(item?.contratado.trim() ?? "");
+                          setContadorDocumento(item?.documento.trim() ?? "");
+                          setContadorAte(item?.vigenciaFim ?? "");
+                        }}
+                        className={inputCls + " font-normal"}
+                      >
+                        <option value="">Selecione o processo</option>
+                        {ordenados.filter((item) => item.contratado.trim() && item.vigenciaFim).map((item) => (
+                          <option key={item.id} value={item.id}>{rotuloLista(item)}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="rounded-xl border border-line bg-paper px-3 py-3 text-sm text-ink">
+                      <p>{contadorNome || "Nome do contrato"}</p>
+                      <p>{contadorDocumento ? `CNPJ ${contadorDocumento}` : "CNPJ do contrato"}</p>
+                      <p>{contadorAte ? `Contrato até ${formatDate(contadorAte)}` : "Data final do contrato"}</p>
+                    </div>
+                  </>
+                ) : (
+                  <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                    Nome
+                    <input value={contadorNome} onChange={(evento) => setContadorNome(evento.target.value)} autoComplete="off" className={inputCls} />
+                  </label>
+                )}
                 <label className="flex flex-col gap-1 text-sm font-medium text-ink">
                   Função
                   <input value={contadorFuncao} onChange={(evento) => setContadorFuncao(evento.target.value)} autoComplete="off" className={inputCls} placeholder="Contador" />
@@ -3330,10 +3376,12 @@ function PainelDocumentos({
                   Registro do conselho
                   <input value={contadorRegistro} onChange={(evento) => setContadorRegistro(evento.target.value)} autoComplete="off" className={inputCls} placeholder="CRC" />
                 </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                  Válido até
-                  <input type="date" value={contadorAte} min={todayIso()} onChange={(evento) => setContadorAte(evento.target.value)} autoComplete="off" className={inputCls} />
-                </label>
+                {contadorTipo === "proprio" ? (
+                  <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                    Válido até
+                    <input type="date" value={contadorAte} min={todayIso()} onChange={(evento) => setContadorAte(evento.target.value)} autoComplete="off" className={inputCls} />
+                  </label>
+                ) : null}
               </div>
             )}
             {contadorErro ? <p className="mt-3 text-sm text-seal">{contadorErro}</p> : null}
@@ -3348,7 +3396,17 @@ function PainelDocumentos({
                   onClick={() => {
                     setContadorErro("");
                     setContadorSalvando(true);
-                    void salvarContadorPrevisao({ data: { nome: contadorNome, funcao: contadorFuncao, registro: contadorRegistro, validoAte: contadorAte } })
+                    void salvarContadorPrevisao({
+                      data: {
+                        tipo: contadorTipo,
+                        nome: contadorNome,
+                        funcao: contadorFuncao,
+                        registro: contadorRegistro,
+                        validoAte: contadorAte,
+                        processoId: contadorTipo === "terceirizado" ? contadorProcesso : "",
+                        documento: contadorTipo === "terceirizado" ? contadorDocumento : "",
+                      },
+                    })
                       .then((salvo) => {
                         setContador(salvo);
                         setContadorEditando(false);
