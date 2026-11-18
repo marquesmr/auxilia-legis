@@ -2292,13 +2292,14 @@ export function AdminPainel({
                       />
                     )}
                     {form.status !== "execucao" && form.status !== "encerrado" && (
-                      <Campo label="Valor estimado">
+                      <Campo label="Valor estimado (opcional)">
                         <input
                           value={form.valorEstimado}
                           onChange={(e) => setForm({ ...form, valorEstimado: mascaraReais(e.target.value) })}
                           className={inputCls}
                           inputMode="decimal"
-                          placeholder="0,00"
+                          placeholder="Opcional"
+                          autoComplete="off"
                         />
                       </Campo>
                     )}
@@ -2399,13 +2400,14 @@ export function AdminPainel({
                 </Campo>
                 )}
                 {form.status !== "execucao" && form.status !== "encerrado" && !form.pagamentoDemanda && (
-                  <Campo label="Valor estimado">
+                  <Campo label="Valor estimado (opcional)">
                     <input
                       value={form.valorEstimado}
                       onChange={(e) => setForm({ ...form, valorEstimado: mascaraReais(e.target.value) })}
                       className={inputCls}
                       inputMode="decimal"
-                      placeholder="0,00"
+                      placeholder="Opcional"
+                      autoComplete="off"
                     />
                   </Campo>
                 )}
