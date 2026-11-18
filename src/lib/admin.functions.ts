@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, perfilContratacao, permiteDoisContratados, RETENCOES, somaPagamentos, tipoSimples, type Cotacao, type PagamentoDemanda, type ProcessoAdmin } from "@/lib/admin";
+import { ehHomologado, exigeLinks, modoValor, normalizarLink, normalizarModalidade, normalizarStatus, pedePrevisao, perfilContratacao, permiteDoisContratados, RETENCOES, somaPagamentos, tipoSimples, type Cotacao, type PagamentoDemanda, type ProcessoAdmin } from "@/lib/admin";
 import { todayIso, type Andamento } from "@/lib/prazos";
 import { definirStatus } from "@/lib/status-catalogo";
 import { DOTACOES, type Dotacao } from "@/lib/dotacoes";
@@ -178,7 +178,7 @@ function exigirAdmin(input: unknown): ProcessoAdmin {
   const linkAberturaNa = bruto.linkAberturaNa === true;
   const linkAbertura = linkAberturaNa ? "" : linkCampo(bruto.linkAbertura, "link de publicação", exigeLinks(tipo) && !linkAberturaNa);
   const linkHomologacaoNa = bruto.linkHomologacaoNa === true;
-  const linkHomologacao = linkHomologacaoNa ? "" : linkCampo(bruto.linkHomologacao, "link de homologação", false);
+  const linkHomologacao = linkHomologacaoNa ? "" : linkCampo(bruto.linkHomologacao, "link de homologação", ehHomologado(status) && !linkHomologacaoNa);
   const linkPncpNa = bruto.linkPncpNa === true;
   const linkPncp = linkPncpNa ? "" : linkCampo(bruto.linkPncp, "link do PNCP", false);
   const linkRetificacao = bruto.linkRetificacao ? linkCampo(bruto.linkRetificacao, "link da retificação", true) : "";

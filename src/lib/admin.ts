@@ -89,7 +89,17 @@ export function tipoSimples(tipo: string): boolean {
   return tipo === "Outros" || tipo === "Doação" || !(MODALIDADES as readonly string[]).includes(tipo);
 }
 
+export function ehHomologado(status: string): boolean {
+  const nome = nomeStatus("administrativo", status);
+  const texto = `${status} ${nome}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return /\bhomologad[oa]\b/.test(texto);
+}
+
 export function perfilContratacao(status: string): { contratado: boolean; fim: boolean } {
+  if (ehHomologado(status)) return { contratado: true, fim: false };
   const item = statusDaArea("administrativo").find((atual) => atual.codigo === status);
   if (item && (item.pedeContratado || item.pedeFim)) return { contratado: true, fim: item.pedeFim };
   if (status === "execucao") return { contratado: true, fim: true };

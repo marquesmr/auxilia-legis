@@ -9,6 +9,7 @@ import {
   cruzaPeriodo,
   dataAlvo,
   exigeLinks,
+  ehHomologado,
   linksEmFalta,
   permitePublicacaoNa,
   permiteDoisContratados,
@@ -316,7 +317,7 @@ function errosDeLinks(form: FormAdmin): string[] {
   const erros: string[] = [];
   const campos = [
     ["link de publicação", form.linkAbertura, exigeLinks(form.tipo) && !form.linkAberturaNa],
-    ["link de homologação", form.linkHomologacao, false],
+    ["link de homologação", form.linkHomologacao, ehHomologado(form.status) && !form.linkHomologacaoNa],
     ["link do PNCP", form.linkPncp, false],
   ] as const;
   for (const [nome, valor, obrigatorio] of campos) {
@@ -852,6 +853,7 @@ export function AdminPainel({
   const [outroValor, setOutroValor] = useState(false);
   const [escolhaLink, setEscolhaLink] = useState(false);
   const [linksAndamento, setLinksAndamento] = useState<Partial<Record<TipoLinkAndamento, string>>>({});
+  const [homologacaoNaAnd, setHomologacaoNaAnd] = useState(false);
   const [periodo, setPeriodo] = useState<PeriodoRelatorio>("mensal");
   const [ancora, setAncora] = useState(() => todayIso().slice(0, 7));
   const [statusRelatorio, setStatusRelatorio] = useState<StatusRelatorio>("todos");
@@ -1221,7 +1223,7 @@ export function AdminPainel({
     const texto = notaAndamento.trim();
     const atual = listaViva.current.find((item) => item.id === andamentoId);
     if (!atual) return;
-    const escolhidos = TIPOS_LINK_ANDAMENTO.filter((item) => item.id in linksAndamento);
+    const escolhidos = TIPOS_LINK_ANDAMENTO.filter((item) => item.id in linksAndamento && !(item.id === "homologacao" && homologacaoNaAnd));
     const aplicados: { curto: string; url: string; campo: (typeof TIPOS_LINK_ANDAMENTO)[number]["campo"] }[] = [];
     for (const item of escolhidos) {
       const url = normalizarLink(linksAndamento[item.id] ?? "");
@@ -1347,6 +1349,20 @@ export function AdminPainel({
         if (valor == null) {
           onToast("Informe o valor homologado.");
           return;
+        }
+        if (!atualizado.linkHomologacao && !atualizado.linkHomologacaoNa) {
+          if (homologacaoNaAnd) {
+            atualizado.linkHomologacao = "";
+            atualizado.linkHomologacaoNa = true;
+          } else {
+            const url = normalizarLink(linksAndamento.homologacao ?? "");
+            if (!url) {
+              onToast((linksAndamento.homologacao ?? "").trim() ? "O link de homologação está inválido." : "Informe o link de homologação.");
+              return;
+            }
+            atualizado.linkHomologacao = url;
+            atualizado.linkHomologacaoNa = false;
+          }
         }
         atualizado.contratado = contratadoAnd.trim();
         atualizado.documento = documentoAnd.trim();
@@ -2140,6 +2156,7 @@ export function AdminPainel({
                       setNascimento2And(item.nascimento2 ?? "");
                       setValorAnd(centavosParaCampo(item.valorTotalCentavos));
                       setLinksAndamento({});
+                      setHomologacaoNaAnd(item.linkHomologacaoNa);
                       setEscolhaLink(false);
                       setPagAndData("");
                       setPagAndValor("");
@@ -2390,7 +2407,7 @@ export function AdminPainel({
                   </select>
                 </Campo>
                 )}
-                {form.status !== "execucao" && form.status !== "encerrado" && !form.pagamentoDemanda && (
+                {form.status !== "execucao" && form.status !== "encerrado" && !perfilContratacao(form.status).contratado && !form.pagamentoDemanda && (
                   <Campo label="Valor estimado (opcional)">
                     <input
                       value={form.valorEstimado}
@@ -2600,6 +2617,7 @@ export function AdminPainel({
           if (open) return;
           setAndamentoId(null);
           setLinksAndamento({});
+          setHomologacaoNaAnd(false);
           setEscolhaLink(false);
         }}
       >
@@ -2803,6 +2821,37 @@ export function AdminPainel({
                       <Campo label="Valor Homologado">
                         <input value={valorAnd} onChange={(e) => setValorAnd(mascaraReais(e.target.value))} className={inputCls} inputMode="decimal" placeholder="0,00" required />
                       </Campo>
+                      {atual && !atual.linkHomologacao && !atual.linkHomologacaoNa && (
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-ink">Link de homologação</span>
+                            <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                              <input
+                                type="checkbox"
+                                checked={homologacaoNaAnd}
+                                onChange={(evento) => {
+                                  setHomologacaoNaAnd(evento.target.checked);
+                                  if (evento.target.checked) setLinksAndamento({ ...linksAndamento, homologacao: "" });
+                                }}
+                              />
+                              N/A
+                            </label>
+                          </div>
+                          {homologacaoNaAnd ? (
+                            <p className="text-xs text-muted">Fica como N/A.</p>
+                          ) : (
+                            <input
+                              type="url"
+                              inputMode="url"
+                              value={linksAndamento.homologacao ?? ""}
+                              onChange={(evento) => setLinksAndamento({ ...linksAndamento, homologacao: evento.target.value })}
+                              className={inputCls}
+                              placeholder="https://"
+                              required
+                            />
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 }
@@ -5446,16 +5495,34 @@ function CamposLinks({ form, onChange }: { form: FormAdmin; onChange: (form: For
           />
         </Campo>
       )}
-      <Campo label="Link de homologação">
-        <input
-          type="url"
-          inputMode="url"
-          value={form.linkHomologacao}
-          onChange={(e) => onChange({ ...form, linkHomologacao: e.target.value, linkHomologacaoNa: false })}
-          className={inputCls}
-          placeholder="https://"
-        />
-      </Campo>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-ink">Link de homologação</span>
+          {ehHomologado(form.status) && (
+            <label className="flex items-center gap-2 text-sm font-medium text-ink">
+              <input
+                type="checkbox"
+                checked={form.linkHomologacaoNa}
+                onChange={(evento) => onChange({ ...form, linkHomologacaoNa: evento.target.checked, linkHomologacao: evento.target.checked ? "" : form.linkHomologacao })}
+              />
+              N/A
+            </label>
+          )}
+        </div>
+        {ehHomologado(form.status) && form.linkHomologacaoNa ? (
+          <p className="text-xs text-muted">Fica como N/A.</p>
+        ) : (
+          <input
+            type="url"
+            inputMode="url"
+            value={form.linkHomologacao}
+            onChange={(e) => onChange({ ...form, linkHomologacao: e.target.value, linkHomologacaoNa: false })}
+            className={inputCls}
+            placeholder="https://"
+            required={ehHomologado(form.status)}
+          />
+        )}
+      </div>
       <Campo label="Link do PNCP">
         <input
           type="url"
