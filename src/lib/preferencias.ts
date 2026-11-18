@@ -1,4 +1,4 @@
-export type Tema = "claro" | "escuro";
+export type Tema = "claro" | "escuro" | "auto";
 export type Cor = "padrao" | "verde" | "vinho" | "azul" | "laranja" | "roxo";
 export type AreaInicial = "legislativo" | "administrativo";
 
@@ -15,7 +15,7 @@ const CONTA_TEMA = "prazos.conta-tema";
 const CORES: Cor[] = ["padrao", "verde", "vinho", "azul", "laranja", "roxo"];
 
 export const PREFERENCIAS_PADRAO: Preferencias = {
-  tema: "claro",
+  tema: "auto",
   cor: "padrao",
   area: "legislativo",
   escopo: "meus",
@@ -29,7 +29,7 @@ function chaveDaConta(userId: string) {
 function lerGuardado(bruto: string | null): Preferencias {
   try {
     const lido = JSON.parse(bruto || "");
-    const tema: Tema = lido?.tema === "escuro" ? "escuro" : "claro";
+    const tema: Tema = lido?.tema === "claro" || lido?.tema === "escuro" || lido?.tema === "auto" ? lido.tema : "auto";
     const cor: Cor = CORES.includes(lido?.cor) ? lido.cor : "padrao";
     const area: AreaInicial = lido?.area === "administrativo" ? "administrativo" : "legislativo";
     const escopo = lido?.escopo === "equipe" ? "equipe" : "meus";
@@ -78,5 +78,6 @@ export function aplicarTema(tema: Tema, _cor: Cor = "padrao") {
   const raiz = document.documentElement;
   raiz.dataset.tema = tema;
   delete raiz.dataset.cor;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", tema === "escuro" ? "#12110e" : "#f3efe6");
+  const escuro = tema === "escuro" || (tema === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", escuro ? "#12110e" : "#f3efe6");
 }

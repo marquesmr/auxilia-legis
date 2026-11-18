@@ -34,7 +34,7 @@ const PASSOS = [
   {
     titulo: "Pode começar",
     texto:
-      "Perfil muda o nome e a senha. Configurações muda o tema, claro ou escuro, e em qual módulo a conta abre. Este aviso aparece só neste primeiro acesso. Quando fechar, ele não volta.",
+      "Perfil muda o nome e a senha. Configurações muda o tema, claro, escuro ou automático, e em qual módulo a conta abre. Este aviso aparece só neste primeiro acesso. Quando fechar, ele não volta.",
   },
 ];
 

@@ -50,6 +50,9 @@ export function BotaoConfiguracoes({ userId }: { userId: string }) {
               <Opcao nome="tema" valor="escuro" atual={prefs.tema} onChange={(tema) => setPrefs({ ...prefs, tema: tema as Tema, cor: "padrao" })}>
                 Modo escuro
               </Opcao>
+              <Opcao nome="tema" valor="auto" atual={prefs.tema} onChange={(tema) => setPrefs({ ...prefs, tema: tema as Tema, cor: "padrao" })}>
+                Automático, segue o dispositivo
+              </Opcao>
             </fieldset>
             {aviso && <p className="text-sm text-ink">{aviso}</p>}
           </div>

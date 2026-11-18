@@ -76,7 +76,7 @@ export const Route = createRootRoute({
     };
   },
   component: () => (
-    <html lang="pt-BR" data-tema="claro" spellCheck suppressHydrationWarning>
+    <html lang="pt-BR" data-tema="auto" spellCheck suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
