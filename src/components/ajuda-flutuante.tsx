@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { perguntarAjuda } from "@/lib/ajuda.functions";
 import { MessageCircle, Send, StickyNote, X } from "lucide-react";
 
@@ -6,6 +6,30 @@ type Mensagem = { de: "pessoa" | "ajuda"; texto: string };
 
 const SUGESTOES = ["Oi, o que você faz?", "Como lanço um prazo?", "E a equipe?", "Me explica o relatório"];
 const CHAVE_NOTAS = "auxilia-notas";
+const CHAVE_NOTAS_TAMANHO = "auxilia-notas-tamanho";
+const NOTA_LARGURA = 352;
+const NOTA_ALTURA = 292;
+
+function limitar(valor: number, minimo: number, maximo: number) {
+  return Math.round(Math.min(maximo, Math.max(minimo, valor)));
+}
+
+function lerTamanho() {
+  if (typeof window === "undefined") return { largura: NOTA_LARGURA, altura: NOTA_ALTURA };
+  try {
+    const bruto = sessionStorage.getItem(CHAVE_NOTAS_TAMANHO);
+    if (!bruto) return { largura: NOTA_LARGURA, altura: NOTA_ALTURA };
+    const lido = JSON.parse(bruto) as { largura?: unknown; altura?: unknown };
+    const largura = typeof lido.largura === "number" ? lido.largura : NOTA_LARGURA;
+    const altura = typeof lido.altura === "number" ? lido.altura : NOTA_ALTURA;
+    return {
+      largura: limitar(largura, 260, window.innerWidth - 32),
+      altura: limitar(altura, 200, window.innerHeight - 120),
+    };
+  } catch {
+    return { largura: NOTA_LARGURA, altura: NOTA_ALTURA };
+  }
+}
 
 function lerNota() {
   if (typeof window === "undefined") return "";
@@ -41,7 +65,10 @@ export function AjudaFlutuante({ nome, area }: { nome: string; area: "legislativ
   const [aberto, setAberto] = useState(false);
   const [notasAbertas, setNotasAbertas] = useState(false);
   const [nota, setNota] = useState("");
+  const [medida, setMedida] = useState({ largura: NOTA_LARGURA, altura: NOTA_ALTURA });
   const notaPronta = useRef(false);
+  const tamanhoPronto = useRef(false);
+  const arraste = useRef<{ x: number; y: number; largura: number; altura: number } | null>(null);
   const [texto, setTexto] = useState("");
   const [digitando, setDigitando] = useState(false);
   const fim = useRef<HTMLDivElement>(null);
@@ -56,8 +83,19 @@ export function AjudaFlutuante({ nome, area }: { nome: string; area: "legislativ
 
   useEffect(() => {
     setNota(lerNota());
+    setMedida(lerTamanho());
     notaPronta.current = true;
+    tamanhoPronto.current = true;
   }, []);
+
+  useEffect(() => {
+    if (!tamanhoPronto.current) return;
+    try {
+      sessionStorage.setItem(CHAVE_NOTAS_TAMANHO, JSON.stringify(medida));
+    } catch {
+      /* o tamanho volta ao padrão */
+    }
+  }, [medida]);
 
   useEffect(() => {
     if (!notaPronta.current) return;
@@ -100,11 +138,45 @@ export function AjudaFlutuante({ nome, area }: { nome: string; area: "legislativ
     void enviar(texto);
   }
 
+  function aoRedimensionar(evento: ReactPointerEvent<HTMLButtonElement>) {
+    if (evento.type === "pointerdown") {
+      evento.preventDefault();
+      evento.currentTarget.setPointerCapture(evento.pointerId);
+      arraste.current = { x: evento.clientX, y: evento.clientY, largura: medida.largura, altura: medida.altura };
+      return;
+    }
+    const inicio = arraste.current;
+    if (!inicio) return;
+    if (evento.type === "pointerup" || evento.type === "pointercancel") {
+      arraste.current = null;
+      return;
+    }
+    setMedida({
+      largura: limitar(inicio.largura + inicio.x - evento.clientX, 260, window.innerWidth - 32),
+      altura: limitar(inicio.altura + inicio.y - evento.clientY, 200, window.innerHeight - 120),
+    });
+  }
+
   return (
     <div className="no-print fixed bottom-4 right-4 z-30 flex flex-col items-end gap-2">
       {notasAbertas && (
-        <section className="flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-line bg-sheet shadow-lg" aria-label="Notas temporárias">
-          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <section
+          className="relative flex max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-line bg-sheet shadow-lg"
+          style={{ width: medida.largura, height: medida.altura }}
+          aria-label="Notas temporárias"
+        >
+          <button
+            type="button"
+            aria-label="Redimensionar notas"
+            onPointerDown={aoRedimensionar}
+            onPointerMove={aoRedimensionar}
+            onPointerUp={aoRedimensionar}
+            onPointerCancel={aoRedimensionar}
+            className="absolute left-1.5 top-1.5 z-10 grid size-7 cursor-nw-resize touch-none place-items-center text-muted"
+          >
+            <span className="block size-3 border-l-2 border-t-2 border-current" />
+          </button>
+          <div className="flex items-center justify-between gap-3 border-b border-line py-3 pl-9 pr-4">
             <div>
               <p className="text-sm font-medium text-ink">Notas</p>
               <p className="text-xs text-muted">Somem ao sair da conta</p>
@@ -117,7 +189,7 @@ export function AjudaFlutuante({ nome, area }: { nome: string; area: "legislativ
             value={nota}
             onChange={(evento) => setNota(evento.target.value.slice(0, 4000))}
             placeholder="Anota aqui. Recarregar a página não apaga."
-            className="m-3 h-48 resize-none rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink"
+            className="m-3 min-h-0 flex-1 resize-none rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink"
             spellCheck
             lang="pt-BR"
           />
