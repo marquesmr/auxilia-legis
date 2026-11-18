@@ -159,10 +159,18 @@ function Gestao() {
       }
     }
     void ler();
-    const id = window.setInterval(() => void ler(), 5000);
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      void ler();
+    }, 60_000);
+    const aoVoltar = () => {
+      if (document.visibilityState === "visible") void ler();
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
     return () => {
       vivo = false;
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", aoVoltar);
     };
   }, [token]);
 

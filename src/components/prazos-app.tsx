@@ -63,7 +63,8 @@ import { intervaloPeriodo, type PeriodoRelatorio } from "@/lib/admin";
 import type { ProcessoAdmin } from "@/lib/admin";
 import { AjudaFlutuante } from "@/components/ajuda-flutuante";
 import { CampoMes } from "@/components/campo-mes";
-import { marcarPresenca, estadoSistema, consultarExclusao, abrirGestaoPelaConta, pedirExclusaoConta, registrarAcessoConta, definirCidadeConta } from "@/lib/gestao.functions";
+import { estadoSistema, abrirGestaoPelaConta, pedirExclusaoConta, registrarAcessoConta, definirCidadeConta } from "@/lib/gestao.functions";
+import { pulsoConta } from "@/lib/pulso.functions";
 import { definirStatus, encerraStatus, nomeStatus, statusDaArea } from "@/lib/status-catalogo";
 import { carregarInicio } from "@/lib/inicio.functions";
 import { AvisoContaExcluida } from "@/components/aviso-exclusao";
@@ -384,23 +385,52 @@ export function PrazosApp() {
   useEffect(() => {
     if (!user?.id || !ready) return;
     let vivo = true;
-    const ler = () => {
-      void estadoSistema()
-        .then((estado) => {
-          if (!vivo) return;
-          setDiasMarcados(estado.dias ?? []);
-          setCidadeConta(estado.cidade ?? "");
-          setUfConta(estado.uf ?? "");
-          setSouGestor(Boolean(estado.administrador));
-          if (estado.bloqueado) setTrava("Seu acesso está bloqueado.");
-          else setTrava(null);
-          mostrarAvisoManutencao(estado.aviso, setAvisoManutencao);
-        })
-        .catch(() => undefined);
+    let marca = "";
+    const aplicarEstado = (estado: Awaited<ReturnType<typeof pulsoConta>>["estado"]) => {
+      setDiasMarcados(estado.dias ?? []);
+      setCidadeConta(estado.cidade ?? "");
+      setUfConta(estado.uf ?? "");
+      setSouGestor(Boolean(estado.administrador));
+      if (estado.bloqueado) setTrava("Seu acesso está bloqueado.");
+      else setTrava(null);
+      mostrarAvisoManutencao(estado.aviso, setAvisoManutencao);
     };
-    const id = window.setInterval(ler, 30_000);
+    const ler = async () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const pulso = await pulsoConta({ data: equipeVisivel });
+        if (!vivo) return;
+        aplicarEstado(pulso.estado);
+        if (pulso.exclusao.excluida && !exclusaoVista.current) {
+          sessionStorage.setItem("prazos.conta-excluida", "1");
+          sessionStorage.setItem("prazos.exclusao-motivo", pulso.exclusao.motivo);
+          setMotivoExclusaoId(pulso.exclusao.motivo);
+          setExcluida(true);
+        }
+        if (!marca) {
+          marca = pulso.marca;
+          return;
+        }
+        if (pulso.marca === marca) return;
+        marca = pulso.marca;
+        const [lista, admin, minhas] = await Promise.all([
+          listarProcessos({ data: equipeVisivel }),
+          listarAdmin({ data: equipeVisivel }),
+          listarEquipes(),
+        ]);
+        if (!vivo) return;
+        setProcessos(garantirAno(lista));
+        setAdminLista(admin);
+        setEquipes(minhas);
+        setCargaId((valor) => valor + 1);
+      } catch {
+        /* a próxima passada tenta de novo */
+      }
+    };
+    void ler();
+    const id = window.setInterval(() => void ler(), 60_000);
     const aoVoltar = () => {
-      if (document.visibilityState === "visible") ler();
+      if (document.visibilityState === "visible") void ler();
     };
     document.addEventListener("visibilitychange", aoVoltar);
     return () => {
@@ -408,28 +438,7 @@ export function PrazosApp() {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", aoVoltar);
     };
-  }, [user?.id, ready]);
-
-  useEffect(() => {
-    if (!user?.id || !ready) return;
-    let vivo = true;
-    const ler = () => {
-      void consultarExclusao({ data: { userId: user.id } })
-        .then((estado) => {
-          if (!vivo || !estado.excluida || exclusaoVista.current) return;
-          sessionStorage.setItem("prazos.conta-excluida", "1");
-          sessionStorage.setItem("prazos.exclusao-motivo", estado.motivo);
-          setMotivoExclusaoId(estado.motivo);
-          setExcluida(true);
-        })
-        .catch(() => undefined);
-    };
-    const id = window.setInterval(ler, 3000);
-    return () => {
-      vivo = false;
-      window.clearInterval(id);
-    };
-  }, [user?.id, ready]);
+  }, [user?.id, ready, equipeVisivel]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -502,22 +511,6 @@ export function PrazosApp() {
 
   useEffect(() => {
     if (!user?.id || !ready) return;
-    const id = window.setInterval(() => {
-      void listarProcessos({ data: equipeVisivel })
-        .then((lista) => setProcessos(garantirAno(lista)))
-        .catch(() => undefined);
-      void listarAdmin({ data: equipeVisivel })
-        .then((lista) => setAdminLista(lista))
-        .catch(() => undefined);
-      void listarEquipes()
-        .then((minhas) => setEquipes(minhas))
-        .catch(() => undefined);
-    }, 30_000);
-    return () => window.clearInterval(id);
-  }, [user?.id, equipeVisivel, ready]);
-
-  useEffect(() => {
-    if (!user?.id || !ready) return;
     void listarProcessos({ data: equipeVisivel })
       .then((lista) => setProcessos(garantirAno(lista)))
       .catch(() => undefined);
@@ -525,14 +518,6 @@ export function PrazosApp() {
       .then((lista) => setAdminLista(lista))
       .catch(() => undefined);
   }, [user?.id, equipeVisivel, ready]);
-
-  useEffect(() => {
-    if (!user?.id || !ready) return;
-    const bater = () => void marcarPresenca().catch(() => undefined);
-    bater();
-    const id = window.setInterval(bater, 20_000);
-    return () => window.clearInterval(id);
-  }, [user?.id, ready]);
 
   const abasTipo = [
     { id: "todos", label: "Todos" },

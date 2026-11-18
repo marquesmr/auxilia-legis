@@ -882,25 +882,6 @@ export function AdminPainel({
   }, [sinalNovo]);
 
   useEffect(() => {
-    if (!user?.id || cargaId === 0) return;
-    let vivo = true;
-    const carregar = () => {
-      const geracao = ++listaGeracao.current;
-      void listarAdmin({ data: equipeAtual })
-        .then((itens) => {
-          if (!vivo || listaGeracao.current !== geracao) return;
-          setLista(itens);
-        })
-        .catch(() => undefined);
-    };
-    const id = window.setInterval(carregar, 30_000);
-    return () => {
-      vivo = false;
-      window.clearInterval(id);
-    };
-  }, [user?.id, equipeAtual, cargaId]);
-
-  useEffect(() => {
     if (!user?.id) return;
     void listarCiAnotacoes()
       .then(setAnotacoesCi)
@@ -908,7 +889,7 @@ export function AdminPainel({
     void listarCiAvulsas()
       .then(setCiAvulsas)
       .catch(() => undefined);
-  }, [user?.id, lista]);
+  }, [user?.id, cargaId]);
 
   useEffect(() => {
     setParte(0);
