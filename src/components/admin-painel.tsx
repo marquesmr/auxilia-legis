@@ -157,6 +157,15 @@ const TOM: Record<UrgenciaAdmin, { badge: string; bar: string }> = {
   cancelado: { badge: "bg-[var(--card-off-soft)] text-[var(--card-off)]", bar: "bg-[var(--card-off)]" },
 };
 
+function indiceDoStatus(codigo: string) {
+  const lista = listaCodigos("administrativo");
+  const indice = lista.indexOf(codigo);
+  if (indice >= 0) return indice % 7;
+  let soma = 0;
+  for (const letra of codigo) soma += letra.charCodeAt(0);
+  return soma % 7;
+}
+
 const inputCls = "h-11 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink placeholder:text-muted";
 
 const TIPOS_LINK_ANDAMENTO = [
@@ -970,6 +979,7 @@ export function AdminPainel({
     valor: lista.filter((p) => p.tipo === tipo).length,
   })).filter((item) => item.valor > 0);
   const porStatus = listaCodigos("administrativo").map((status) => ({
+    codigo: status,
     rotulo: statusAdminLabel(status),
     valor: lista.filter((p) => p.status === status).length,
   })).filter((item) => item.valor > 0);
@@ -1706,8 +1716,8 @@ export function AdminPainel({
               <div>
                 <p className="mb-2 text-xs font-medium text-muted">Status</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {porStatus.map((item, indice) => (
-                    <Resumo key={item.rotulo} valor={item.valor} rotulo={item.rotulo} indice={indice} />
+                  {porStatus.map((item) => (
+                    <Resumo key={item.codigo} valor={item.valor} rotulo={item.rotulo} indice={indiceDoStatus(item.codigo)} />
                   ))}
                 </div>
               </div>
@@ -2950,6 +2960,8 @@ function CardAdmin({
   const [moverAberto, setMoverAberto] = useState(false);
   const u = urgenciaAdmin(processo);
   const tom = TOM[u];
+  const corStatus = indiceDoStatus(processo.status);
+  const prazoUrgente = u === "vencido" || u === "hoje";
   return (
     <li
       draggable
@@ -2959,9 +2971,9 @@ function CardAdmin({
       }}
       className="relative flex h-full min-w-0 cursor-grab flex-col overflow-hidden rounded-2xl border border-line bg-sheet active:cursor-grabbing"
     >
-      <span className={`absolute inset-y-0 left-0 w-1.5 ${tom.bar}`} />
+      <span className={`absolute inset-y-0 left-0 w-1.5 resumo-barra-${corStatus}`} />
       <div className="flex flex-1 flex-col px-3 py-3 pl-4">
-        <span className={`w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${tom.badge}`}>{prazoAdminLabel(processo)}</span>
+        <span className={`w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${prazoUrgente ? tom.badge : `resumo-${corStatus} resumo-fundo-${corStatus}`}`}>{prazoAdminLabel(processo)}</span>
         <p className="mt-2 truncate font-display text-xl leading-none tracking-tight text-ink">
           {processo.numero ? rotuloNumero(processo.numero, processo.numeroAno) : statusAdminLabel(processo.status)}
         </p>
@@ -2972,7 +2984,7 @@ function CardAdmin({
             : ""}
         </p>
         {processo.referencia && <p className="mt-1 truncate text-sm font-medium text-ink">{processo.referencia}</p>}
-        <p className="mt-1 truncate text-xs text-muted">{statusAdminLabel(processo.status)}</p>
+        <p className={`mt-1 truncate text-xs resumo-${corStatus}`}>{statusAdminLabel(processo.status)}</p>
         <div className="mt-auto flex flex-col gap-1.5 pt-3 sm:flex-row sm:flex-wrap">
           <button type="button" onClick={onAndamento} className="inline-flex h-8 w-full items-center rounded-lg bg-pine-soft px-2.5 text-xs font-medium text-pine sm:w-auto">
             Andamento

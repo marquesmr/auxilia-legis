@@ -187,6 +187,20 @@ html[data-tema="escuro"] {
 .resumo-4 { color: var(--resumo-4); }
 .resumo-5 { color: var(--resumo-5); }
 .resumo-6 { color: var(--resumo-6); }
+.resumo-barra-0 { background: var(--resumo-0); }
+.resumo-barra-1 { background: var(--resumo-1); }
+.resumo-barra-2 { background: var(--resumo-2); }
+.resumo-barra-3 { background: var(--resumo-3); }
+.resumo-barra-4 { background: var(--resumo-4); }
+.resumo-barra-5 { background: var(--resumo-5); }
+.resumo-barra-6 { background: var(--resumo-6); }
+.resumo-fundo-0 { background: color-mix(in srgb, var(--resumo-0) 16%, transparent); }
+.resumo-fundo-1 { background: color-mix(in srgb, var(--resumo-1) 16%, transparent); }
+.resumo-fundo-2 { background: color-mix(in srgb, var(--resumo-2) 16%, transparent); }
+.resumo-fundo-3 { background: color-mix(in srgb, var(--resumo-3) 16%, transparent); }
+.resumo-fundo-4 { background: color-mix(in srgb, var(--resumo-4) 16%, transparent); }
+.resumo-fundo-5 { background: color-mix(in srgb, var(--resumo-5) 16%, transparent); }
+.resumo-fundo-6 { background: color-mix(in srgb, var(--resumo-6) 16%, transparent); }
 
 html[data-cor="azul"] {
   --color-pine: #1a4e86;
