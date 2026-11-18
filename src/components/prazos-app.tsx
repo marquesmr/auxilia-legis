@@ -306,6 +306,11 @@ export function PrazosApp() {
   const [detalheSaida, setDetalheSaida] = useState("");
   const [pedindoExclusao, setPedindoExclusao] = useState(false);
   const acessoExclusao = useRef(false);
+  const desdePulso = useRef<string | null>(null);
+  const marcaEquipesPulso = useRef("");
+  const marcaCiPulso = useRef("");
+  const equipeDoPulso = useRef<string | null | undefined>(undefined);
+  const listaJaCarregada = useRef(false);
   const [nomePerfil, setNomePerfil] = useState("");
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   const [parte, setParte] = useState(0);
@@ -385,7 +390,21 @@ export function PrazosApp() {
   useEffect(() => {
     if (!user?.id || !ready) return;
     let vivo = true;
-    let marca = "";
+    if (equipeDoPulso.current !== undefined && equipeDoPulso.current !== equipeVisivel) {
+      desdePulso.current = null;
+      marcaEquipesPulso.current = "";
+      marcaCiPulso.current = "";
+    }
+    equipeDoPulso.current = equipeVisivel;
+    const juntar = <T extends { id: string }>(lista: T[], alterados: T[], removidos: string[]) => {
+      if (!alterados.length && !removidos.length) return lista;
+      const fora = new Set(removidos);
+      const mapa = new Map(lista.filter((item) => !fora.has(item.id)).map((item) => [item.id, item]));
+      for (const item of alterados) {
+        if (!fora.has(item.id)) mapa.set(item.id, item);
+      }
+      return [...mapa.values()];
+    };
     const aplicarEstado = (estado: Awaited<ReturnType<typeof pulsoConta>>["estado"]) => {
       setDiasMarcados(estado.dias ?? []);
       setCidadeConta(estado.cidade ?? "");
@@ -398,7 +417,14 @@ export function PrazosApp() {
     const ler = async () => {
       if (document.visibilityState === "hidden") return;
       try {
-        const pulso = await pulsoConta({ data: equipeVisivel });
+        const pulso = await pulsoConta({
+          data: {
+            equipeId: equipeVisivel,
+            desde: desdePulso.current,
+            marcaEquipes: marcaEquipesPulso.current,
+            marcaCi: marcaCiPulso.current,
+          },
+        });
         if (!vivo) return;
         aplicarEstado(pulso.estado);
         if (pulso.exclusao.excluida && !exclusaoVista.current) {
@@ -407,22 +433,19 @@ export function PrazosApp() {
           setMotivoExclusaoId(pulso.exclusao.motivo);
           setExcluida(true);
         }
-        if (!marca) {
-          marca = pulso.marca;
-          return;
+        if (pulso.legislativos.length || pulso.removidosLegislativo.length) {
+          setProcessos((atual) => garantirAno(juntar(atual, pulso.legislativos, pulso.removidosLegislativo)));
         }
-        if (pulso.marca === marca) return;
-        marca = pulso.marca;
-        const [lista, admin, minhas] = await Promise.all([
-          listarProcessos({ data: equipeVisivel }),
-          listarAdmin({ data: equipeVisivel }),
-          listarEquipes(),
-        ]);
-        if (!vivo) return;
-        setProcessos(garantirAno(lista));
-        setAdminLista(admin);
-        setEquipes(minhas);
-        setCargaId((valor) => valor + 1);
+        if (pulso.administrativos.length || pulso.removidosAdministrativo.length || pulso.ciMudou) {
+          if (pulso.administrativos.length || pulso.removidosAdministrativo.length) {
+            setAdminLista((atual) => juntar(atual, pulso.administrativos, pulso.removidosAdministrativo));
+          }
+          setCargaId((valor) => valor + 1);
+        }
+        if (pulso.equipes) setEquipes(pulso.equipes);
+        desdePulso.current = pulso.agora;
+        marcaEquipesPulso.current = pulso.marcaEquipes;
+        marcaCiPulso.current = pulso.marcaCi;
       } catch {
         /* a próxima passada tenta de novo */
       }
@@ -495,6 +518,7 @@ export function PrazosApp() {
           setExcluida(true);
         }
         setContaId(usuarioId);
+        desdePulso.current = pacote.agora;
         setReady(true);
       } catch {
         if (cancelado) return;
@@ -511,6 +535,10 @@ export function PrazosApp() {
 
   useEffect(() => {
     if (!user?.id || !ready) return;
+    if (!listaJaCarregada.current) {
+      listaJaCarregada.current = true;
+      return;
+    }
     void listarProcessos({ data: equipeVisivel })
       .then((lista) => setProcessos(garantirAno(lista)))
       .catch(() => undefined);

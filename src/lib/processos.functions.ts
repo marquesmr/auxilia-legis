@@ -236,6 +236,28 @@ export async function processosDaConta(userId: string, equipeId: string | null) 
   return linhas.map(linhaParaProcesso);
 }
 
+export async function processosAlterados(userId: string, equipeId: string | null, desde: string, ate: string) {
+  const sql = await getSql();
+  await garantirColunas(sql);
+  await sql.query("alter table processos add column if not exists atualizado_em timestamptz not null default now()");
+  if (equipeId) {
+    const membro = await sql<{ ok: number }>`
+      select 1 as ok from equipe_membros where equipe_id = ${equipeId} and user_id = ${userId}
+    `;
+    if (!membro.length) return [];
+  }
+  const filtro = equipeId ? "p.team_id = $1" : "p.user_id = $1 and p.team_id is null";
+  const linhas = await sql.query<Linha>(
+    `select ${SELECT_PROC}
+     from processos p
+     left join "user" u on u.id = p.user_id
+     where ${filtro} and p.atualizado_em > $2::timestamptz and p.atualizado_em <= $3::timestamptz
+     order by p.atualizado_em asc`,
+    [equipeId ?? userId, desde, ate],
+  );
+  return linhas.map(linhaParaProcesso);
+}
+
 export const listarProcessos = createServerFn({ method: "GET" })
   .validator((equipeId: unknown) => {
     if (equipeId == null || equipeId === "") return null;

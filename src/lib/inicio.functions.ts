@@ -15,7 +15,11 @@ export const carregarInicio = createServerFn({ method: "POST" })
     const { processosDaConta } = await import("./processos.functions");
     const { adminDaConta } = await import("./admin.functions");
     const { abasAtivas, lerEstado, lerExclusao, listarStatusCatalogo } = await import("./gestao.server");
+    const { getSql } = await import("./db");
+    const { garantirPulso } = await import("./pulso.functions");
     const userId = context.userId;
+    const sql = await getSql();
+    await garantirPulso(sql);
     const equipes = await equipesDaConta(userId);
     const equipeId = data.equipeId && equipes.some((equipe) => equipe.id === data.equipeId) ? data.equipeId : null;
     const [processos, administrativos, abas, estado, exclusao, status] = await Promise.all([
@@ -26,6 +30,9 @@ export const carregarInicio = createServerFn({ method: "POST" })
       lerExclusao({ userId }),
       listarStatusCatalogo(),
     ]);
+    const relogio = await sql<{ agora: Date | string }>`select clock_timestamp() as agora`;
+    const brutoAgora = relogio[0]?.agora;
+    const agora = brutoAgora instanceof Date ? brutoAgora.toISOString() : new Date(String(brutoAgora)).toISOString();
     return {
       equipes,
       equipeId,
@@ -36,6 +43,7 @@ export const carregarInicio = createServerFn({ method: "POST" })
       exclusao,
       navegador: { confiado: true, ativo: false, expiraEm: null as string | null },
       status,
+      agora,
     };
   });
 
