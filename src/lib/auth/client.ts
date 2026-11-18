@@ -201,6 +201,10 @@ export async function signOut(redirectTo = "/"): Promise<void> {
     redirect: () => {
       try {
         sessionStorage.removeItem("auxilia-notas");
+        sessionStorage.removeItem("auxilia-notas-tamanho");
+        const canal = new BroadcastChannel("auxilia-notas");
+        canal.postMessage({ fechar: true });
+        canal.close();
       } catch {
         /* a nota já some com a aba */
       }
