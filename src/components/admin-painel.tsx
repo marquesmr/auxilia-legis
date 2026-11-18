@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BadgeCheck, Ban, BarChart3, Check, CircleDollarSign, Copy, Expand, FilePen, FileText, Files, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Trash2, TriangleAlert, Wallet, X } from "lucide-react";
+import { BadgeCheck, Ban, BarChart3, Check, CircleDollarSign, Copy, Expand, FilePen, FileText, Files, GripVertical, Link2, Megaphone, MoreVertical, Pencil, Plus, Printer, Repeat2, Scale, Search, Target, Trash2, TriangleAlert, Wallet, X } from "lucide-react";
 import {
   MODALIDADES,
   avisoAdminKey,
@@ -2964,6 +2964,7 @@ function CardAdmin({
   onExcluir: () => void;
 }) {
   const [detalhes, setDetalhes] = useState(false);
+  const [finalidade, setFinalidade] = useState("");
   const [historicoAberto, setHistoricoAberto] = useState(false);
   const [moverAberto, setMoverAberto] = useState(false);
   const u = urgenciaAdmin(processo);
@@ -3029,7 +3030,7 @@ function CardAdmin({
           </div>
         )}
       </div>
-      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) setHistoricoAberto(false); }}>
+      <Dialog.Root open={detalhes} onOpenChange={(aberto) => { setDetalhes(aberto); if (!aberto) { setHistoricoAberto(false); setFinalidade(""); } }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-20 bg-ink/40" />
           <Dialog.Content
@@ -3069,7 +3070,23 @@ function CardAdmin({
                   largo
                   justificar
                   copiar
+                  extra={processo.objeto.trim() ? (
+                    <button
+                      type="button"
+                      aria-label="Gerar finalidade do objeto"
+                      title="Gerar finalidade"
+                      onClick={() => {
+                        const texto = finalidadeDoObjeto(processo.objeto);
+                        setFinalidade(texto);
+                        void navigator.clipboard.writeText(texto);
+                      }}
+                      className="grid size-6 place-items-center rounded-md text-muted"
+                    >
+                      <Target className="size-3.5" />
+                    </button>
+                  ) : null}
                 />
+                {finalidade ? <p className="col-span-2 text-xs font-medium text-ink">{finalidade}</p> : null}
                 <Info rotulo="Comunicação interna" valor={processo.ciNumero != null ? formatarPeca(processo.ciNumero, processo.ciAno) : "—"} />
                 <Info rotulo="Origem da CI" valor={processo.ciOrigem || "—"} />
                 <Info rotulo="Parecer" valor={processo.parecerNa ? "N/A" : processo.parecerNumero != null ? formatarPeca(processo.parecerNumero, processo.parecerAno) : "—"} />
@@ -6905,6 +6922,25 @@ function imprimirCapas(lista: ProcessoAdmin[], volumes: Record<string, number> =
   };
   window.addEventListener("afterprint", voltar, { once: true });
   window.print();
+}
+
+function finalidadeDoObjeto(objeto: string) {
+  const base = objeto.replace(/\s+/g, " ").trim();
+  if (!base) return "";
+  const menor = base.toLocaleLowerCase("pt-BR");
+  const marcas = [",", ";", " destinado", " destinada", " visando", " a fim de"];
+  let corte = base.length;
+  for (const marca of marcas) {
+    const em = menor.indexOf(marca);
+    if (em >= 12 && em < corte) corte = em;
+  }
+  let texto = base.slice(0, corte).replace(/[.:;,\-–—]+$/g, "").trim().toLocaleUpperCase("pt-BR");
+  const aparar = (valor: string) => valor.replace(/\s+(DE|DA|DO|DAS|DOS|PARA|COM|EM|E|A|O|À|AO|AS|OS|NA|NO|NAS|NOS)$/u, "").trim();
+  if (texto.length <= 60) return aparar(texto).slice(0, 60);
+  const limite = texto.slice(0, 60);
+  const espaco = limite.lastIndexOf(" ");
+  texto = aparar((espaco >= 20 ? limite.slice(0, espaco) : limite).trim());
+  return texto.slice(0, 60).trim();
 }
 
 function Info({ rotulo, valor, largo, justificar, copiar, extra }: { rotulo: string; valor: string; largo?: boolean; justificar?: boolean; copiar?: boolean; extra?: ReactNode }) {
