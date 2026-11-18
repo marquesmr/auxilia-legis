@@ -191,11 +191,11 @@ function formFrom(p: Processo): FormState {
 }
 
 const TOM: Record<Urgencia, { badge: string; bar: string; label: string }> = {
-  vencido: { badge: "bg-seal-soft text-seal", bar: "bg-seal", label: "Vencido" },
-  hoje: { badge: "bg-seal-soft text-seal", bar: "bg-seal", label: "Hoje" },
-  proximo: { badge: "bg-brass-soft text-brass", bar: "bg-brass", label: "Vencendo" },
-  ok: { badge: "bg-pine-soft text-pine", bar: "bg-pine", label: "No prazo" },
-  concluido: { badge: "bg-line text-muted", bar: "bg-line", label: "Arquivado" },
+  vencido: { badge: "bg-[var(--card-alerta-soft)] text-[var(--card-alerta)]", bar: "bg-[var(--card-alerta)]", label: "Vencido" },
+  hoje: { badge: "bg-[var(--card-alerta-soft)] text-[var(--card-alerta)]", bar: "bg-[var(--card-alerta)]", label: "Hoje" },
+  proximo: { badge: "bg-[var(--card-aviso-soft)] text-[var(--card-aviso)]", bar: "bg-[var(--card-aviso)]", label: "Vencendo" },
+  ok: { badge: "bg-[var(--card-ok-soft)] text-[var(--card-ok)]", bar: "bg-[var(--card-ok)]", label: "No prazo" },
+  concluido: { badge: "bg-[var(--card-fim-soft)] text-[var(--card-fim)]", bar: "bg-[var(--card-fim)]", label: "Arquivado" },
 };
 
 function IconeLegislativo({ className }: { className?: string }) {

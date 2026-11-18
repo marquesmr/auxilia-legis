@@ -149,12 +149,12 @@ function correspondeFiltro(processo: ProcessoAdmin, filtro: string): boolean {
 }
 
 const TOM: Record<UrgenciaAdmin, { badge: string; bar: string }> = {
-  vencido: { badge: "bg-seal-soft text-seal", bar: "bg-seal" },
-  hoje: { badge: "bg-seal-soft text-seal", bar: "bg-seal" },
-  proximo: { badge: "bg-brass-soft text-brass", bar: "bg-brass" },
-  ok: { badge: "bg-pine-soft text-pine", bar: "bg-pine" },
-  encerrado: { badge: "bg-[var(--color-comp-soft)] text-[var(--color-comp)]", bar: "bg-[var(--color-comp)]" },
-  cancelado: { badge: "bg-line text-muted", bar: "bg-line" },
+  vencido: { badge: "bg-[var(--card-alerta-soft)] text-[var(--card-alerta)]", bar: "bg-[var(--card-alerta)]" },
+  hoje: { badge: "bg-[var(--card-alerta-soft)] text-[var(--card-alerta)]", bar: "bg-[var(--card-alerta)]" },
+  proximo: { badge: "bg-[var(--card-aviso-soft)] text-[var(--card-aviso)]", bar: "bg-[var(--card-aviso)]" },
+  ok: { badge: "bg-[var(--card-ok-soft)] text-[var(--card-ok)]", bar: "bg-[var(--card-ok)]" },
+  encerrado: { badge: "bg-[var(--card-fim-soft)] text-[var(--card-fim)]", bar: "bg-[var(--card-fim)]" },
+  cancelado: { badge: "bg-[var(--card-off-soft)] text-[var(--card-off)]", bar: "bg-[var(--card-off)]" },
 };
 
 const inputCls = "h-11 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink placeholder:text-muted";
@@ -1725,8 +1725,8 @@ export function AdminPainel({
               <div>
                 <p className="mb-2 text-xs font-medium text-muted">Status</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {porStatus.map((item) => (
-                    <Resumo key={item.rotulo} valor={item.valor} rotulo={item.rotulo} tom="brass" />
+                  {porStatus.map((item, indice) => (
+                    <Resumo key={item.rotulo} valor={item.valor} rotulo={item.rotulo} indice={indice} />
                   ))}
                 </div>
               </div>
@@ -6981,8 +6981,8 @@ function Campo({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Resumo({ valor, rotulo, tom }: { valor: number; rotulo: string; tom: "seal" | "brass" | "pine" }) {
-  const cor = tom === "seal" ? "text-seal" : tom === "brass" ? "text-brass" : "text-pine";
+function Resumo({ valor, rotulo, tom, indice }: { valor: number; rotulo: string; tom?: "seal" | "brass" | "pine"; indice?: number }) {
+  const cor = indice != null ? `resumo-${indice % 7}` : tom === "seal" ? "text-seal" : tom === "brass" ? "text-brass" : "text-pine";
   return (
     <div className="rounded-2xl border border-line bg-sheet px-3 py-3">
       <p className={`font-display text-3xl leading-none ${cor}`}>{valor}</p>
