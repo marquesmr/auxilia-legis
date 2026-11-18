@@ -199,6 +199,11 @@ export async function signOut(redirectTo = "/"): Promise<void> {
     },
     clearToken: () => setBearerToken(null),
     redirect: () => {
+      try {
+        sessionStorage.removeItem("auxilia-notas");
+      } catch {
+        /* a nota já some com a aba */
+      }
       soltarTemaDaConta();
       liberarProximoAcesso();
       window.location.href = redirectTo;
