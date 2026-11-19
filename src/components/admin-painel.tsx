@@ -3128,7 +3128,7 @@ function CardAdmin({
                     </button>
                   ) : null}
                 />
-                {finalidade ? <p className="col-span-2 text-xs font-medium text-ink">{finalidade}</p> : null}
+                {finalidade ? <p className="col-span-2 whitespace-pre-wrap break-words text-xs font-medium text-ink">{finalidade}</p> : null}
                 <Info rotulo="Comunicação interna" valor={processo.ciNumero != null ? formatarPeca(processo.ciNumero, processo.ciAno) : "—"} />
                 <Info rotulo="Origem da CI" valor={processo.ciOrigem || "—"} />
                 <Info rotulo="Parecer" valor={processo.parecerNa ? "N/A" : processo.parecerNumero != null ? formatarPeca(processo.parecerNumero, processo.parecerAno) : "—"} />
@@ -6987,20 +6987,8 @@ function imprimirCapas(lista: ProcessoAdmin[], volumes: Record<string, number> =
 function finalidadeDoObjeto(objeto: string) {
   const base = objeto.replace(/\s+/g, " ").trim();
   if (!base) return "";
-  const menor = base.toLocaleLowerCase("pt-BR");
-  const marcas = [",", ";", " destinado", " destinada", " visando", " a fim de"];
-  let corte = base.length;
-  for (const marca of marcas) {
-    const em = menor.indexOf(marca);
-    if (em >= 12 && em < corte) corte = em;
-  }
-  let texto = base.slice(0, corte).replace(/[.:;,\-–—]+$/g, "").trim().toLocaleUpperCase("pt-BR");
-  const aparar = (valor: string) => valor.replace(/\s+(DE|DA|DO|DAS|DOS|PARA|COM|EM|E|A|O|À|AO|AS|OS|NA|NO|NAS|NOS)$/u, "").trim();
-  if (texto.length <= 60) return aparar(texto).slice(0, 60);
-  const limite = texto.slice(0, 60);
-  const espaco = limite.lastIndexOf(" ");
-  texto = aparar((espaco >= 20 ? limite.slice(0, espaco) : limite).trim());
-  return texto.slice(0, 60).trim();
+  const texto = base.replace(/[.:;,\-–—]+$/g, "").trim().toLocaleUpperCase("pt-BR");
+  return texto.replace(/\s+(DE|DA|DO|DAS|DOS|PARA|COM|EM|E|A|O|À|AO|AS|OS|NA|NO|NAS|NOS)$/u, "").trim();
 }
 
 function Info({ rotulo, valor, largo, justificar, copiar, extra }: { rotulo: string; valor: string; largo?: boolean; justificar?: boolean; copiar?: boolean; extra?: ReactNode }) {
