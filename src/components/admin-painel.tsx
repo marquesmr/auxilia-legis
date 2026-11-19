@@ -58,7 +58,7 @@ import { GraficoAdmin } from "@/components/admin-grafico";
 import { LeiLicitacoes } from "@/components/lei-licitacoes";
 import { Timbrado, TimbradoRodape } from "@/components/timbrado";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { addDaysIso, formatDate, todayIso, type Andamento } from "@/lib/prazos";
+import { addDaysIso, ajustarPrazo, formatDate, textoPrazo, todayIso, type Andamento } from "@/lib/prazos";
 import { encerraStatus, listaCodigos } from "@/lib/status-catalogo";
 
 type FiltroAdmin = string;
@@ -956,7 +956,7 @@ export function AdminPainel({
       if (faixaPrazo(a.status) >= 2) return numero;
       const semDia = (semDiaPrazo(a) ? 1 : 0) - (semDiaPrazo(b) ? 1 : 0);
       if (semDia !== 0) return semDia;
-      return (dataAlvo(a).localeCompare(dataAlvo(b)) || numero) * fator;
+      return (ajustarPrazo(dataAlvo(a)).localeCompare(ajustarPrazo(dataAlvo(b))) || numero) * fator;
     });
   }, [lista, filtro, busca, tipoAba, ordemCampo, ordemDir]);
 
@@ -3133,7 +3133,7 @@ function CardAdmin({
                 <Info rotulo="Origem da CI" valor={processo.ciOrigem || "—"} />
                 <Info rotulo="Parecer" valor={processo.parecerNa ? "N/A" : processo.parecerNumero != null ? formatarPeca(processo.parecerNumero, processo.parecerAno) : "—"} />
                 <Info rotulo="Início" valor={tipoSimples(processo.tipo) ? "—" : formatDate(processo.dataInicio)} />
-                <Info rotulo="Prazo" valor={processo.previsaoEtapa ? formatDate(processo.previsaoEtapa) : "—"} />
+                <Info rotulo="Prazo" valor={processo.previsaoEtapa ? textoPrazo(processo.previsaoEtapa) : "—"} />
                 <Info rotulo="Encerramento" valor={tipoSimples(processo.tipo) ? "—" : formatDate(processo.encerramento)} />
                 <Info rotulo="Aviso" valor={`${processo.alertaDias} dias antes`} />
                 <Info rotulo="Contratado ou fornecedor" valor={processo.contratado || "—"} />
@@ -4954,7 +4954,7 @@ function RelatorioPagamentos({
             <Info rotulo="Origem da CI" valor={escolhido.ciOrigem || "—"} />
             <Info rotulo="Parecer" valor={escolhido.parecerNa ? "N/A" : escolhido.parecerNumero != null ? formatarPeca(escolhido.parecerNumero, escolhido.parecerAno) : "—"} />
             <Info rotulo="Início" valor={tipoSimples(escolhido.tipo) ? "—" : formatDate(escolhido.dataInicio)} />
-            <Info rotulo="Prazo" valor={escolhido.previsaoEtapa ? formatDate(escolhido.previsaoEtapa) : "—"} />
+            <Info rotulo="Prazo" valor={escolhido.previsaoEtapa ? textoPrazo(escolhido.previsaoEtapa) : "—"} />
             <Info rotulo="Encerramento" valor={tipoSimples(escolhido.tipo) ? "—" : formatDate(escolhido.encerramento)} />
             <Info rotulo="Contratado ou fornecedor" valor={escolhido.contratado || "—"} />
             <Info rotulo="CPF ou CNPJ" valor={escolhido.documento || "—"} />

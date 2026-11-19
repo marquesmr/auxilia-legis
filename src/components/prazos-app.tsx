@@ -29,9 +29,11 @@ import {
   type RetornoLegislativo,
   type TipoLei,
   addDaysIso,
+  ajustarPrazo,
   avisoKey,
   avisosJaEnviados,
   daysUntil,
+  definirCalendario,
   formatDate,
   juntarNumero,
   lerProcessosLocais,
@@ -43,6 +45,7 @@ import {
   rotuloRetorno,
   rotuloResposta,
   separarNumero,
+  textoPrazo,
   todayIso,
   urgencia,
   type DiaMarcado,
@@ -325,6 +328,7 @@ export function PrazosApp() {
   const [souGestor, setSouGestor] = useState(false);
   const [excluida, setExcluida] = useState(false);
   const [diasMarcados, setDiasMarcados] = useState<DiaMarcado[]>([]);
+  definirCalendario(diasMarcados);
   const [cidadeConta, setCidadeConta] = useState("");
   const [ufConta, setUfConta] = useState("");
   const [avisoCidade, setAvisoCidade] = useState(false);
@@ -1279,7 +1283,7 @@ export function PrazosApp() {
                             <span className="block text-ink">{p.parte}</span>
                             <span className="text-muted"> · {p.assunto}</span>
                             <span className="block text-muted">
-                              {prazoLabel(p)} · {formatDate(p.prazo)}
+                              {prazoLabel(p)} · {textoPrazo(p.prazo)}
                             </span>
                           </span>
                         </li>
@@ -2052,7 +2056,7 @@ function ProcessoCard({
   const u = urgencia(processo);
   const tom = TOM[u];
   const ultimo = processo.historico[processo.historico.length - 1];
-  const dias = daysUntil(processo.prazo);
+  const dias = daysUntil(ajustarPrazo(processo.prazo));
 
   return (
     <li
@@ -2095,7 +2099,7 @@ function ProcessoCard({
               <CalendarClock className="size-3" />
               Prazo
             </p>
-            <p className="font-medium text-ink">{formatDate(processo.prazo)}</p>
+            <p className="font-medium text-ink">{textoPrazo(processo.prazo)}</p>
             {!encerraStatus("legislativo", processo.status) && dias > 0 && (
               <p className="text-xs text-muted">Aviso {processo.alertaDias} dias antes</p>
             )}
@@ -2642,7 +2646,7 @@ function RelatorioLegislativo({
                     <p className="text-ink">{item.parte}</p>
                     <p className="text-muted">{item.assunto}</p>
                     <p className="mt-1 text-ink">
-                      {prazoLabel(item)} · {formatDate(item.prazo)}
+                      {prazoLabel(item)} · {textoPrazo(item.prazo)}
                     </p>
                     <p className="text-muted">{rotuloRetorno(item)}</p>
                     <p className="text-ink">{rotuloResposta(item)}</p>
@@ -2670,7 +2674,7 @@ function RelatorioLegislativo({
                         <td className="py-2 pr-3 text-ink">{item.parte}</td>
                         <td className="py-2 pr-3 text-ink">{item.assunto}</td>
                         <td className="py-2 pr-3 text-ink">
-                          {prazoLabel(item)} · {formatDate(item.prazo)}
+                          {prazoLabel(item)} · {textoPrazo(item.prazo)}
                         </td>
                         <td className="py-2 pr-3 text-ink">{rotuloRetorno(item)}</td>
                         <td className="py-2 text-ink">{rotuloResposta(item)}</td>

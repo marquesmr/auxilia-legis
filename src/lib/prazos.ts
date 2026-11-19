@@ -69,6 +69,48 @@ export function daysUntil(iso: string, now = new Date()): number {
 
 export type DiaMarcado = { data: string; nome: string; tipo: "feriado" | "facultativo" | "recesso"; municipio?: string };
 
+const semExpediente = new Set<string>();
+const feriados = new Set<string>();
+
+export function definirCalendario(dias: DiaMarcado[]) {
+  semExpediente.clear();
+  feriados.clear();
+  for (const dia of dias) {
+    const data = dia.data.slice(0, 10);
+    semExpediente.add(data);
+    if (dia.tipo === "feriado") feriados.add(data);
+  }
+}
+
+function ehFimDeSemana(iso: string) {
+  const dia = parseDate(iso).getDay();
+  return dia === 0 || dia === 6;
+}
+
+function ehDiaUtil(iso: string) {
+  return !ehFimDeSemana(iso) && !semExpediente.has(iso);
+}
+
+export function ajustarPrazo(iso: string): string {
+  const data = iso.slice(0, 10);
+  if (!feriados.has(data)) return data;
+  let cursor = parseDate(data);
+  let uteis = 0;
+  for (let i = 0; i < 45 && uteis < 2; i += 1) {
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
+    const proximo = todayIso(cursor);
+    if (ehDiaUtil(proximo)) uteis += 1;
+    if (uteis === 2) return proximo;
+  }
+  return data;
+}
+
+export function textoPrazo(iso: string): string {
+  const efetivo = ajustarPrazo(iso);
+  if (efetivo === iso.slice(0, 10)) return formatDate(iso);
+  return `${formatDate(efetivo)} · 2º dia útil`;
+}
+
 export function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
@@ -79,7 +121,7 @@ export function formatDate(iso: string): string {
 
 export function urgencia(p: Processo, now = new Date()): Urgencia {
   if (encerraStatus("legislativo", p.status)) return "concluido";
-  const dias = daysUntil(p.prazo, now);
+  const dias = daysUntil(ajustarPrazo(p.prazo), now);
   if (dias < 0) return "vencido";
   if (dias === 0) return "hoje";
   if (dias <= p.alertaDias) return "proximo";
@@ -88,14 +130,16 @@ export function urgencia(p: Processo, now = new Date()): Urgencia {
 
 export function prazoLabel(p: Processo, now = new Date()): string {
   if (encerraStatus("legislativo", p.status)) return nomeStatus("legislativo", p.status);
-  const dias = daysUntil(p.prazo, now);
+  const alvo = ajustarPrazo(p.prazo);
+  const dias = daysUntil(alvo, now);
+  const mudou = alvo !== p.prazo.slice(0, 10);
   if (dias < 0) {
     const n = Math.abs(dias);
     return n === 1 ? "Vencido há 1 dia" : `Vencido há ${n} dias`;
   }
-  if (dias === 0) return "Vence hoje";
-  if (dias === 1) return "Vence amanhã";
-  return `Vence em ${dias} dias`;
+  if (dias === 0) return mudou ? "Vence hoje, no 2º dia útil" : "Vence hoje";
+  if (dias === 1) return mudou ? "Vence amanhã, no 2º dia útil" : "Vence amanhã";
+  return mudou ? `Vence em ${dias} dias, no 2º dia útil` : `Vence em ${dias} dias`;
 }
 
 export function precisaAviso(p: Processo, now = new Date()): boolean {
@@ -115,7 +159,7 @@ export function ordenar(lista: Processo[], now = new Date()): Processo[] {
   return [...lista].sort((a, b) => {
     const diff = RANK[urgencia(a, now)] - RANK[urgencia(b, now)];
     if (diff !== 0) return diff;
-    return a.prazo.localeCompare(b.prazo);
+    return ajustarPrazo(a.prazo).localeCompare(ajustarPrazo(b.prazo));
   });
 }
 
@@ -202,8 +246,9 @@ export type ClasseResposta = "no-prazo" | "fora" | "aguardando";
 
 export function classeResposta(p: Processo, now = new Date()): ClasseResposta {
   const resposta = dataRespostaIso(p);
-  if (resposta) return resposta <= p.prazo ? "no-prazo" : "fora";
-  if (daysUntil(p.prazo, now) < 0) return "fora";
+  const limite = ajustarPrazo(p.prazo);
+  if (resposta) return resposta <= limite ? "no-prazo" : "fora";
+  if (daysUntil(limite, now) < 0) return "fora";
   return "aguardando";
 }
 

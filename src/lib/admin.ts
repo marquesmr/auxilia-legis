@@ -1,4 +1,4 @@
-import { daysUntil, todayIso, type Andamento } from "@/lib/prazos";
+import { ajustarPrazo, daysUntil, todayIso, type Andamento } from "@/lib/prazos";
 import { encerraStatus, nomeStatus, statusDaArea } from "@/lib/status-catalogo";
 
 export const MODALIDADES = [
@@ -271,9 +271,9 @@ export function urgenciaAdmin(p: ProcessoAdmin, now = new Date()): UrgenciaAdmin
   if (encerraStatus("administrativo", p.status)) return "encerrado";
   if (tipoSimples(p.tipo)) return "ok";
   if (perfilContratacao(p.status).contratado && !perfilContratacao(p.status).fim) return "ok";
-  const alvo = dataAlvo(p);
-  if (!alvo || alvo === "9999-12-31") return "ok";
-  const dias = daysUntil(alvo, now);
+  const alvoBruto = dataAlvo(p);
+  if (!alvoBruto || alvoBruto === "9999-12-31") return "ok";
+  const dias = daysUntil(ajustarPrazo(alvoBruto), now);
   if (dias < 0) return "vencido";
   if (dias === 0) return "hoje";
   if (dias <= p.alertaDias) return "proximo";
@@ -285,15 +285,18 @@ export function prazoAdminLabel(p: ProcessoAdmin, now = new Date()): string {
   if (p.status === "cancelado") return "Cancelado";
   if (encerraStatus("administrativo", p.status)) return statusAdminLabel(p.status);
   if (perfilContratacao(p.status).contratado && !perfilContratacao(p.status).fim) return statusAdminLabel(p.status);
-  const dias = daysUntil(dataAlvo(p), now);
+  const bruto = dataAlvo(p);
+  const alvo = ajustarPrazo(bruto);
+  const dias = daysUntil(alvo, now);
   const qual = perfilContratacao(p.status).fim ? "Vigência" : "Prazo";
+  const mudou = alvo !== bruto.slice(0, 10);
   if (dias < 0) {
     const n = Math.abs(dias);
     return n === 1 ? `${qual} vencida há 1 dia` : `${qual} vencida há ${n} dias`;
   }
-  if (dias === 0) return `${qual} encerra hoje`;
-  if (dias === 1) return `${qual} encerra amanhã`;
-  return `${qual} em ${dias} dias`;
+  if (dias === 0) return mudou ? `${qual} encerra hoje, no 2º dia útil` : `${qual} encerra hoje`;
+  if (dias === 1) return mudou ? `${qual} encerra amanhã, no 2º dia útil` : `${qual} encerra amanhã`;
+  return mudou ? `${qual} em ${dias} dias, no 2º dia útil` : `${qual} em ${dias} dias`;
 }
 
 export function precisaAvisoAdmin(p: ProcessoAdmin, now = new Date()): boolean {
